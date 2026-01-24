@@ -1518,6 +1518,17 @@ git commit -m "feat: implement user authentication and session management"
 git push
 ```
 
+### Step 15 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] initAuth checks session and handles 401
+- [x] user selector populated and new user modal implemented
+- [x] validation for new usernames (non-empty, alphanumeric)
+- [x] auth state updates header UI and theme preference
+- [x] 401 handler clears state and emits auth change event
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 16: Frontend - Device Detection
@@ -2241,7 +2252,7 @@ CACHE_TTL=3600
 - [x] Step 12: HTML base + friendly error pages
 - [x] Step 13: CSS responsive (light/dark theme, adaptive text)
 - [x] Step 14: API Client
-- [ ] Step 15: Authentication
+- [x] Step 15: Authentication
 - [ ] Step 16: Device detection
 - [ ] Step 17: Theme switcher (light/dark)
 - [ ] Step 18: Infinite carousel component

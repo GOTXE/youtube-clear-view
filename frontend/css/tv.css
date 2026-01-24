@@ -1,1 +1,28 @@
-/* TV-specific layout adjustments (placeholder). */
+:root {
+  --space-8: 40px;
+  --space-10: 56px;
+  --font-h1: clamp(2.6rem, 2.2rem + 1.4vw, 3.2rem);
+  --font-h2: clamp(2rem, 1.6rem + 1vw, 2.6rem);
+  --font-body: clamp(1.5rem, 1.3rem + 0.6vw, 1.8rem);
+}
+
+.app {
+  padding: var(--space-10);
+}
+
+.carousel-track {
+  gap: var(--space-6);
+}
+
+.video-card {
+  min-width: 400px;
+}
+
+.video-card__thumb {
+  min-height: 225px;
+}
+
+.button:focus,
+.field__input:focus {
+  outline-width: 3px;
+}

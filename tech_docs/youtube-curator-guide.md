@@ -1368,6 +1368,18 @@ git commit -m "feat: implement responsive CSS with light/dark theme system"
 git push
 ```
 
+### Step 13 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] responsive CSS implemented across main/tablet/mobile/tv
+- [x] light/dark theme tokens defined and applied
+- [x] typography roles and spacing scale implemented
+- [x] step tests run (backend pytest suite)
+
+Notes:
+- CSS uses token variables for colors, spacing, and typography.
+
 ---
 
 ## Step 14: Frontend - JavaScript API Client
@@ -2218,7 +2230,7 @@ CACHE_TTL=3600
 **Frontend:**
 - [x] Step 11: Configuration (HTTPS URLs)
 - [x] Step 12: HTML base + friendly error pages
-- [ ] Step 13: CSS responsive (light/dark theme, adaptive text)
+- [x] Step 13: CSS responsive (light/dark theme, adaptive text)
 - [ ] Step 14: API Client
 - [ ] Step 15: Authentication
 - [ ] Step 16: Device detection

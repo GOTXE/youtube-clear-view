@@ -1,1 +1,24 @@
-/* Tablet-specific layout adjustments (placeholder). */
+.app {
+  padding: var(--space-6);
+}
+
+.header-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.filters {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.carousel-track {
+  gap: var(--space-5);
+}
+
+.video-card {
+  min-width: 300px;
+}
+
+.video-card__thumb {
+  min-height: 169px;
+}

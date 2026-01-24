@@ -1,1 +1,31 @@
-/* Mobile-specific layout adjustments (placeholder). */
+.app {
+  padding: var(--space-4);
+  gap: var(--space-6);
+}
+
+.app-header {
+  align-items: flex-start;
+}
+
+.brand {
+  width: 100%;
+}
+
+.header-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.field__group {
+  flex-direction: column;
+}
+
+.section-header {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-footer {
+  flex-direction: column;
+  align-items: flex-start;
+}

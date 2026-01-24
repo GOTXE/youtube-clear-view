@@ -761,6 +761,19 @@ git commit -m "feat: implement channel management endpoints"
 git push
 ```
 
+### Step 6 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] channel routes implemented (list, subscribe, unsubscribe, refresh, videos)
+- [x] YouTubeService integrated for channel info and refresh
+- [x] watched markers returned for channel videos
+- [x] tests added for channel routes (mocked service)
+- [x] step tests run (pytest tests/test_channels.py -v)
+
+Notes:
+- Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+
 ---
 
 ## Step 7: Routes - Videos
@@ -2118,7 +2131,7 @@ CACHE_TTL=3600
 - [x] Step 3: Configuration, extensions, logging system
 - [x] Step 4: YouTube API service with caching
 - [x] Step 5: Routes - Authentication
-- [ ] Step 6: Routes - Channels
+- [x] Step 6: Routes - Channels
 - [ ] Step 7: Routes - Videos (with pagination for infinite scroll)
 - [ ] Step 8: Routes - Themes
 - [ ] Step 9: Routes - Devices

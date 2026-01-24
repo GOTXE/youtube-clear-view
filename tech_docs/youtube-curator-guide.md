@@ -514,6 +514,18 @@ git commit -m "feat: implement configuration, logging system, and app factory"
 git push
 ```
 
+### Step 3 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] config validation and defaults implemented
+- [x] extensions initialized with explicit CORS + credentials
+- [x] logging configured (console + rotating file) with tracking IDs
+- [x] global error handling registered with friendly responses
+- [x] app factory registers routes, error handlers, DB create_all, and /api/health
+- [x] gunicorn config reads env and sets logs/timeouts
+- [x] step tests run (pytest passes; /api/health OK)
+
 ---
 
 ## Step 4: YouTube API Service
@@ -2071,7 +2083,7 @@ CACHE_TTL=3600
 **Backend:**
 - [x] Step 1: Initial project structure (modular)
 - [x] Step 2: Database models (split by domain)
-- [ ] Step 3: Configuration, extensions, logging system
+- [x] Step 3: Configuration, extensions, logging system
 - [ ] Step 4: YouTube API service with caching
 - [ ] Step 5: Routes - Authentication
 - [ ] Step 6: Routes - Channels

@@ -689,6 +689,19 @@ git commit -m "feat: implement user authentication endpoints"
 git push
 ```
 
+### Step 5 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] auth middleware implemented (httpOnly cookie, session token validation)
+- [x] auth endpoints implemented (login, logout, users, current, profile)
+- [x] secure cookie settings applied (httpOnly, Secure, SameSite=Lax, path=/api)
+- [x] tests added for auth endpoints
+- [x] step tests run (pytest tests/test_auth.py -v)
+
+Notes:
+- Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+
 ---
 
 ## Step 6: Routes - Channels
@@ -2104,7 +2117,7 @@ CACHE_TTL=3600
 - [x] Step 2: Database models (split by domain)
 - [x] Step 3: Configuration, extensions, logging system
 - [x] Step 4: YouTube API service with caching
-- [ ] Step 5: Routes - Authentication
+- [x] Step 5: Routes - Authentication
 - [ ] Step 6: Routes - Channels
 - [ ] Step 7: Routes - Videos (with pagination for infinite scroll)
 - [ ] Step 8: Routes - Themes

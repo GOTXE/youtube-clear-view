@@ -1163,6 +1163,17 @@ git commit -m "feat: add frontend configuration for API connection"
 git push
 ```
 
+### Step 11 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] config.example.js created with placeholder values
+- [x] config.js added locally and gitignored
+- [x] step tests run (backend pytest suite)
+
+Notes:
+- frontend/config.js removed from git and added to .gitignore.
+
 ---
 
 ## Step 12: Frontend - HTML Base
@@ -2193,7 +2204,7 @@ CACHE_TTL=3600
 - [x] Step 10: Separate log viewer microservice
 
 **Frontend:**
-- [ ] Step 11: Configuration (HTTPS URLs)
+- [x] Step 11: Configuration (HTTPS URLs)
 - [ ] Step 12: HTML base + friendly error pages
 - [ ] Step 13: CSS responsive (light/dark theme, adaptive text)
 - [ ] Step 14: API Client

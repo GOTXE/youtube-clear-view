@@ -31,3 +31,6 @@ node_modules/
 # Virtual environments
 backend/venv/
 backend/.venv/
+
+# Frontend config
+frontend/config.js

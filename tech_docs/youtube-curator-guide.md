@@ -1744,6 +1744,16 @@ git commit -m "feat: implement infinite carousel component with lazy loading"
 git push
 ```
 
+### Step 18 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] Carousel class with controls, keyboard navigation, and smooth scroll
+- [x] Infinite loading with sentinel observer and loading indicators
+- [x] Lazy-loaded thumbnails with skeleton placeholders
+- [x] Watched state handling and API integration
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 19: Frontend - Utilities
@@ -2276,7 +2286,7 @@ CACHE_TTL=3600
 - [x] Step 15: Authentication
 - [x] Step 16: Device detection
 - [x] Step 17: Theme switcher (light/dark)
-- [ ] Step 18: Infinite carousel component
+- [x] Step 18: Infinite carousel component
 - [ ] Step 19: Utilities
 - [ ] Step 20: Main application
 

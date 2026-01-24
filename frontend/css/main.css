@@ -334,6 +334,13 @@ select {
   background: var(--bg-primary);
 }
 
+.video-card__thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .video-card__body {
   padding: var(--space-3);
   display: flex;

@@ -7,15 +7,157 @@
     <link rel="stylesheet" href="/static/style.css">
   </head>
   <body>
-    <!-- Shell layout for the log viewer (UI added in Step 10). -->
     <main class="page">
       <header class="page__header">
-        <h1 class="heading-1">Log Viewer</h1>
-        <p class="body">Log viewing UI will be implemented in Step 10.</p>
+        <div>
+          <p class="eyebrow">Log Viewer</p>
+          <h1 class="heading-1">System Logs</h1>
+          <p class="body">Monitor backend events, errors, and tracking IDs.</p>
+        </div>
+        <div class="stats" id="stats"></div>
       </header>
-      <section class="card">
-        <p class="body-small">No logs loaded yet.</p>
+
+      <section class="toolbar">
+        <label class="field">
+          <span class="field__label">Level</span>
+          <select id="filter-level" class="field__input">
+            <option value="">All</option>
+            <option value="DEBUG">Debug</option>
+            <option value="INFO">Info</option>
+            <option value="WARNING">Warning</option>
+            <option value="ERROR">Error</option>
+            <option value="CRITICAL">Critical</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Search</span>
+          <input id="filter-search" class="field__input" type="text" placeholder="Search logs">
+        </label>
+        <label class="field">
+          <span class="field__label">Tracking ID</span>
+          <input id="filter-tracking" class="field__input" type="text" placeholder="ERR-YYYYMMDD-XXXXXX">
+        </label>
+        <button id="refresh" class="button">Refresh</button>
+      </section>
+
+      <section class="grid">
+        <div class="card log-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Entries</h2>
+            <span id="log-count" class="caption">0 entries</span>
+          </div>
+          <div id="log-entries" class="log-entries"></div>
+          <div class="log-card__footer">
+            <button id="load-more" class="button button--ghost">Load More</button>
+          </div>
+        </div>
+        <div class="card log-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Recent Errors</h2>
+            <span class="caption">Latest error and critical logs</span>
+          </div>
+          <div id="recent-errors" class="log-entries"></div>
+        </div>
       </section>
     </main>
+
+    <script>
+      const entriesContainer = document.getElementById('log-entries');
+      const recentErrors = document.getElementById('recent-errors');
+      const statsContainer = document.getElementById('stats');
+      const logCount = document.getElementById('log-count');
+      const loadMoreButton = document.getElementById('load-more');
+      const refreshButton = document.getElementById('refresh');
+      const levelSelect = document.getElementById('filter-level');
+      const searchInput = document.getElementById('filter-search');
+      const trackingInput = document.getElementById('filter-tracking');
+
+      let offset = 0;
+      const limit = 200;
+      let hasMore = false;
+
+      function sanitize(text) {
+        const span = document.createElement('span');
+        span.textContent = text;
+        return span.textContent;
+      }
+
+      function renderEntries(entries) {
+        if (offset === 0) {
+          entriesContainer.innerHTML = '';
+        }
+        entries.forEach(entry => {
+          const div = document.createElement('div');
+          div.className = 'log-entry';
+          div.textContent = sanitize(entry);
+          entriesContainer.appendChild(div);
+        });
+      }
+
+      function renderRecentErrors(entries) {
+        recentErrors.innerHTML = '';
+        entries.forEach(entry => {
+          const div = document.createElement('div');
+          div.className = 'log-entry log-entry--error';
+          div.textContent = sanitize(entry);
+          recentErrors.appendChild(div);
+        });
+      }
+
+      function renderStats(levels) {
+        statsContainer.innerHTML = '';
+        Object.entries(levels).forEach(([level, count]) => {
+          const card = document.createElement('div');
+          card.className = 'stat-card';
+          card.innerHTML = `
+            <span class="caption">${sanitize(level)}</span>
+            <span class="stat-value">${count}</span>
+          `;
+          statsContainer.appendChild(card);
+        });
+      }
+
+      async function fetchEntries(reset = false) {
+        if (reset) {
+          offset = 0;
+        }
+        const params = new URLSearchParams({
+          limit,
+          offset,
+        });
+        if (levelSelect.value) params.append('level', levelSelect.value);
+        if (searchInput.value) params.append('search', searchInput.value);
+        if (trackingInput.value) params.append('tracking_id', trackingInput.value);
+
+        const response = await fetch(`/logs/api/entries?${params.toString()}`);
+        const data = await response.json();
+        hasMore = data.has_more;
+        renderEntries(data.entries);
+        logCount.textContent = `${offset + data.entries.length} entries`;
+        offset = data.next_offset;
+        loadMoreButton.disabled = !hasMore;
+      }
+
+      async function fetchStats() {
+        const response = await fetch('/logs/api/stats');
+        const data = await response.json();
+        renderStats(data.levels);
+        renderRecentErrors(data.recent_errors || []);
+      }
+
+      refreshButton.addEventListener('click', () => {
+        fetchEntries(true);
+        fetchStats();
+      });
+
+      loadMoreButton.addEventListener('click', () => {
+        if (hasMore) {
+          fetchEntries();
+        }
+      });
+
+      fetchEntries(true);
+      fetchStats();
+    </script>
   </body>
 </html>

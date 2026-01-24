@@ -1072,6 +1072,19 @@ git commit -m "feat: implement separate log viewer microservice"
 git push
 ```
 
+### Step 10 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [~] log viewer microservice implemented (basic auth, HTML UI, API endpoints)
+- [x] tests added for log viewer API
+- [x] step tests run (pytest log_viewer/tests/test_log_viewer.py -v)
+- [x] create_app available for smoke check
+
+Notes:
+- Design adjustments still needed: white background, clamp() typography, checkboxes for levels, auto-refresh toggle, tracking ID click filter, efficient tail-like pagination.
+- Smoke check ran with backend venv python: create_app OK.
+
 ---
 
 ## Step 11: Frontend - Configuration
@@ -2175,7 +2188,7 @@ CACHE_TTL=3600
 - [x] Step 9: Routes - Devices
 
 **Log Viewer:**
-- [ ] Step 10: Separate log viewer microservice
+- [~] Step 10: Separate log viewer microservice
 
 **Frontend:**
 - [ ] Step 11: Configuration (HTTPS URLs)

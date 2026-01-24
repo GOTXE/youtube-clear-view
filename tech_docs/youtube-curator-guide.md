@@ -835,6 +835,20 @@ git commit -m "feat: implement video management and search endpoints"
 git push
 ```
 
+### Step 7 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] video routes implemented (latest, by-theme, watch, unwatch, search)
+- [x] pagination and watched markers included
+- [x] search filters for channel and theme implemented
+- [x] index added for video title/description to improve search performance
+- [x] tests added for video routes
+- [x] step tests run (pytest tests/test_videos.py -v)
+
+Notes:
+- Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+
 ---
 
 ## Step 8: Routes - Themes
@@ -2132,7 +2146,7 @@ CACHE_TTL=3600
 - [x] Step 4: YouTube API service with caching
 - [x] Step 5: Routes - Authentication
 - [x] Step 6: Routes - Channels
-- [ ] Step 7: Routes - Videos (with pagination for infinite scroll)
+- [x] Step 7: Routes - Videos (with pagination for infinite scroll)
 - [ ] Step 8: Routes - Themes
 - [ ] Step 9: Routes - Devices
 

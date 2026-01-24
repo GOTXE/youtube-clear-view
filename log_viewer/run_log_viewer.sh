@@ -8,6 +8,7 @@ VENV_DIR="${APP_DIR}/venv"
 
 # Create app directory if not exists.
 mkdir -p "${APP_DIR}"
+mkdir -p "${APP_DIR}/logs"
 
 # Copy files if running from source.
 if [ "$(pwd)" != "${APP_DIR}" ]; then

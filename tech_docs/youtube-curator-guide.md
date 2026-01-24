@@ -2174,6 +2174,16 @@ git commit -m "chore: add deployment configuration for Synology NAS"
 git push
 ```
 
+### Step 22 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] backend Dockerfile and docker-compose updated with healthchecks
+- [x] nginx reverse proxy example config added
+- [x] log viewer launcher updated for NAS layout
+- [x] frontend deploy script added for Synology
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 23: Technical Documentation
@@ -2321,7 +2331,7 @@ CACHE_TTL=3600
 
 **Testing & Deployment:**
 - [x] Step 21: Comprehensive test suite
-- [ ] Step 22: Deployment configuration (Gunicorn, Docker, reverse proxy)
+- [x] Step 22: Deployment configuration (Gunicorn, Docker, reverse proxy)
 - [ ] Step 23: Technical documentation
 
 **Post-deployment:**

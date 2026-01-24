@@ -5,5 +5,41 @@ services:
     build: .
     env_file:
       - .env
+    environment:
+      - DATABASE_URI=sqlite:////data/youtube_clear_view.db
+      - LOG_FILE=/logs/app.log
+    volumes:
+      - backend_data:/data
+      - logs:/logs
     ports:
       - "5550:5550"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:5550/api/health').status == 200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  log_viewer:
+    build:
+      context: ../log_viewer
+    env_file:
+      - .env
+    environment:
+      - LOG_FILE=/logs/app.log
+    volumes:
+      - logs:/logs
+    ports:
+      - "5551:5551"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 5551)); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  backend_data:
+  logs:

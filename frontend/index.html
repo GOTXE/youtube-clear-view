@@ -3,26 +3,108 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Curated YouTube viewing without the recommendation algorithm.">
+    <meta name="theme-color" content="#0b5fff">
     <title>YouTube Clear View</title>
+    <link rel="preconnect" href="https://www.youtube.com">
+    <link rel="preconnect" href="https://i.ytimg.com">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/tv.css" media="screen and (min-width: 1600px)">
     <link rel="stylesheet" href="css/tablet.css" media="screen and (min-width: 768px) and (max-width: 1199px)">
     <link rel="stylesheet" href="css/mobile.css" media="screen and (max-width: 767px)">
   </head>
   <body>
-    <!-- Application shell; dynamic UI will be injected in later steps. -->
-    <div id="app" class="app">
-      <header class="app__header">
-        <h1 class="heading-1">YouTube Clear View</h1>
-        <p class="body">Curated videos only from your subscriptions.</p>
+    <div id="app" class="app" data-theme="light">
+      <header class="app-header" role="banner">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <div class="brand__text">
+            <h1 id="app-title" class="heading-1">YouTube Clear View</h1>
+            <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+          </div>
+        </div>
+        <div class="header-actions" aria-label="Header controls">
+          <button id="theme-toggle" class="button button--ghost" type="button" aria-pressed="false">
+            <span class="button__label">Toggle theme</span>
+          </button>
+          <label class="field field--compact" for="user-selector">
+            <span class="field__label">User</span>
+            <select id="user-selector" class="field__input" aria-label="Select user"></select>
+          </label>
+          <div class="user-summary" aria-live="polite">
+            <span id="current-user" class="caption">Not signed in</span>
+            <span id="device-type" class="caption">Device: --</span>
+          </div>
+        </div>
       </header>
-      <main class="app__content">
-        <section class="card">
-          <p class="body-small">Frontend shell ready. Implement UI in Step 12+.</p>
+
+      <main class="app-main" role="main">
+        <section class="filters" aria-labelledby="filters-title">
+          <h2 id="filters-title" class="heading-2">Filters</h2>
+          <div class="filters__search">
+            <label class="field" for="search-input">
+              <span class="field__label">Search</span>
+              <div class="field__group">
+                <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
+                <button id="search-button" class="button" type="button">Search</button>
+              </div>
+            </label>
+          </div>
+          <div class="filters__options" role="group" aria-label="Video filters">
+            <label class="checkbox">
+              <input id="filter-unwatched" type="checkbox">
+              <span>Unwatched</span>
+            </label>
+            <label class="checkbox">
+              <input id="filter-week" type="checkbox">
+              <span>Last week</span>
+            </label>
+            <label class="checkbox">
+              <input id="filter-month" type="checkbox">
+              <span>Last month</span>
+            </label>
+          </div>
+          <label class="field" for="theme-selector">
+            <span class="field__label">Themes</span>
+            <select id="theme-selector" class="field__input" aria-label="Select theme"></select>
+          </label>
+        </section>
+
+        <section class="carousel-section" aria-labelledby="latest-title">
+          <div class="section-header">
+            <h2 id="latest-title" class="heading-2">Latest Videos</h2>
+            <button id="refresh-videos" class="button button--ghost" type="button">Refresh</button>
+          </div>
+          <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
+        </section>
+
+        <section id="themes-container" class="themes-section" aria-label="Theme carousels">
+          <div class="section-header">
+            <h2 class="heading-2">Themes</h2>
+            <p class="caption">Personalized channels by topic.</p>
+          </div>
+          <div id="theme-carousels" class="theme-carousels"></div>
         </section>
       </main>
+
+      <footer class="app-footer" role="contentinfo">
+        <button id="settings-button" class="button button--ghost" type="button">Settings</button>
+        <p class="caption">GOTXE + ❤️ + IA 🤖</p>
+        <a class="footer-link" href="https://github.com/gotxe/youtube-clear-view" target="_blank" rel="noreferrer">
+          <span aria-hidden="true">GitHub</span>
+          <span class="sr-only">View project on GitHub</span>
+        </a>
+        <button id="about-button" class="button button--ghost" type="button">About</button>
+      </footer>
     </div>
+
     <script src="config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/device.js"></script>
+    <script src="js/theme-switcher.js"></script>
+    <script src="js/carousel.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

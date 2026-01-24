@@ -1267,6 +1267,18 @@ git commit -m "feat: create responsive HTML structure with friendly error pages"
 git push
 ```
 
+### Step 12 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] semantic HTML structure implemented (header, filters, carousels, footer)
+- [x] accessibility labels and form controls added
+- [x] friendly error pages created with inline CSS
+- [x] step tests run (backend pytest suite)
+
+Notes:
+- Error pages are self-contained and include a Go Home action.
+
 ---
 
 ## Step 13: Frontend - CSS with Light/Dark Theme System
@@ -2205,7 +2217,7 @@ CACHE_TTL=3600
 
 **Frontend:**
 - [x] Step 11: Configuration (HTTPS URLs)
-- [ ] Step 12: HTML base + friendly error pages
+- [x] Step 12: HTML base + friendly error pages
 - [ ] Step 13: CSS responsive (light/dark theme, adaptive text)
 - [ ] Step 14: API Client
 - [ ] Step 15: Authentication

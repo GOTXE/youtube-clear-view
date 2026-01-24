@@ -7,3 +7,4 @@ flask-cors
 gunicorn
 colorlog
 pytest
+google-api-python-client

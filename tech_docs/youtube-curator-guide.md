@@ -602,6 +602,19 @@ git commit -m "feat: implement YouTube API service with caching"
 git push
 ```
 
+### Step 4 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] YouTubeService implemented with caching and rate limit handling
+- [x] in-memory TTL cache implemented (thread-safe)
+- [x] duration parsing and response mapping implemented
+- [x] tests added for YouTube service (mocked client)
+- [x] step tests run (pytest tests/test_youtube_api.py -v)
+
+Notes:
+- Tests are mocked; no real API key required.
+
 ---
 
 ## Step 5: Routes - Authentication
@@ -2090,7 +2103,7 @@ CACHE_TTL=3600
 - [x] Step 1: Initial project structure (modular)
 - [x] Step 2: Database models (split by domain)
 - [x] Step 3: Configuration, extensions, logging system
-- [ ] Step 4: YouTube API service with caching
+- [x] Step 4: YouTube API service with caching
 - [ ] Step 5: Routes - Authentication
 - [ ] Step 6: Routes - Channels
 - [ ] Step 7: Routes - Videos (with pagination for infinite scroll)

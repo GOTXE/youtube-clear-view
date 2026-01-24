@@ -7,6 +7,7 @@
 # Local documentation (private notes, drafts)
 # -------------------------------------------
 tech_docs/
+AGENTS.md
 
 # -------------------------------------------
 # Environment & Secrets

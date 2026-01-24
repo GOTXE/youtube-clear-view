@@ -1835,6 +1835,16 @@ git commit -m "feat: implement utility functions for UI and data formatting"
 git push
 ```
 
+### Step 19 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] formatting helpers (duration, date, relative time, truncate)
+- [x] debounce and YouTube URL/thumbnail helpers
+- [x] device fingerprint generator and HTML sanitizer
+- [x] toast notifications, modal helper, and loading spinner
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 20: Frontend - Main Application
@@ -2287,7 +2297,7 @@ CACHE_TTL=3600
 - [x] Step 16: Device detection
 - [x] Step 17: Theme switcher (light/dark)
 - [x] Step 18: Infinite carousel component
-- [ ] Step 19: Utilities
+- [x] Step 19: Utilities
 - [ ] Step 20: Main application
 
 **Testing & Deployment:**

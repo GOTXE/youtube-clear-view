@@ -27,3 +27,7 @@ node_modules/
 
 # OS
 .DS_Store
+
+# Virtual environments
+backend/venv/
+backend/.venv/

@@ -1,0 +1,43 @@
+# Local (no commitear / no sincronizar)
+tech_docs/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+ENV/
+env/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Bases de datos / artefactos
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

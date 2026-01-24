@@ -1,0 +1,125 @@
+/* Global design tokens for the app shell. */
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #5b6470;
+  --primary: #0b5fff;
+  --primary-contrast: #ffffff;
+  --secondary: #0ea5e9;
+  --success: #15803d;
+  --warning: #b45309;
+  --error: #dc2626;
+  --info: #2563eb;
+  --disabled: #cbd2d9;
+  --border: #e2e8f0;
+  --shadow: rgba(15, 23, 42, 0.08);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --font-display: 36px;
+  --font-h1: 28px;
+  --font-h2: 22px;
+  --font-body: 16px;
+  --font-body-small: 14px;
+  --font-caption: 12px;
+}
+
+/* Dark theme overrides for the same tokens. */
+.theme-dark {
+  --bg: #0b1120;
+  --surface: #111827;
+  --text: #e2e8f0;
+  --muted: #9aa4b2;
+  --primary: #60a5fa;
+  --primary-contrast: #0b1120;
+  --secondary: #38bdf8;
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --info: #60a5fa;
+  --disabled: #334155;
+  --border: #1f2937;
+  --shadow: rgba(15, 23, 42, 0.4);
+}
+
+/* Consistent sizing model for all elements. */
+* {
+  box-sizing: border-box;
+}
+
+/* Base typography and background. */
+body {
+  margin: 0;
+  font-family: "Work Sans", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Primary layout wrapper. */
+.app {
+  min-height: 100vh;
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Centered layout for error and empty states. */
+.app--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Header block spacing. */
+.app__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Main content stack spacing. */
+.app__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Heading role. */
+.heading-1 {
+  font-size: var(--font-h1);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* Body text role. */
+.body {
+  font-size: var(--font-body);
+  line-height: 1.5;
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Secondary body text role. */
+.body-small {
+  font-size: var(--font-body-small);
+  line-height: 1.4;
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Card surface container. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+  box-shadow: 0 12px 24px var(--shadow);
+}

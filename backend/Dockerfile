@@ -1,0 +1,13 @@
+# Minimal Docker image for the backend service.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 5550
+
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "wsgi:application"]

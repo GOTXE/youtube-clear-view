@@ -1,0 +1,85 @@
+/* Base tokens for the log viewer shell. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #5c6670;
+  --primary: #0b5fff;
+  --primary-contrast: #ffffff;
+  --secondary: #0a84ff;
+  --success: #1f9d55;
+  --warning: #b45309;
+  --error: #dc2626;
+  --info: #2563eb;
+  --disabled: #cbd2d9;
+  --border: #e2e8f0;
+  --shadow: rgba(15, 23, 42, 0.08);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --font-display: 32px;
+  --font-h1: 28px;
+  --font-body: 16px;
+  --font-body-small: 14px;
+}
+
+/* Global box sizing for predictable layouts. */
+* {
+  box-sizing: border-box;
+}
+
+/* Default body styles. */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Page container spacing. */
+.page {
+  padding: var(--space-8);
+}
+
+/* Header spacing. */
+.page__header {
+  margin-bottom: var(--space-6);
+}
+
+/* Primary heading role. */
+.heading-1 {
+  font-size: var(--font-h1);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 var(--space-2) 0;
+}
+
+/* Standard body text role. */
+.body {
+  font-size: var(--font-body);
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Secondary body text role. */
+.body-small {
+  font-size: var(--font-body-small);
+  line-height: 1.4;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Surface card container. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+  box-shadow: 0 8px 16px var(--shadow);
+}

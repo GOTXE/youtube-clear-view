@@ -1,203 +1,29 @@
-# ===========================================
-# YouTube Clear View - .gitignore
-# Public repository: protect all sensitive data
-# ===========================================
-
-# -------------------------------------------
-# Local documentation (private notes, drafts)
-# -------------------------------------------
-tech_docs/
-AGENTS.md
-
-# -------------------------------------------
-# Environment & Secrets
-# -------------------------------------------
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.crt
-*.cert
-*.p12
-*.pfx
-*.jks
-secrets/
-credentials/
-*.credentials
-*.secret
-api_keys.txt
-tokens.json
-
-# -------------------------------------------
-# Frontend configuration (contains real URLs)
-# Only config.example.js should be committed
-# -------------------------------------------
-frontend/config.js
-
-# -------------------------------------------
 # Python
-# -------------------------------------------
 __pycache__/
 *.py[cod]
-*$py.class
-*.pyd
 *.pyo
-*.egg
+*.pyd
+*.so
 *.egg-info/
-*.eggs/
-.eggs/
-dist/
-build/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.whl
-pip-log.txt
-pip-delete-this-directory.txt
-MANIFEST
-
-# Virtual environments
 .venv/
-venv/
-ENV/
-env/
-.python-version
 
-# Testing & Coverage
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
+# Environment
+.env
+.env.*
 
-# Type checking & Linting
-.mypy_cache/
-.ruff_cache/
-.pytype/
-.pyre/
+# Logs
+logs/
+!logs/.gitkeep
+!backend/logs/.gitkeep
+*.log
 
-# -------------------------------------------
-# Database files
-# -------------------------------------------
+# Databases
 *.sqlite
 *.sqlite3
 *.db
-*.db-journal
-*.db-wal
-*.db-shm
 
-# -------------------------------------------
-# Logs
-# -------------------------------------------
-*.log
-logs/
-backend/logs/
-log_viewer/logs/
-
-# -------------------------------------------
-# Node.js (if any tooling is used)
-# -------------------------------------------
+# Node
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm/
-.yarn/
 
-# -------------------------------------------
-# Docker (local volumes, overrides)
-# -------------------------------------------
-docker-compose.override.yml
-.docker/
-docker-data/
-
-# -------------------------------------------
-# IDE & Editor files
-# -------------------------------------------
-.vscode/
-.idea/
-*.swp
-*.swo
-*.swn
-*~
-.project
-.classpath
-.settings/
-*.sublime-project
-*.sublime-workspace
-.spyderproject
-.spyproject
-.ropeproject
-
-# -------------------------------------------
-# OS generated files
-# -------------------------------------------
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# -------------------------------------------
-# Synology NAS specific
-# -------------------------------------------
-@eaDir/
-#recycle/
-.SynologyWorkingDirectory/
-
-# -------------------------------------------
-# Backup & Temporary files
-# -------------------------------------------
-*.bak
-*.tmp
-*.temp
-*.orig
-*.backup
-*~
-.cache/
-
-# -------------------------------------------
-# Archives (should not be in repo)
-# -------------------------------------------
-*.zip
-*.tar.gz
-*.tar.bz2
-*.rar
-*.7z
-
-# -------------------------------------------
-# Media & Large binary files
-# -------------------------------------------
-*.mp4
-*.avi
-*.mkv
-*.mov
-*.mp3
-*.wav
-*.flac
-
-# -------------------------------------------
-# Personal / Private notes
-# -------------------------------------------
-TODO.personal
-NOTES.md
-notes/
-personal/
-private/

@@ -1,0 +1,9 @@
+Flask
+Flask-SQLAlchemy
+SQLAlchemy
+python-dotenv
+requests
+flask-cors
+gunicorn
+colorlog
+pytest

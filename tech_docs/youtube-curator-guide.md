@@ -980,6 +980,18 @@ git commit -m "feat: implement device management and detection endpoints"
 git push
 ```
 
+### Step 9 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] device routes implemented (register, list, update type, delete, detect)
+- [x] device detection logic implemented
+- [x] tests added for device endpoints
+- [x] step tests run (pytest tests/test_devices.py -v)
+
+Notes:
+- Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+
 ---
 
 ## Step 10: Log Viewer Microservice
@@ -2160,7 +2172,7 @@ CACHE_TTL=3600
 - [x] Step 6: Routes - Channels
 - [x] Step 7: Routes - Videos (with pagination for infinite scroll)
 - [x] Step 8: Routes - Themes
-- [ ] Step 9: Routes - Devices
+- [x] Step 9: Routes - Devices
 
 **Log Viewer:**
 - [ ] Step 10: Separate log viewer microservice

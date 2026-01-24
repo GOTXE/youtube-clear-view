@@ -1441,6 +1441,15 @@ git commit -m "feat: implement API client for backend communication"
 git push
 ```
 
+### Step 14 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] APIClient implemented with credentials and timeout handling
+- [x] endpoint-specific methods implemented
+- [x] retry logic added for rate limiting
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 15: Frontend - Authentication
@@ -2231,7 +2240,7 @@ CACHE_TTL=3600
 - [x] Step 11: Configuration (HTTPS URLs)
 - [x] Step 12: HTML base + friendly error pages
 - [x] Step 13: CSS responsive (light/dark theme, adaptive text)
-- [ ] Step 14: API Client
+- [x] Step 14: API Client
 - [ ] Step 15: Authentication
 - [ ] Step 16: Device detection
 - [ ] Step 17: Theme switcher (light/dark)

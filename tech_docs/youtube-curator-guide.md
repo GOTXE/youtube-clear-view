@@ -1581,6 +1581,17 @@ git commit -m "feat: implement automatic device detection and type selection"
 git push
 ```
 
+### Step 16 Status (2026-01-24)
+
+Legend: [ ] not started, [~] partial, [x] done
+
+- [x] device fingerprint generation and registration flow
+- [x] device suggestion via /api/devices/detect
+- [x] device type confirmation modal and persistence
+- [x] body class and header device label updates
+- [x] localStorage device_id persistence
+- [x] step tests run (backend pytest suite)
+
 ---
 
 ## Step 17: Frontend - Theme Switcher
@@ -2253,7 +2264,7 @@ CACHE_TTL=3600
 - [x] Step 13: CSS responsive (light/dark theme, adaptive text)
 - [x] Step 14: API Client
 - [x] Step 15: Authentication
-- [ ] Step 16: Device detection
+- [x] Step 16: Device detection
 - [ ] Step 17: Theme switcher (light/dark)
 - [ ] Step 18: Infinite carousel component
 - [ ] Step 19: Utilities

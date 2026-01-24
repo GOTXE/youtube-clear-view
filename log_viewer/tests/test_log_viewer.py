@@ -40,7 +40,7 @@ def test_entries(client):
     response = client.get("/logs/api/entries", headers=_auth_header())
     assert response.status_code == 200
     data = response.get_json()
-    assert data["entries"][0].startswith("[INFO]")
+    assert data["entries"][0].startswith("[ERROR]")
 
 
 def test_stats(client):

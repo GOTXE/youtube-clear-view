@@ -18,17 +18,29 @@
       </header>
 
       <section class="toolbar">
-        <label class="field">
-          <span class="field__label">Level</span>
-          <select id="filter-level" class="field__input">
-            <option value="">All</option>
-            <option value="DEBUG">Debug</option>
-            <option value="INFO">Info</option>
-            <option value="WARNING">Warning</option>
-            <option value="ERROR">Error</option>
-            <option value="CRITICAL">Critical</option>
-          </select>
-        </label>
+        <fieldset class="field field--checkboxes">
+          <legend class="field__label">Levels</legend>
+          <label class="checkbox">
+            <input type="checkbox" value="DEBUG" class="level-checkbox">
+            <span>Debug</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" value="INFO" class="level-checkbox">
+            <span>Info</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" value="WARNING" class="level-checkbox">
+            <span>Warning</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" value="ERROR" class="level-checkbox">
+            <span>Error</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" value="CRITICAL" class="level-checkbox">
+            <span>Critical</span>
+          </label>
+        </fieldset>
         <label class="field">
           <span class="field__label">Search</span>
           <input id="filter-search" class="field__input" type="text" placeholder="Search logs">
@@ -36,6 +48,13 @@
         <label class="field">
           <span class="field__label">Tracking ID</span>
           <input id="filter-tracking" class="field__input" type="text" placeholder="ERR-YYYYMMDD-XXXXXX">
+        </label>
+        <label class="field field--toggle">
+          <span class="field__label">Auto refresh</span>
+          <div class="toggle">
+            <input id="auto-refresh" type="checkbox">
+            <span>Every 5s</span>
+          </div>
         </label>
         <button id="refresh" class="button">Refresh</button>
       </section>
@@ -68,13 +87,50 @@
       const logCount = document.getElementById('log-count');
       const loadMoreButton = document.getElementById('load-more');
       const refreshButton = document.getElementById('refresh');
-      const levelSelect = document.getElementById('filter-level');
+      const levelCheckboxes = Array.from(document.querySelectorAll('.level-checkbox'));
       const searchInput = document.getElementById('filter-search');
       const trackingInput = document.getElementById('filter-tracking');
+      const autoRefreshToggle = document.getElementById('auto-refresh');
 
       let offset = 0;
       const limit = 200;
       let hasMore = false;
+      let refreshInterval = null;
+
+      const trackingRegex = /ERR-\\d{8}-[A-Z0-9]{6}/g;
+
+      function getEntryLevel(entry) {
+        const levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
+        return levels.find(level => entry.includes(`[${level}]`));
+      }
+
+      function addTrackingNodes(container, entry) {
+        let lastIndex = 0;
+        let match;
+        trackingRegex.lastIndex = 0;
+        while ((match = trackingRegex.exec(entry)) !== null) {
+          if (match.index > lastIndex) {
+            const text = document.createElement('span');
+            text.textContent = entry.slice(lastIndex, match.index);
+            container.appendChild(text);
+          }
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'tracking-button';
+          button.textContent = match[0];
+          button.addEventListener('click', () => {
+            trackingInput.value = match[0];
+            fetchEntries(true);
+          });
+          container.appendChild(button);
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < entry.length) {
+          const text = document.createElement('span');
+          text.textContent = entry.slice(lastIndex);
+          container.appendChild(text);
+        }
+      }
 
       function sanitize(text) {
         const span = document.createElement('span');
@@ -87,9 +143,10 @@
           entriesContainer.innerHTML = '';
         }
         entries.forEach(entry => {
+          const level = getEntryLevel(entry);
           const div = document.createElement('div');
-          div.className = 'log-entry';
-          div.textContent = sanitize(entry);
+          div.className = `log-entry${level ? ` log-entry--${level.toLowerCase()}` : ''}`;
+          addTrackingNodes(div, sanitize(entry));
           entriesContainer.appendChild(div);
         });
       }
@@ -97,9 +154,10 @@
       function renderRecentErrors(entries) {
         recentErrors.innerHTML = '';
         entries.forEach(entry => {
+          const level = getEntryLevel(entry);
           const div = document.createElement('div');
-          div.className = 'log-entry log-entry--error';
-          div.textContent = sanitize(entry);
+          div.className = `log-entry log-entry--error${level ? ` log-entry--${level.toLowerCase()}` : ''}`;
+          addTrackingNodes(div, sanitize(entry));
           recentErrors.appendChild(div);
         });
       }
@@ -121,11 +179,14 @@
         if (reset) {
           offset = 0;
         }
+        const selectedLevels = levelCheckboxes
+          .filter(input => input.checked)
+          .map(input => input.value);
         const params = new URLSearchParams({
           limit,
           offset,
         });
-        if (levelSelect.value) params.append('level', levelSelect.value);
+        if (selectedLevels.length) params.append('level', selectedLevels.join(','));
         if (searchInput.value) params.append('search', searchInput.value);
         if (trackingInput.value) params.append('tracking_id', trackingInput.value);
 
@@ -134,8 +195,13 @@
         hasMore = data.has_more;
         renderEntries(data.entries);
         logCount.textContent = `${offset + data.entries.length} entries`;
-        offset = data.next_offset;
+        offset = data.next_offset ?? offset;
         loadMoreButton.disabled = !hasMore;
+      }
+
+      function refreshAll(reset = false) {
+        fetchEntries(reset);
+        fetchStats();
       }
 
       async function fetchStats() {
@@ -145,10 +211,7 @@
         renderRecentErrors(data.recent_errors || []);
       }
 
-      refreshButton.addEventListener('click', () => {
-        fetchEntries(true);
-        fetchStats();
-      });
+      refreshButton.addEventListener('click', () => refreshAll(true));
 
       loadMoreButton.addEventListener('click', () => {
         if (hasMore) {
@@ -156,8 +219,20 @@
         }
       });
 
-      fetchEntries(true);
-      fetchStats();
+      levelCheckboxes.forEach(input => input.addEventListener('change', () => refreshAll(true)));
+      searchInput.addEventListener('input', () => refreshAll(true));
+      trackingInput.addEventListener('input', () => refreshAll(true));
+
+      autoRefreshToggle.addEventListener('change', () => {
+        if (autoRefreshToggle.checked) {
+          refreshInterval = setInterval(() => refreshAll(true), 5000);
+        } else if (refreshInterval) {
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+        }
+      });
+
+      refreshAll(true);
     </script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 :root {
-  --bg: #f4f6f9;
+  --bg: #ffffff;
   --surface: #ffffff;
   --text: #101828;
   --muted: #667085;
@@ -9,7 +9,7 @@
   --success: #16a34a;
   --warning: #d97706;
   --error: #dc2626;
-  --info: #2563eb;
+  --info: #0ea5e9;
   --disabled: #cbd5e1;
   --border: #e2e8f0;
   --shadow: rgba(15, 23, 42, 0.08);
@@ -22,12 +22,11 @@
   --space-8: 32px;
   --space-10: 40px;
 
-  --font-display: 34px;
-  --font-h1: 28px;
-  --font-h2: 20px;
-  --font-body: 16px;
-  --font-body-small: 14px;
-  --font-caption: 12px;
+  --font-h1: clamp(1.6rem, 1.1rem + 1.6vw, 2.2rem);
+  --font-h2: clamp(1.1rem, 0.95rem + 0.6vw, 1.4rem);
+  --font-body: clamp(0.95rem, 0.9rem + 0.4vw, 1.05rem);
+  --font-body-small: clamp(0.85rem, 0.8rem + 0.3vw, 0.95rem);
+  --font-caption: clamp(0.7rem, 0.6rem + 0.3vw, 0.8rem);
 }
 
 * {
@@ -138,6 +137,27 @@ body {
   font-size: var(--font-body);
 }
 
+.field--checkboxes {
+  border: 1px solid var(--border);
+  border-radius: var(--space-2);
+  padding: var(--space-3);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-body-small);
+  color: var(--text);
+}
+
+.field--toggle .toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+}
+
 .button {
   height: 44px;
   padding: 0 var(--space-4);
@@ -191,20 +211,48 @@ body {
   max-height: 420px;
   overflow-y: auto;
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-  font-size: 13px;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-size: clamp(0.75rem, 0.7rem + 0.3vw, 0.9rem);
+  background: var(--surface);
+  color: var(--text);
   border-radius: var(--space-2);
   padding: var(--space-3);
+  border: 1px solid var(--border);
 }
 
 .log-entry {
   padding: var(--space-2) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
+.log-entry--debug {
+  color: var(--info);
+}
+
+.log-entry--info {
+  color: var(--success);
+}
+
+.log-entry--warning {
+  color: var(--warning);
 }
 
 .log-entry--error {
-  color: #fecaca;
+  color: var(--error);
+}
+
+.log-entry--critical {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.tracking-button {
+  background: transparent;
+  border: none;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
 }
 
 @media (max-width: 768px) {

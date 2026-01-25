@@ -32,7 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     carousels: [],
     searchActive: false,
-    searchQuery: ''
+    searchQuery: '',
+    autoImportAttempted: false
   };
 
   const ui = {
@@ -203,6 +204,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const channelsResponse = await api.getChannels();
     if (channelsResponse.ok) {
       state.channels = channelsResponse.data || [];
+    }
+
+    if (
+      state.currentUser.auth_provider === 'google'
+      && state.channels.length === 0
+      && !state.autoImportAttempted
+    ) {
+      state.autoImportAttempted = true;
+      await importSubscriptionsAndRefresh(false);
+      const refreshedChannels = await api.getChannels();
+      if (refreshedChannels.ok) {
+        state.channels = refreshedChannels.data || [];
+      }
     }
 
     const themesResponse = await api.getThemes();
@@ -414,6 +428,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  async function importSubscriptionsAndRefresh(showToast) {
+    if (!state.currentUser || state.currentUser.auth_provider !== 'google') {
+      return false;
+    }
+
+    const importResponse = await api.importSubscriptions();
+    if (!importResponse.ok) {
+      if (showToast) {
+        showNotification('Unable to import subscriptions.', 'error');
+      }
+      return false;
+    }
+
+    const importPayload = importResponse.data || {};
+    const subscriptionCount = typeof importPayload.new_subscriptions === 'number'
+      ? importPayload.new_subscriptions
+      : 0;
+
+    const refreshResponse = await api.refreshChannels();
+    if (!refreshResponse.ok) {
+      if (showToast) {
+        showNotification('Subscriptions imported. Refresh videos failed.', 'warning');
+      }
+      return true;
+    }
+
+    const refreshPayload = refreshResponse.data || {};
+    const videoCount = typeof refreshPayload.new_videos === 'number'
+      ? refreshPayload.new_videos
+      : 0;
+
+    if (showToast) {
+      showNotification(`Imported ${subscriptionCount} subscriptions and ${videoCount} videos.`, 'success');
+    }
+
+    return true;
+  }
+
   function updateImportVisibility(user) {
     if (!ui.importButton) {
       return;
@@ -435,17 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       ui.importButton.disabled = true;
-      const response = await api.importSubscriptions();
+      await importSubscriptionsAndRefresh(true);
       ui.importButton.disabled = false;
-
-      if (!response.ok) {
-        showNotification('Unable to import subscriptions.', 'error');
-        return;
-      }
-
-      const payload = response.data || {};
-      const count = typeof payload.new_subscriptions === 'number' ? payload.new_subscriptions : 0;
-      showNotification(`Imported ${count} subscriptions.`, 'success');
       await loadApp();
     });
 

@@ -1975,6 +1975,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] main and theme carousels rendering with filters/search
 - [x] refresh, search, and filter interactions wired
 - [x] subscription import action wired for Google OAuth users
+- [x] auto-import + refresh when Google user has no channels
 - [x] debug helpers for development
 - [x] step tests run (backend pytest suite)
 

@@ -24,7 +24,11 @@ class Config:
     else:
         COOKIE_SECURE = COOKIE_SECURE.lower() == "true"
 
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    _env_log_level = os.getenv("LOG_LEVEL")
+    if _env_log_level:
+        LOG_LEVEL = _env_log_level
+    else:
+        LOG_LEVEL = "DEBUG" if FLASK_DEBUG else "INFO"
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", str(10 * 1024 * 1024)))
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))

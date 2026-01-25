@@ -248,6 +248,19 @@
     });
   }
 
+  let scrollTimer = null;
+  const handleScroll = () => {
+    document.body.classList.add('is-scrolling');
+    if (scrollTimer) {
+      clearTimeout(scrollTimer);
+    }
+    scrollTimer = setTimeout(() => {
+      document.body.classList.remove('is-scrolling');
+    }, 800);
+  };
+
+  document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+
   function loadingSpinner(show, containerId) {
     const overlayId = 'global-loading-spinner';
     const container = containerId ? document.getElementById(containerId) : null;

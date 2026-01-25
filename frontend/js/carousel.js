@@ -280,7 +280,7 @@ class Carousel {
     body.className = 'video-card__body';
 
     const channelEl = document.createElement('p');
-    channelEl.className = 'video-card__meta';
+    channelEl.className = 'video-card__meta video-card__channel';
     channelEl.textContent = channel.title || 'Unknown channel';
 
     const descriptionText = (video.description || '').trim();
@@ -298,7 +298,7 @@ class Carousel {
     descriptionEl.textContent = truncatedDescription;
 
     const details = document.createElement('p');
-    details.className = 'video-card__meta';
+    details.className = 'video-card__meta video-card__details';
 
     const durationText = this.formatDuration(video.duration);
     if (durationText) {

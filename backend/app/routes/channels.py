@@ -1,8 +1,9 @@
 """Channel management routes."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, g, jsonify, request
+from sqlalchemy import func
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -80,10 +81,114 @@ def list_channels():
     """Return the authenticated user's subscribed channels."""
     user = g.current_user
     subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
+    channel_ids = [subscription.channel_id for subscription in subscriptions]
+    recent_total_7 = {}
+    recent_total_30 = {}
+    recent_unwatched_7 = {}
+    recent_unwatched_30 = {}
+    unwatched_total = {}
+    latest_video_map = {}
+
+    if channel_ids:
+        cutoff_7 = datetime.utcnow() - timedelta(days=7)
+        cutoff_30 = datetime.utcnow() - timedelta(days=30)
+
+        latest_rows = (
+            db.session.query(Video.channel_id, func.max(Video.published_at))
+            .filter(Video.channel_id.in_(channel_ids), Video.published_at.isnot(None))
+            .group_by(Video.channel_id)
+            .all()
+        )
+        latest_video_map = {row[0]: row[1] for row in latest_rows}
+
+        recent_total_7 = {
+            row[0]: row[1]
+            for row in (
+                db.session.query(Video.channel_id, func.count(Video.id))
+                .filter(
+                    Video.channel_id.in_(channel_ids),
+                    Video.published_at.isnot(None),
+                    Video.published_at >= cutoff_7,
+                )
+                .group_by(Video.channel_id)
+                .all()
+            )
+        }
+
+        recent_total_30 = {
+            row[0]: row[1]
+            for row in (
+                db.session.query(Video.channel_id, func.count(Video.id))
+                .filter(
+                    Video.channel_id.in_(channel_ids),
+                    Video.published_at.isnot(None),
+                    Video.published_at >= cutoff_30,
+                )
+                .group_by(Video.channel_id)
+                .all()
+            )
+        }
+
+        watched_subquery = (
+            db.session.query(WatchedVideo.video_id)
+            .filter_by(user_id=user.id)
+            .subquery()
+        )
+
+        recent_unwatched_7 = {
+            row[0]: row[1]
+            for row in (
+                db.session.query(Video.channel_id, func.count(Video.id))
+                .filter(
+                    Video.channel_id.in_(channel_ids),
+                    Video.published_at.isnot(None),
+                    Video.published_at >= cutoff_7,
+                    ~Video.id.in_(watched_subquery),
+                )
+                .group_by(Video.channel_id)
+                .all()
+            )
+        }
+
+        recent_unwatched_30 = {
+            row[0]: row[1]
+            for row in (
+                db.session.query(Video.channel_id, func.count(Video.id))
+                .filter(
+                    Video.channel_id.in_(channel_ids),
+                    Video.published_at.isnot(None),
+                    Video.published_at >= cutoff_30,
+                    ~Video.id.in_(watched_subquery),
+                )
+                .group_by(Video.channel_id)
+                .all()
+            )
+        }
+
+        unwatched_total = {
+            row[0]: row[1]
+            for row in (
+                db.session.query(Video.channel_id, func.count(Video.id))
+                .filter(Video.channel_id.in_(channel_ids), ~Video.id.in_(watched_subquery))
+                .group_by(Video.channel_id)
+                .all()
+            )
+        }
+
     results = []
     for subscription in subscriptions:
         channel = subscription.channel
         data = channel.to_dict()
+        data["latest_video_at"] = (
+            latest_video_map.get(channel.id).isoformat()
+            if latest_video_map.get(channel.id)
+            else None
+        )
+        data["recent_total_7"] = int(recent_total_7.get(channel.id, 0))
+        data["recent_total_30"] = int(recent_total_30.get(channel.id, 0))
+        data["recent_unwatched_7"] = int(recent_unwatched_7.get(channel.id, 0))
+        data["recent_unwatched_30"] = int(recent_unwatched_30.get(channel.id, 0))
+        data["unwatched_total"] = int(unwatched_total.get(channel.id, 0))
         data["subscribed_at"] = (
             subscription.subscribed_at.isoformat() if subscription.subscribed_at else None
         )
@@ -171,6 +276,14 @@ def refresh_channels():
     for subscription in subscriptions:
         channel = subscription.channel
         response = service.get_channel_videos(channel.yt_channel_id)
+        if not response.get("success", True):
+            logger.warning(
+                "Channel refresh failed.",
+                extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
+            )
+            continue
+
+        latest_seen = subscription.last_refreshed_at
         for item in response.get("videos", []):
             video_id = item.get("video_id")
             if not video_id:
@@ -178,7 +291,7 @@ def refresh_channels():
             published_at = _parse_datetime(item.get("published_at"))
             if subscription.last_refreshed_at and published_at:
                 if published_at <= subscription.last_refreshed_at:
-                    break
+                    continue
             exists = Video.query.filter_by(yt_video_id=video_id).first()
             if exists:
                 continue
@@ -193,7 +306,11 @@ def refresh_channels():
             )
             db.session.add(video)
             new_videos += 1
-        subscription.last_refreshed_at = refreshed_at
+            if published_at and (latest_seen is None or published_at > latest_seen):
+                latest_seen = published_at
+
+        if latest_seen:
+            subscription.last_refreshed_at = latest_seen
 
     db.session.commit()
     return jsonify({"new_videos": new_videos, "refreshed_at": refreshed_at.isoformat()})

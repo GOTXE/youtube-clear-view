@@ -85,7 +85,13 @@ class APIClient {
   }
 
   async get(endpoint, params = {}) {
-    const query = new URLSearchParams(params).toString();
+    const safeParams = Object.entries(params).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+    const query = new URLSearchParams(safeParams).toString();
     const url = query ? `${endpoint}?${query}` : endpoint;
     return this.request(url, 'GET');
   }
@@ -127,8 +133,15 @@ class APIClient {
     return this.put('/api/auth/profile', data);
   }
 
-  getVideoSummary(days = 7) {
-    return this.get('/api/videos/summary', { days });
+  getVideoSummary(days = 7, channelId = null, channelYtId = null) {
+    const params = { days };
+    if (channelId !== null && channelId !== undefined) {
+      params.channel_id = channelId;
+    }
+    if (channelYtId) {
+      params.yt_channel_id = channelYtId;
+    }
+    return this.get('/api/videos/summary', params);
   }
 
   // Channel endpoints

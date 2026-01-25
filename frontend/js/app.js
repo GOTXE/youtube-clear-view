@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     currentUser: null,
     currentDevice: null,
     channels: [],
+    selectedChannelId: null,
+    selectedChannelYtId: null,
     filters: {
       unwatched: false,
       week: false,
@@ -102,13 +104,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const filtered = payload.videos.filter(item => {
+      if (state.selectedChannelId !== null || state.selectedChannelYtId) {
+        const channelId = item.channel && item.channel.id
+          ? item.channel.id
+          : item.video && item.video.channel_id
+            ? item.video.channel_id
+            : null;
+        const ytChannelId = item.channel && item.channel.yt_channel_id
+          ? item.channel.yt_channel_id
+          : null;
+        const matchesId = state.selectedChannelId !== null
+          && String(channelId) === String(state.selectedChannelId);
+        const matchesYt = Boolean(state.selectedChannelYtId)
+          && ytChannelId
+          && ytChannelId === state.selectedChannelYtId;
+        if (!matchesId && !matchesYt) {
+          return false;
+        }
+      }
+
       if (state.filters.unwatched && item.watched) {
         return false;
       }
 
       const published = item.video && item.video.published_at ? new Date(item.video.published_at) : null;
       if (published && !Number.isNaN(published.getTime())) {
-        const days = (Date.now() - published.getTime()) / (1000 * 60 * 60 * 24);
+        const days = Math.floor((Date.now() - published.getTime()) / (1000 * 60 * 60 * 24));
         if (state.filters.week && days > 7) {
           return false;
         }
@@ -147,11 +168,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset, {
+      const params = {
         content_type: 'video',
         since_days: 7,
-        only_unwatched: true
-      });
+        only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
+      };
+      if (state.selectedChannelId !== null) {
+        params.channel_id = state.selectedChannelId;
+      }
+      if (state.selectedChannelYtId) {
+        params.yt_channel_id = state.selectedChannelYtId;
+      }
+      const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
@@ -168,11 +196,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset, {
+      const params = {
         content_type: 'short',
         since_days: 7,
-        only_unwatched: true
-      });
+        only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
+      };
+      if (state.selectedChannelId !== null) {
+        params.channel_id = state.selectedChannelId;
+      }
+      if (state.selectedChannelYtId) {
+        params.yt_channel_id = state.selectedChannelYtId;
+      }
+      const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
@@ -189,10 +224,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('older-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset, {
+      const params = {
         older_than_days: 7,
-        only_unwatched: true
-      });
+        only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
+      };
+      if (state.selectedChannelId !== null) {
+        params.channel_id = state.selectedChannelId;
+      }
+      if (state.selectedChannelYtId) {
+        params.yt_channel_id = state.selectedChannelYtId;
+      }
+      const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
@@ -210,18 +252,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ui.channelList.innerHTML = '';
 
+    const allItem = document.createElement('div');
+    allItem.className = 'channel-item';
+    allItem.setAttribute('role', 'listitem');
+    allItem.dataset.channelId = '';
+    allItem.dataset.ytChannelId = '';
+    allItem.innerHTML = `
+      <div class="channel-item__thumb">ALL</div>
+      <span class="channel-item__name">All</span>
+    `;
+    ui.channelList.appendChild(allItem);
+
     const sorted = [...(channels || [])].sort((a, b) => {
       const nameA = (a.title || '').toLowerCase();
       const nameB = (b.title || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
 
+    const channelMatchesFilters = channel => {
+      const weekFilter = state.filters.week;
+      const monthFilter = state.filters.month;
+      const unwatchedFilter = state.filters.unwatched;
+
+      const recent7 = Number(channel.recent_total_7 || 0);
+      const recent7Unwatched = Number(channel.recent_unwatched_7 || 0);
+      const recent30 = Number(channel.recent_total_30 || 0);
+      const recent30Unwatched = Number(channel.recent_unwatched_30 || 0);
+      const totalUnwatched = Number(channel.unwatched_total || 0);
+
+      if (weekFilter) {
+        return unwatchedFilter ? recent7Unwatched > 0 : recent7 > 0;
+      }
+      if (monthFilter) {
+        return unwatchedFilter ? recent30Unwatched > 0 : recent30 > 0;
+      }
+      if (unwatchedFilter) {
+        return totalUnwatched > 0;
+      }
+      return true;
+    };
+
     if (!sorted.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
       empty.textContent = 'No subscriptions yet.';
       ui.channelList.appendChild(empty);
-      return;
+    }
+
+    const filtered = sorted.length ? sorted.filter(channelMatchesFilters) : [];
+
+    if (sorted.length && !filtered.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = 'No channels match the current filters.';
+      ui.channelList.appendChild(empty);
     }
 
     const buildInitials = value => {
@@ -263,10 +347,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return thumb;
     };
 
-    sorted.forEach(channel => {
+    filtered.forEach(channel => {
       const item = document.createElement('div');
       item.className = 'channel-item';
       item.setAttribute('role', 'listitem');
+      item.dataset.channelId = String(channel.id);
+      item.dataset.ytChannelId = channel.yt_channel_id || '';
 
       item.appendChild(buildThumbnail(channel));
 
@@ -275,7 +361,52 @@ document.addEventListener('DOMContentLoaded', () => {
       name.textContent = channel.title || channel.yt_channel_id || 'Unknown';
       item.appendChild(name);
 
+      const status = document.createElement('span');
+      status.className = 'channel-item__status';
+      if (Number(channel.recent_total_7 || 0) > 0) {
+        status.classList.add('is-active');
+      }
+      status.setAttribute('aria-hidden', 'true');
+      item.appendChild(status);
+
       ui.channelList.appendChild(item);
+    });
+
+    ui.channelList.querySelectorAll('.channel-item').forEach(item => {
+      const id = item.dataset.channelId || null;
+      const ytId = item.dataset.ytChannelId || null;
+      const isAllSelected = state.selectedChannelId === null && !state.selectedChannelYtId;
+      const matchesId = state.selectedChannelId !== null && String(state.selectedChannelId) === id;
+      const matchesYt = state.selectedChannelYtId && ytId === state.selectedChannelYtId;
+      if ((isAllSelected && !id) || matchesId || matchesYt) {
+        item.classList.add('is-active');
+      }
+      item.addEventListener('click', () => {
+        const rawId = item.dataset.channelId;
+        const parsedId = rawId ? Number(rawId) : null;
+        const nextId = Number.isFinite(parsedId) ? parsedId : null;
+        const nextYtId = item.dataset.ytChannelId || null;
+        state.selectedChannelId = nextId;
+        state.selectedChannelYtId = nextYtId || null;
+        ui.channelList.querySelectorAll('.channel-item').forEach(node => {
+          const nodeId = node.dataset.channelId || null;
+          const nodeYtId = node.dataset.ytChannelId || null;
+          const allSelected = state.selectedChannelId === null && !state.selectedChannelYtId;
+          const idSelected = state.selectedChannelId !== null
+            && String(state.selectedChannelId) === nodeId;
+          const ytSelected = state.selectedChannelYtId && nodeYtId === state.selectedChannelYtId;
+          node.classList.toggle(
+            'is-active',
+            (allSelected && !nodeId) || idSelected || ytSelected
+          );
+        });
+        updateVideoCounts();
+        if (state.searchActive) {
+          runSearch(state.searchQuery);
+        } else {
+          reloadCarousels();
+        }
+      });
     });
   }
 
@@ -293,7 +424,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const response = await api.getVideoSummary(7);
+    const response = await api.getVideoSummary(
+      7,
+      state.selectedChannelId,
+      state.selectedChannelYtId
+    );
     if (!response.ok || !response.data) {
       return;
     }
@@ -402,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.filters.week = Boolean(ui.filterWeek && ui.filterWeek.checked);
       state.filters.month = Boolean(ui.filterMonth && ui.filterMonth.checked);
 
+      renderChannelList(state.channels);
       if (state.searchActive) {
         runSearch(state.searchQuery);
       } else {
@@ -526,6 +662,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
       const filters = { limit, offset };
+      if (state.selectedChannelId !== null) {
+        filters.channel_id = state.selectedChannelId;
+      }
+      if (state.selectedChannelYtId) {
+        filters.yt_channel_id = state.selectedChannelYtId;
+      }
 
       const response = await api.searchVideos(trimmed, filters);
       if (!response.ok) {
@@ -566,7 +708,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     ui.refreshButton.addEventListener('click', async () => {
-      const response = await api.refreshChannels();
+      const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
+      const response = await api.refreshChannels(targetChannelId);
       if (!response.ok) {
         showNotification('Unable to refresh videos.', 'error');
         return;

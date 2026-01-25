@@ -153,15 +153,16 @@ class YTService:
     def get_channel_videos(self, channel_id, max_results=50, page_token=None):
         """Fetch recent videos for a channel with pagination support."""
         if not self.client:
-            return {"videos": [], "next_page_token": None}
+            return {"videos": [], "next_page_token": None, "success": False}
 
         uploads_playlist_id = self._get_uploads_playlist_id(channel_id)
         if not uploads_playlist_id:
-            return {"videos": [], "next_page_token": None}
+            return {"videos": [], "next_page_token": None, "success": False}
 
         cache_key = f"channel_videos:{channel_id}:{max_results}:{page_token}"
         cached = self.cache.get(cache_key)
         if cached is not None:
+            cached.setdefault("success", True)
             return cached
 
         try:
@@ -179,7 +180,7 @@ class YTService:
                 if item.get("contentDetails")
             ]
             if not video_ids:
-                return {"videos": [], "next_page_token": None}
+                return {"videos": [], "next_page_token": None, "success": True}
 
             videos_response = (
                 self.client.videos()
@@ -190,17 +191,18 @@ class YTService:
             result = {
                 "videos": videos,
                 "next_page_token": playlist_response.get("nextPageToken"),
+                "success": True,
             }
             self.cache.set(cache_key, result, self.cache_ttl)
             return result
         except HttpError as error:
             if self._handle_http_error(error):
-                return {"videos": [], "next_page_token": None}
+                return {"videos": [], "next_page_token": None, "success": False}
             self._log_api_error("Failed to fetch channel videos: %s", error)
-            return {"videos": [], "next_page_token": None}
+            return {"videos": [], "next_page_token": None, "success": False}
         except Exception as error:
             self._log_api_error("Failed to fetch channel videos: %s", error)
-            return {"videos": [], "next_page_token": None}
+            return {"videos": [], "next_page_token": None, "success": False}
 
     def _get_uploads_playlist_id(self, channel_id):
         """Fetch and cache the uploads playlist ID for a channel."""

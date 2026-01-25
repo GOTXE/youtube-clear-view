@@ -10,7 +10,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Theme, ThemeChannel, UserChannel, Video, WatchedVideo
+from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, WatchedVideo
 
 videos_bp = Blueprint("videos", __name__)
 logger = get_logger(__name__)
@@ -116,6 +116,23 @@ def latest_videos():
     if limit <= 0 or offset < 0:
         return _bad_request("Invalid pagination values.")
 
+    channel_id = request.args.get("channel_id")
+    yt_channel_id = (request.args.get("yt_channel_id") or "").strip() or None
+    if channel_id is not None:
+        try:
+            channel_id = int(channel_id)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid channel_id.")
+        if channel_id <= 0:
+            return _bad_request("Invalid channel_id.")
+    if yt_channel_id:
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
+        if not channel:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
+        if channel_id is not None and channel.id != channel_id:
+            return _bad_request("Mismatched channel_id.")
+        channel_id = channel.id
+
     content_type = request.args.get("content_type")
     if content_type and content_type not in ("video", "short"):
         return _bad_request("Invalid content_type.")
@@ -134,9 +151,14 @@ def latest_videos():
     if not channel_ids:
         return jsonify({"videos": [], "has_more": False, "next_offset": None})
 
+    if channel_id is not None and channel_id not in channel_ids:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
     query = Video.query.filter(Video.channel_id.in_(channel_ids)).order_by(
         Video.published_at.desc()
     )
+    if channel_id is not None:
+        query = query.filter(Video.channel_id == channel_id)
     query = _apply_video_filters(
         query,
         user.id,
@@ -215,13 +237,35 @@ def video_summary():
     except ValueError as error:
         return _bad_request(str(error))
 
+    channel_id = request.args.get("channel_id")
+    yt_channel_id = (request.args.get("yt_channel_id") or "").strip() or None
+    if channel_id is not None:
+        try:
+            channel_id = int(channel_id)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid channel_id.")
+        if channel_id <= 0:
+            return _bad_request("Invalid channel_id.")
+    if yt_channel_id:
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
+        if not channel:
+            return jsonify({"videos": 0, "shorts": 0, "days": days})
+        if channel_id is not None and channel.id != channel_id:
+            return _bad_request("Mismatched channel_id.")
+        channel_id = channel.id
+
     channel_ids = [
         sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
     ]
     if not channel_ids:
         return jsonify({"videos": 0, "shorts": 0, "days": days})
 
+    if channel_id is not None and channel_id not in channel_ids:
+        return jsonify({"videos": 0, "shorts": 0, "days": days})
+
     base_query = Video.query.filter(Video.channel_id.in_(channel_ids))
+    if channel_id is not None:
+        base_query = base_query.filter(Video.channel_id == channel_id)
     base_query = _apply_video_filters(
         base_query,
         user.id,
@@ -296,6 +340,7 @@ def search_videos():
         return _bad_request("Invalid pagination values.")
 
     channel_id = request.args.get("channel_id")
+    yt_channel_id = (request.args.get("yt_channel_id") or "").strip() or None
     theme_id = request.args.get("theme_id")
 
     subscribed_ids = [
@@ -314,6 +359,13 @@ def search_videos():
         if channel_id not in subscribed_ids:
             return jsonify({"videos": [], "has_more": False, "next_offset": None})
         query = query.filter(Video.channel_id == channel_id)
+    if yt_channel_id:
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
+        if not channel:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
+        if channel.id not in subscribed_ids:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
+        query = query.filter(Video.channel_id == channel.id)
 
     if theme_id:
         try:

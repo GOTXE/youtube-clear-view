@@ -270,6 +270,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const channelMatchesFilters = channel => {
+      const searchText = (state.searchQuery || '').trim().toLowerCase();
+      if (searchText) {
+        const name = (channel.title || channel.yt_channel_id || '').toLowerCase();
+        if (!name.includes(searchText)) {
+          return false;
+        }
+      }
+
       const weekFilter = state.filters.week;
       const monthFilter = state.filters.month;
       const unwatchedFilter = state.filters.unwatched;
@@ -653,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.searchInput) {
       ui.searchInput.value = '';
     }
+    renderChannelList(state.channels);
 
     if (ui.videosLabel) {
       ui.videosLabel.textContent = 'Videos';
@@ -678,6 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.searchActive = true;
     state.searchQuery = trimmed;
+    renderChannelList(state.channels);
 
     if (ui.videosLabel) {
       ui.videosLabel.textContent = `Search results for "${trimmed}"`;

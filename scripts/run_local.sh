@@ -35,8 +35,9 @@ if [ ! -d ".venv" ]; then
   python3 -m venv .venv
 fi
 
-source .venv/bin/activate
-pip install -r backend/requirements.txt
+VENV_PY="${ROOT_DIR}/.venv/bin/python"
+"${VENV_PY}" -m ensurepip --upgrade >/dev/null 2>&1 || true
+"${VENV_PY}" -m pip install -r backend/requirements.txt
 
 FLASK_RUN_HOST="${FLASK_HOST:-0.0.0.0}"
 FLASK_RUN_PORT="${FLASK_PORT:-5550}"
@@ -71,17 +72,16 @@ config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 fi
 
-python -m flask --app backend/app run --host "${FLASK_RUN_HOST}" --port "${FLASK_RUN_PORT}" &
+"${VENV_PY}" -m flask --app backend/app run --host "${FLASK_RUN_HOST}" --port "${FLASK_RUN_PORT}" &
 BACKEND_PID=$!
-
-deactivate
 
 if [ ! -d "log_viewer/.venv" ]; then
   python3 -m venv log_viewer/.venv
 fi
 
-source log_viewer/.venv/bin/activate
-pip install -r log_viewer/requirements.txt
+LOG_VENV_PY="${ROOT_DIR}/log_viewer/.venv/bin/python"
+"${LOG_VENV_PY}" -m ensurepip --upgrade >/dev/null 2>&1 || true
+"${LOG_VENV_PY}" -m pip install -r log_viewer/requirements.txt
 
 LOG_VIEWER_USER="${LOG_VIEWER_USER:-admin}"
 LOG_VIEWER_PASSWORD="${LOG_VIEWER_PASSWORD:-admin}"
@@ -89,10 +89,8 @@ export LOG_FILE="${LOG_FILE_PATH}"
 export LOG_VIEWER_USER
 export LOG_VIEWER_PASSWORD
 
-python log_viewer/app.py &
+"${LOG_VENV_PY}" log_viewer/app.py &
 LOG_VIEWER_PID=$!
-
-deactivate
 
 cleanup() {
   kill "${BACKEND_PID}" >/dev/null 2>&1 || true

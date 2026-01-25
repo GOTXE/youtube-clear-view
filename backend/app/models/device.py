@@ -12,7 +12,7 @@ class UserDevice(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    device_identifier = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    device_identifier = db.Column(db.String(255), nullable=False, index=True)
     device_type = db.Column(
         db.Enum("tv", "tablet", "mobile", "desktop", name="device_type"),
         nullable=False,
@@ -23,6 +23,10 @@ class UserDevice(db.Model):
 
     user = db.relationship("User", back_populates="devices")
     watched_videos = db.relationship("WatchedVideo", back_populates="device")
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "device_identifier", name="uq_user_device_identifier"),
+    )
 
     def to_dict(self):
         """Serialize the device for JSON responses."""

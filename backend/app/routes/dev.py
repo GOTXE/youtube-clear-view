@@ -1,6 +1,6 @@
 """Development-only routes."""
 
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app, g, jsonify
 
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
@@ -19,5 +19,5 @@ def seed_database():
     if not allow_seed:
         return jsonify({"error": "Forbidden."}), 403
 
-    summary = seed_in_app()
+    summary = seed_in_app(g.current_user.id)
     return jsonify(summary)

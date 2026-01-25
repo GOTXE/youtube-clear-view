@@ -17,6 +17,15 @@ THEME_SEEDS = [
     {"name": "Science", "color": "var(--secondary)"},
 ]
 
+VIDEO_SEEDS = [
+    "dQw4w9WgXcQ",
+    "M7lc1UVf-VE",
+    "9bZkp7q19f0",
+    "3JZ_D3ELwOQ",
+    "kJQP7kiw5Fk",
+    "e-ORhEE9VVg",
+]
+
 
 def get_or_create_user(username, display_name=None):
     user = User.query.filter_by(username=username).first()
@@ -108,24 +117,31 @@ def ensure_watched(user_id, video_id):
     return watched
 
 
-def seed_in_app():
+def seed_in_app(user_id=None):
     """Seed the database using the current app context."""
     db.create_all()
 
     user1 = get_or_create_user("user1", "User One")
     user2 = get_or_create_user("user2", "User Two")
+    users = [user1, user2]
+
+    if user_id:
+        existing = User.query.filter_by(id=user_id).first()
+        if existing and existing not in users:
+            users.append(existing)
 
     channels = []
     for entry in CHANNEL_SEEDS:
         channels.append(get_or_create_channel(entry["id"], entry["title"]))
 
-    for channel in channels:
-        ensure_subscription(user1.id, channel.id)
-        ensure_subscription(user2.id, channel.id)
+    for user in users:
+        for channel in channels:
+            ensure_subscription(user.id, channel.id)
 
     themes = []
-    for entry in THEME_SEEDS:
-        themes.append(get_or_create_theme(user1.id, entry["name"], entry["color"]))
+    for user in users:
+        for entry in THEME_SEEDS:
+            themes.append(get_or_create_theme(user.id, entry["name"], entry["color"]))
 
     for idx, theme in enumerate(themes):
         channel = channels[idx % len(channels)]
@@ -135,7 +151,8 @@ def seed_in_app():
     videos = []
     for index, channel in enumerate(channels):
         for offset in range(2):
-            video_id = f"seed-{index}-{offset}"
+            seed_index = (index * 2 + offset) % len(VIDEO_SEEDS)
+            video_id = VIDEO_SEEDS[seed_index]
             title = f"Seed Video {index}-{offset}"
             published_at = now - timedelta(days=offset + index)
             videos.append(ensure_video(channel.id, video_id, title, published_at, 90 + offset * 30))

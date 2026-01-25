@@ -35,6 +35,11 @@ Or use the helper script:
 ./scripts/run_local.sh
 ```
 
+The script starts:
+- Backend at `http://localhost:5550`
+- Frontend at `http://localhost:8080`
+- Log viewer at `http://localhost:5551/logs` (default `admin/admin` if not set in `.env`)
+
 ## Documentation
 
 - API reference: `docs/api-reference.md`

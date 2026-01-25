@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     currentUser: null,
     currentDevice: null,
     channels: [],
-    themes: [],
     filters: {
       unwatched: false,
       week: false,
@@ -48,8 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     olderCarousel: document.getElementById('older-carousel'),
     shortsSection: document.getElementById('shorts-section'),
     olderSection: document.getElementById('older-section'),
-    themeCarousels: document.getElementById('theme-carousels'),
-    themesSection: document.getElementById('themes-container'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
     lastUpdatedLabel: document.getElementById('last-updated'),
@@ -204,51 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     await carousel.init();
     state.carousels.push(carousel);
-  }
-
-  async function renderThemeCarousels(themes) {
-    if (!ui.themeCarousels) {
-      return;
-    }
-
-    ui.themeCarousels.innerHTML = '';
-
-    for (const theme of themes) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'carousel-shell';
-
-      const header = document.createElement('div');
-      header.className = 'section-header';
-
-      const title = document.createElement('h3');
-      title.className = 'heading-3';
-      title.textContent = theme.name;
-
-      const safeColor = theme.color && theme.color.startsWith('var(') ? theme.color : null;
-      if (safeColor) {
-        title.style.color = safeColor;
-      }
-
-      header.appendChild(title);
-      wrapper.appendChild(header);
-
-      const carouselId = `theme-carousel-${theme.id}`;
-      const carouselContainer = document.createElement('div');
-      carouselContainer.id = carouselId;
-      wrapper.appendChild(carouselContainer);
-      ui.themeCarousels.appendChild(wrapper);
-
-      const carousel = new window.Carousel(carouselId, async (offset, limit) => {
-        const response = await api.getVideosByTheme(theme.id, limit, offset);
-        if (!response.ok) {
-          return { videos: [], has_more: false, next_offset: null };
-        }
-        return applyFilters(response.data);
-      }, { theme: theme.color, hideTextForShorts: true });
-
-      await carousel.init();
-      state.carousels.push(carousel);
-    }
   }
 
   function renderChannelList(channels) {
@@ -406,11 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const themesResponse = await api.getThemes();
-    if (themesResponse.ok) {
-      state.themes = themesResponse.data || [];
-    }
-
     renderChannelList(state.channels);
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
@@ -420,11 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
-    await renderThemeCarousels(state.themes);
-
-    if (ui.themesSection) {
-      ui.themesSection.hidden = false;
-    }
     if (ui.shortsSection) {
       ui.shortsSection.hidden = false;
     }
@@ -452,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
-    await renderThemeCarousels(state.themes);
   }
 
   function setupFilters() {
@@ -545,9 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.videosCount.hidden = false;
     }
 
-    if (ui.themesSection) {
-      ui.themesSection.hidden = false;
-    }
 
     if (clearSearchButton) {
       clearSearchButton.hidden = true;
@@ -573,9 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.videosCount.hidden = true;
     }
 
-    if (ui.themesSection) {
-      ui.themesSection.hidden = true;
-    }
     if (ui.shortsSection) {
       ui.shortsSection.hidden = true;
     }

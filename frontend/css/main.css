@@ -290,6 +290,7 @@ select {
   min-height: 0;
   overflow-y: auto;
   padding-bottom: var(--space-10);
+  position: relative;
 }
 
 .channel-sidebar {
@@ -405,6 +406,7 @@ select {
   gap: var(--space-3);
   box-shadow: 0 12px 24px var(--shadow);
   max-width: var(--panel-max-width);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -565,10 +567,15 @@ select {
 }
 
 .top-panels--collapsed {
-  gap: var(--space-1);
-  align-items: flex-end;
-  margin-top: calc(var(--space-4) * -1);
-  margin-bottom: calc(var(--space-4) * -1);
+  gap: var(--space-2);
+}
+
+.top-panels--collapsed .button--ghost.button--tiny {
+  padding: 2px 6px;
+  font-size: 10px;
+  height: 26px;
+  min-width: 0;
+  border-radius: 10px;
 }
 
 .filter-chip input {
@@ -932,17 +939,29 @@ select {
 .app-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
   border-top: 1px solid var(--border);
-  padding-top: var(--space-4);
+  padding: 2px 0;
+  max-width: var(--panel-max-width);
+  width: 100%;
+  margin: 0 auto;
 }
 
 .footer-link {
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.footer-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
 }
 
 .footer-link:focus,

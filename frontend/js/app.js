@@ -589,6 +589,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const bothCollapsed = ui.headerPanel.classList.contains('header-panel--collapsed')
       && ui.filtersSection.classList.contains('filters--collapsed');
     ui.topPanels.classList.toggle('top-panels--collapsed', bothCollapsed);
+    positionCollapsedPanels(bothCollapsed);
+  }
+
+  function positionCollapsedPanels(shouldPin) {
+    if (!ui.topPanels) {
+      return;
+    }
+
+    if (!shouldPin) {
+      ui.topPanels.style.position = '';
+      ui.topPanels.style.left = '';
+      ui.topPanels.style.top = '';
+      ui.topPanels.style.zIndex = '';
+      ui.topPanels.style.flexDirection = '';
+      ui.topPanels.style.alignItems = '';
+      ui.topPanels.style.gap = '';
+      return;
+    }
+
+    const sidebar = document.querySelector('.channel-sidebar');
+    const brand = document.querySelector('.brand');
+    if (!sidebar) {
+      return;
+    }
+
+    const rect = sidebar.getBoundingClientRect();
+    const gap = 8;
+    const brandRect = brand ? brand.getBoundingClientRect() : null;
+    const targetTop = brandRect ? brandRect.bottom + 8 : rect.top - ui.topPanels.offsetHeight - gap;
+    ui.topPanels.style.position = 'fixed';
+    ui.topPanels.style.left = `${rect.left}px`;
+    ui.topPanels.style.top = `${Math.max(targetTop, gap)}px`;
+    ui.topPanels.style.zIndex = '5';
+    ui.topPanels.style.flexDirection = 'row';
+    ui.topPanels.style.alignItems = 'center';
+    ui.topPanels.style.gap = `${gap}px`;
   }
 
   function ensureClearSearchButton() {
@@ -868,6 +904,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setupRefresh();
     setupImportButton();
     setupDebug();
+    window.addEventListener('resize', () => {
+      const collapsed = ui.topPanels && ui.topPanels.classList.contains('top-panels--collapsed');
+      if (collapsed) {
+        positionCollapsedPanels(true);
+      }
+    });
 
     if (state.currentUser) {
       await bootstrapAuthenticated();

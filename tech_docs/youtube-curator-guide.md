@@ -707,6 +707,10 @@ Legend: [ ] not started, [~] partial, [x] done
 
 Notes:
 - Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+
+Update (2026-01-25):
+- [x] cleaned duplicate query parsing in latest videos and added missing filter parsing for by-theme
+- [x] full backend pytest suite re-run after filter fix (venv)
 - 2026-01-25: Added OAuth-based subscription import endpoint.
 - 2026-01-25: Added Google OAuth login/callback and auth provider endpoint.
 
@@ -853,6 +857,8 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] video routes implemented (latest, by-theme, watch, unwatch, search)
 - [x] pagination and watched markers included
 - [x] content_type filtering for videos vs shorts
+- [x] age and watched filters added for latest/by-theme endpoints
+- [x] video summary endpoint added for counts
 - [x] search filters for channel and theme implemented
 - [x] index added for video title/description to improve search performance
 - [x] tests added for video routes
@@ -1983,6 +1989,9 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] auto-import + refresh when Google user has no channels
 - [x] import progress status shown while syncing subscriptions
 - [x] shorts carousel added alongside latest videos
+- [x] older videos carousel added (>7 days, unwatched)
+- [x] subscriptions sidebar with channel count and list
+- [x] video/short counts shown for last 7 days
 - [x] last-updated label shown based on channel refresh times
 - [x] debug helpers for development
 - [x] step tests run (backend pytest suite)

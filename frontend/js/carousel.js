@@ -8,6 +8,8 @@ class Carousel {
       gap: 20,
       showControls: true,
       theme: null,
+      showTitle: true,
+      showDescription: true,
       ...options
     };
 
@@ -247,6 +249,9 @@ class Carousel {
     const video = item.video || {};
     const channel = item.channel || {};
     const watched = Boolean(item.watched);
+    const isShort = typeof video.duration === 'number' && video.duration <= 60;
+    const showTitle = this.options.showTitle && !(this.options.hideTextForShorts && isShort);
+    const showDescription = this.options.showDescription && !(this.options.hideTextForShorts && isShort);
 
     const card = document.createElement('article');
     card.className = 'video-card';
@@ -273,10 +278,6 @@ class Carousel {
 
     const body = document.createElement('div');
     body.className = 'video-card__body';
-
-    const titleEl = document.createElement('h3');
-    titleEl.className = 'video-card__title';
-    titleEl.textContent = title;
 
     const channelEl = document.createElement('p');
     channelEl.className = 'video-card__meta';
@@ -308,9 +309,14 @@ class Carousel {
       this.applyWatchedState(card, details, Boolean(durationText));
     }
 
-    body.appendChild(titleEl);
+    if (showTitle) {
+      const titleEl = document.createElement('h3');
+      titleEl.className = 'video-card__title';
+      titleEl.textContent = title;
+      body.appendChild(titleEl);
+    }
     body.appendChild(channelEl);
-    if (truncatedDescription) {
+    if (showDescription && truncatedDescription) {
       body.appendChild(descriptionEl);
     }
     body.appendChild(details);

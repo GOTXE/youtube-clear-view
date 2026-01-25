@@ -180,6 +180,73 @@ select {
   gap: var(--space-8);
 }
 
+.app-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--space-6);
+}
+
+.app-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.channel-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: calc(100vh - 220px);
+  overflow: hidden;
+}
+
+.channel-sidebar__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  padding-right: var(--space-1);
+}
+
+.channel-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+  cursor: default;
+}
+
+.channel-item:hover {
+  background: var(--bg-secondary);
+}
+
+.channel-item__thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.channel-item__name {
+  font-size: var(--font-body-small);
+  color: var(--text);
+  line-height: 1.3;
+}
+
 .filters {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -189,6 +256,20 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-4);
   box-shadow: 0 12px 24px var(--shadow);
+}
+
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 2px 8px;
+  margin-left: var(--space-2);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: var(--font-body-small);
+  font-weight: 600;
 }
 
 .filters__search {
@@ -363,6 +444,16 @@ select {
   font-size: var(--font-body-small);
   color: var(--muted);
   line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .channel-sidebar {
+    max-height: 320px;
+  }
 }
 
 .toast {

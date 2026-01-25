@@ -1,5 +1,7 @@
 """Video management routes."""
 
+from datetime import datetime, timedelta
+
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
 
@@ -54,6 +56,51 @@ def _paginate_videos(query, user_id, limit, offset):
     return payload, has_more, next_offset
 
 
+def _parse_days(value, field_name):
+    """Parse days query params into positive integers."""
+    if value is None:
+        return None
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid {field_name}.")
+    if days <= 0:
+        raise ValueError(f"Invalid {field_name}.")
+    return days
+
+
+def _parse_bool(value):
+    """Parse boolean query params."""
+    if value is None:
+        return False
+    return str(value).lower() in ("true", "1", "yes", "y")
+
+
+def _apply_video_filters(query, user_id, content_type, since_days, older_than_days, only_unwatched):
+    """Apply content type, age, and watched filters to the video query."""
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+
+    if since_days:
+        cutoff = datetime.utcnow() - timedelta(days=since_days)
+        query = query.filter(Video.published_at.isnot(None), Video.published_at >= cutoff)
+
+    if older_than_days:
+        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+        query = query.filter(Video.published_at.isnot(None), Video.published_at < cutoff)
+
+    if only_unwatched:
+        watched_subquery = (
+            WatchedVideo.query.with_entities(WatchedVideo.video_id)
+            .filter_by(user_id=user_id)
+        )
+        query = query.filter(~Video.id.in_(watched_subquery))
+
+    return query
+
+
 @videos_bp.get("/api/videos/latest")
 @handle_route_errors
 @require_auth
@@ -73,6 +120,14 @@ def latest_videos():
     if content_type and content_type not in ("video", "short"):
         return _bad_request("Invalid content_type.")
 
+    try:
+        since_days = _parse_days(request.args.get("since_days"), "since_days")
+        older_than_days = _parse_days(request.args.get("older_than_days"), "older_than_days")
+    except ValueError as error:
+        return _bad_request(str(error))
+
+    only_unwatched = _parse_bool(request.args.get("only_unwatched"))
+
     channel_ids = [
         sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
     ]
@@ -82,10 +137,14 @@ def latest_videos():
     query = Video.query.filter(Video.channel_id.in_(channel_ids)).order_by(
         Video.published_at.desc()
     )
-    if content_type == "short":
-        query = query.filter(Video.duration <= 60)
-    elif content_type == "video":
-        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+    query = _apply_video_filters(
+        query,
+        user.id,
+        content_type,
+        since_days,
+        older_than_days,
+        only_unwatched,
+    )
     payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 
@@ -109,6 +168,14 @@ def videos_by_theme(theme_id):
     if content_type and content_type not in ("video", "short"):
         return _bad_request("Invalid content_type.")
 
+    try:
+        since_days = _parse_days(request.args.get("since_days"), "since_days")
+        older_than_days = _parse_days(request.args.get("older_than_days"), "older_than_days")
+    except ValueError as error:
+        return _bad_request(str(error))
+
+    only_unwatched = _parse_bool(request.args.get("only_unwatched"))
+
     theme = Theme.query.filter_by(id=theme_id, user_id=user.id).first()
     if not theme:
         tracking_id = generate_tracking_id()
@@ -125,12 +192,48 @@ def videos_by_theme(theme_id):
     query = Video.query.filter(Video.channel_id.in_(channel_ids)).order_by(
         Video.published_at.desc()
     )
-    if content_type == "short":
-        query = query.filter(Video.duration <= 60)
-    elif content_type == "video":
-        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+    query = _apply_video_filters(
+        query,
+        user.id,
+        content_type,
+        since_days,
+        older_than_days,
+        only_unwatched,
+    )
     payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
+
+
+@videos_bp.get("/api/videos/summary")
+@handle_route_errors
+@require_auth
+def video_summary():
+    """Return counts of unwatched videos and shorts in the last N days."""
+    user = g.current_user
+    try:
+        days = _parse_days(request.args.get("days", 7), "days")
+    except ValueError as error:
+        return _bad_request(str(error))
+
+    channel_ids = [
+        sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
+    ]
+    if not channel_ids:
+        return jsonify({"videos": 0, "shorts": 0, "days": days})
+
+    base_query = Video.query.filter(Video.channel_id.in_(channel_ids))
+    base_query = _apply_video_filters(
+        base_query,
+        user.id,
+        None,
+        since_days=days,
+        older_than_days=None,
+        only_unwatched=True,
+    )
+
+    videos_count = base_query.filter(or_(Video.duration.is_(None), Video.duration > 60)).count()
+    shorts_count = base_query.filter(Video.duration <= 60).count()
+    return jsonify({"videos": videos_count, "shorts": shorts_count, "days": days})
 
 
 @videos_bp.post("/api/videos/<int:video_id>/watch")

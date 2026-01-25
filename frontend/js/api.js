@@ -127,6 +127,10 @@ class APIClient {
     return this.put('/api/auth/profile', data);
   }
 
+  getVideoSummary(days = 7) {
+    return this.get('/api/videos/summary', { days });
+  }
+
   // Channel endpoints
   getChannels() {
     return this.get('/api/channels');
@@ -153,19 +157,13 @@ class APIClient {
   }
 
   // Video endpoints
-  getLatestVideos(limit = 50, offset = 0, contentType = null) {
-    const params = { limit, offset };
-    if (contentType) {
-      params.content_type = contentType;
-    }
+  getLatestVideos(limit = 50, offset = 0, options = {}) {
+    const params = { limit, offset, ...options };
     return this.get('/api/videos/latest', params);
   }
 
-  getVideosByTheme(themeId, limit = 50, offset = 0, contentType = null) {
-    const params = { limit, offset };
-    if (contentType) {
-      params.content_type = contentType;
-    }
+  getVideosByTheme(themeId, limit = 50, offset = 0, options = {}) {
+    const params = { limit, offset, ...options };
     return this.get(`/api/videos/by-theme/${themeId}`, params);
   }
 

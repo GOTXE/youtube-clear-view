@@ -40,12 +40,20 @@ document.addEventListener('DOMContentLoaded', () => {
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
+    olderCarousel: document.getElementById('older-carousel'),
     shortsSection: document.getElementById('shorts-section'),
+    olderSection: document.getElementById('older-section'),
     themeCarousels: document.getElementById('theme-carousels'),
     themesSection: document.getElementById('themes-container'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
     lastUpdatedLabel: document.getElementById('last-updated'),
+    channelList: document.getElementById('channel-list'),
+    channelCount: document.getElementById('channel-count'),
+    videosCount: document.getElementById('videos-count'),
+    shortsCount: document.getElementById('shorts-count'),
+    videosLabel: document.getElementById('videos-label'),
+    shortsLabel: document.getElementById('shorts-label'),
     searchInput: document.getElementById('search-input'),
     searchButton: document.getElementById('search-button'),
     themeSelector: document.getElementById('theme-selector'),
@@ -124,6 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.shortsCarousel) {
       ui.shortsCarousel.innerHTML = '';
     }
+    if (ui.olderCarousel) {
+      ui.olderCarousel.innerHTML = '';
+    }
     if (ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
@@ -135,7 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset, 'video');
+      const response = await api.getLatestVideos(limit, offset, {
+        content_type: 'video',
+        since_days: 7,
+        only_unwatched: true
+      });
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
@@ -152,12 +167,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset, 'short');
+      const response = await api.getLatestVideos(limit, offset, {
+        content_type: 'short',
+        since_days: 7,
+        only_unwatched: true
+      });
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    });
+    }, { showTitle: false, showDescription: false });
+
+    await carousel.init();
+    state.carousels.push(carousel);
+  }
+
+  async function renderOlderCarousel() {
+    if (!ui.olderCarousel) {
+      return;
+    }
+
+    const carousel = new window.Carousel('older-carousel', async (offset, limit) => {
+      const response = await api.getLatestVideos(limit, offset, {
+        older_than_days: 7,
+        only_unwatched: true
+      });
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      return applyFilters(response.data);
+    }, { hideTextForShorts: true });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -201,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return { videos: [], has_more: false, next_offset: null };
         }
         return applyFilters(response.data);
-      }, { theme: theme.color });
+      }, { theme: theme.color, hideTextForShorts: true });
 
       await carousel.init();
       state.carousels.push(carousel);
@@ -225,6 +264,84 @@ document.addEventListener('DOMContentLoaded', () => {
       option.textContent = theme.name;
       ui.themeSelector.appendChild(option);
     });
+  }
+
+  function renderChannelList(channels) {
+    if (!ui.channelList) {
+      return;
+    }
+
+    ui.channelList.innerHTML = '';
+
+    const sorted = [...(channels || [])].sort((a, b) => {
+      const nameA = (a.title || '').toLowerCase();
+      const nameB = (b.title || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    if (!sorted.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = 'No subscriptions yet.';
+      ui.channelList.appendChild(empty);
+      return;
+    }
+
+    sorted.forEach(channel => {
+      const item = document.createElement('div');
+      item.className = 'channel-item';
+      item.setAttribute('role', 'listitem');
+
+      if (channel.thumbnail_url) {
+        const img = document.createElement('img');
+        img.className = 'channel-item__thumb';
+        img.src = channel.thumbnail_url;
+        img.alt = channel.title || 'Channel thumbnail';
+        img.loading = 'lazy';
+        item.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'channel-item__thumb';
+        item.appendChild(placeholder);
+      }
+
+      const name = document.createElement('span');
+      name.className = 'channel-item__name';
+      name.textContent = channel.title || channel.youtube_channel_id || 'Unknown';
+      item.appendChild(name);
+
+      ui.channelList.appendChild(item);
+    });
+  }
+
+  function updateChannelCount(channels) {
+    if (!ui.channelCount) {
+      return;
+    }
+
+    const count = Array.isArray(channels) ? channels.length : 0;
+    ui.channelCount.textContent = `${count} channel${count === 1 ? '' : 's'}`;
+  }
+
+  async function updateVideoCounts() {
+    if (!ui.videosCount && !ui.shortsCount) {
+      return;
+    }
+
+    const response = await api.getVideoSummary(7);
+    if (!response.ok || !response.data) {
+      return;
+    }
+
+    const videos = typeof response.data.videos === 'number' ? response.data.videos : 0;
+    const shorts = typeof response.data.shorts === 'number' ? response.data.shorts : 0;
+
+    if (ui.videosCount) {
+      ui.videosCount.textContent = String(videos);
+    }
+    if (ui.shortsCount) {
+      ui.shortsCount.textContent = String(shorts);
+    }
   }
 
   function updateLastUpdatedLabel(channels) {
@@ -282,11 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateThemeSelector(state.themes);
+    renderChannelList(state.channels);
+    updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
+    await updateVideoCounts();
 
     clearCarousels();
     await renderMainCarousel();
     await renderShortsCarousel();
+    await renderOlderCarousel();
     await renderThemeCarousels(state.themes);
 
     if (ui.themesSection) {
@@ -295,8 +416,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.shortsSection) {
       ui.shortsSection.hidden = false;
     }
+    if (ui.olderSection) {
+      ui.olderSection.hidden = false;
+    }
     if (ui.shortsSection) {
       ui.shortsSection.hidden = false;
+    }
+    if (ui.olderSection) {
+      ui.olderSection.hidden = false;
+    }
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = false;
+    }
+    if (ui.olderSection) {
+      ui.olderSection.hidden = false;
     }
 
     setLoading(false, 'latest-carousel');
@@ -306,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearCarousels();
     await renderMainCarousel();
     await renderShortsCarousel();
+    await renderOlderCarousel();
     await renderThemeCarousels(state.themes);
   }
 
@@ -357,8 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.searchInput.value = '';
     }
 
-    if (ui.latestTitle) {
-      ui.latestTitle.textContent = 'Latest Videos';
+    if (ui.videosLabel) {
+      ui.videosLabel.textContent = 'Videos';
+    }
+    if (ui.videosCount) {
+      ui.videosCount.hidden = false;
     }
 
     if (ui.themesSection) {
@@ -382,8 +519,11 @@ document.addEventListener('DOMContentLoaded', () => {
     state.searchActive = true;
     state.searchQuery = trimmed;
 
-    if (ui.latestTitle) {
-      ui.latestTitle.textContent = `Search results for "${trimmed}"`;
+    if (ui.videosLabel) {
+      ui.videosLabel.textContent = `Search results for "${trimmed}"`;
+    }
+    if (ui.videosCount) {
+      ui.videosCount.hidden = true;
     }
 
     if (ui.themesSection) {
@@ -391,6 +531,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (ui.shortsSection) {
       ui.shortsSection.hidden = true;
+    }
+    if (ui.olderSection) {
+      ui.olderSection.hidden = true;
     }
 
     if (clearSearchButton) {
@@ -411,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    });
+    }, { hideTextForShorts: true });
 
     await carousel.init();
     state.carousels.push(carousel);

@@ -309,6 +309,9 @@ Query params:
 - `limit`
 - `offset`
 - `content_type` (optional: `video` or `short`)
+- `since_days` (optional: integer)
+- `older_than_days` (optional: integer)
+- `only_unwatched` (optional: boolean)
 
 Response:
 
@@ -330,6 +333,22 @@ Query params:
 - `limit`
 - `offset`
 - `content_type` (optional: `video` or `short`)
+- `since_days` (optional: integer)
+- `older_than_days` (optional: integer)
+- `only_unwatched` (optional: boolean)
+
+### GET /api/videos/summary
+
+Returns counts of unwatched videos and shorts in the last N days.
+
+Query params:
+- `days` (optional, default 7)
+
+Response:
+
+```json
+{ "videos": 45, "shorts": 81, "days": 7 }
+```
 
 Response: Same format as latest videos.
 

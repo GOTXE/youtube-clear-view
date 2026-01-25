@@ -55,60 +55,85 @@
       </header>
 
       <main class="app-main" role="main">
-        <section class="filters" aria-labelledby="filters-title">
-          <h2 id="filters-title" class="heading-2">Filters</h2>
-          <div class="filters__search">
-            <label class="field" for="search-input">
-              <span class="field__label">Search</span>
-              <div class="field__group">
-                <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
-                <button id="search-button" class="button" type="button">Search</button>
+        <div class="app-layout">
+          <aside class="channel-sidebar" aria-label="Subscribed channels">
+            <div class="channel-sidebar__header">
+              <h2 class="heading-2">Subscriptions</h2>
+              <span id="channel-count" class="caption">0 channels</span>
+            </div>
+            <div id="channel-list" class="channel-list" role="list"></div>
+          </aside>
+
+          <div class="app-content">
+            <section class="filters" aria-labelledby="filters-title">
+              <h2 id="filters-title" class="heading-2">Filters</h2>
+              <div class="filters__search">
+                <label class="field" for="search-input">
+                  <span class="field__label">Search</span>
+                  <div class="field__group">
+                    <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
+                    <button id="search-button" class="button" type="button">Search</button>
+                  </div>
+                </label>
               </div>
-            </label>
-          </div>
-          <div class="filters__options" role="group" aria-label="Video filters">
-            <label class="checkbox">
-              <input id="filter-unwatched" type="checkbox">
-              <span>Unwatched</span>
-            </label>
-            <label class="checkbox">
-              <input id="filter-week" type="checkbox">
-              <span>Last week</span>
-            </label>
-            <label class="checkbox">
-              <input id="filter-month" type="checkbox">
-              <span>Last month</span>
-            </label>
-          </div>
-          <label class="field" for="theme-selector">
-            <span class="field__label">Themes</span>
-            <select id="theme-selector" class="field__input" aria-label="Select theme"></select>
-          </label>
-        </section>
+              <div class="filters__options" role="group" aria-label="Video filters">
+                <label class="checkbox">
+                  <input id="filter-unwatched" type="checkbox">
+                  <span>Unwatched</span>
+                </label>
+                <label class="checkbox">
+                  <input id="filter-week" type="checkbox">
+                  <span>Last week</span>
+                </label>
+                <label class="checkbox">
+                  <input id="filter-month" type="checkbox">
+                  <span>Last month</span>
+                </label>
+              </div>
+              <label class="field" for="theme-selector">
+                <span class="field__label">Themes</span>
+                <select id="theme-selector" class="field__input" aria-label="Select theme"></select>
+              </label>
+            </section>
 
-        <section class="carousel-section" aria-labelledby="latest-title">
-          <div class="section-header">
-            <h2 id="latest-title" class="heading-2">Latest Videos</h2>
-            <button id="refresh-videos" class="button button--ghost" type="button">Refresh</button>
-          </div>
-          <p id="last-updated" class="caption"></p>
-          <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
-        </section>
+            <section class="carousel-section" aria-labelledby="latest-title">
+              <div class="section-header">
+                <h2 id="latest-title" class="heading-2">
+                  <span id="videos-label">Videos</span>
+                  <span id="videos-count" class="count-pill">0</span>
+                </h2>
+                <button id="refresh-videos" class="button button--ghost" type="button">Refresh</button>
+              </div>
+              <p id="last-updated" class="caption"></p>
+              <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
 
-        <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
-          <div class="section-header">
-            <h2 id="shorts-title" class="heading-2">Shorts</h2>
-          </div>
-          <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
-        </section>
+            <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
+              <div class="section-header">
+                <h2 id="shorts-title" class="heading-2">
+                  <span id="shorts-label">Shorts</span>
+                  <span id="shorts-count" class="count-pill">0</span>
+                </h2>
+              </div>
+              <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
 
-        <section id="themes-container" class="themes-section" aria-label="Theme carousels">
-          <div class="section-header">
-            <h2 class="heading-2">Themes</h2>
-            <p class="caption">Personalized channels by topic.</p>
+            <section id="older-section" class="carousel-section" aria-labelledby="older-title">
+              <div class="section-header">
+                <h2 id="older-title" class="heading-2">Older Videos & Shorts</h2>
+              </div>
+              <div id="older-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
+
+            <section id="themes-container" class="themes-section" aria-label="Theme carousels">
+              <div class="section-header">
+                <h2 class="heading-2">Themes</h2>
+                <p class="caption">Personalized channels by topic.</p>
+              </div>
+              <div id="theme-carousels" class="theme-carousels"></div>
+            </section>
           </div>
-          <div id="theme-carousels" class="theme-carousels"></div>
-        </section>
+        </div>
       </main>
 
       <footer class="app-footer" role="contentinfo">

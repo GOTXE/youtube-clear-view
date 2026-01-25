@@ -14,7 +14,13 @@
           <h1 class="heading-1">YT Clear View - System Logs</h1>
           <p class="body">Monitor backend events, errors, and tracking IDs.</p>
         </div>
-        <div class="stats" id="stats"></div>
+        <div class="page__header-actions">
+          <div class="stats" id="stats"></div>
+          <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Switch to dark mode">
+            <span class="icon-moon" aria-hidden="true">🌙</span>
+            <span class="icon-sun" aria-hidden="true">☀️</span>
+          </button>
+        </div>
       </header>
 
       <section class="toolbar">
@@ -86,11 +92,36 @@
       const searchInput = document.getElementById('filter-search');
       const trackingInput = document.getElementById('filter-tracking');
       const autoRefreshSelect = document.getElementById('auto-refresh');
+      const themeToggle = document.getElementById('theme-toggle');
 
       let offset = 0;
       const limit = 200;
       let hasMore = false;
       let refreshInterval = null;
+
+      function setTheme(theme) {
+        const nextTheme = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('ytcv_log_theme', nextTheme);
+        if (themeToggle) {
+          const label = nextTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+          themeToggle.setAttribute('aria-label', label);
+        }
+      }
+
+      function initThemeToggle() {
+        if (!themeToggle) {
+          return;
+        }
+        const stored = localStorage.getItem('ytcv_log_theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initial = stored || (prefersDark ? 'dark' : 'light');
+        setTheme(initial);
+        themeToggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme') || 'light';
+          setTheme(current === 'dark' ? 'light' : 'dark');
+        });
+      }
 
       function setLevelButtonState(button, active) {
         button.classList.toggle('is-active', active);
@@ -362,6 +393,7 @@
       };
       document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
 
+      initThemeToggle();
       refreshAll(true);
     </script>
   </body>

@@ -102,18 +102,18 @@
     };
   }
 
-  function getYouTubeVideoUrl(videoId) {
+  function getYTVideoUrl(videoId) {
     if (!videoId) {
       return '';
     }
 
-    const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YOUTUBE_BASE_URL
-      ? window.APP_CONFIG.YOUTUBE_BASE_URL
+    const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YT_BASE_URL
+      ? window.APP_CONFIG.YT_BASE_URL
       : 'https://www.youtube.com';
     return `${baseUrl}/watch?v=${videoId}`;
   }
 
-  function getYouTubeThumbnail(videoId, quality = 'high') {
+  function getYTThumbnail(videoId, quality = 'high') {
     if (!videoId) {
       return '';
     }
@@ -421,8 +421,8 @@
   window.timeAgo = timeAgo;
   window.truncateText = truncateText;
   window.debounce = debounce;
-  window.getYouTubeVideoUrl = getYouTubeVideoUrl;
-  window.getYouTubeThumbnail = getYouTubeThumbnail;
+  window.getYTVideoUrl = getYTVideoUrl;
+  window.getYTThumbnail = getYTThumbnail;
   window.generateDeviceFingerprint = generateDeviceFingerprint;
   window.showNotification = showNotification;
   window.showModal = showModal;

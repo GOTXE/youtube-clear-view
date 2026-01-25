@@ -6,12 +6,12 @@ from app.extensions import db
 
 
 class Video(db.Model):
-    """YouTube video metadata stored for playback and filtering."""
+    """YT video metadata stored for playback and filtering."""
 
     __tablename__ = "videos"
 
     id = db.Column(db.Integer, primary_key=True)
-    youtube_video_id = db.Column(db.String(120), unique=True, index=True)
+    yt_video_id = db.Column(db.String(120), unique=True, index=True)
     channel_id = db.Column(db.Integer, db.ForeignKey("channels.id"), nullable=False, index=True)
     title = db.Column(db.String(255), index=True)
     description = db.Column(db.Text, index=True)
@@ -27,7 +27,7 @@ class Video(db.Model):
         """Serialize the video for JSON responses."""
         return {
             "id": self.id,
-            "youtube_video_id": self.youtube_video_id,
+            "yt_video_id": self.yt_video_id,
             "channel_id": self.channel_id,
             "title": self.title,
             "description": self.description,

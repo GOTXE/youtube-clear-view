@@ -1,15 +1,15 @@
-# Complete Guide: YouTube Clear View
+# Complete Guide: YT Clear View
 
 ## Description
 
-Web application for curating YouTube content, allowing users to watch only videos from subscribed channels without the recommendation algorithm. The application features:
+Web application for curating YT content, allowing users to watch only videos from subscribed channels without the recommendation algorithm. The application features:
 
 - **Backend API** in Python3 + Flask (modular architecture) + SQLite (hosted on NAS)
 - **Log Viewer** separate Flask microservice for log monitoring (hosted on NAS)
 - **Frontend responsive** HTML/CSS/JavaScript vanilla (hosted on NAS)
 - **Multi-user** with synchronization across devices
 - **Automatic detection** of device type (TV 50"+, Tablet, Mobile, Desktop)
-- **Integration** with YouTube Data API v3
+- **Integration** with YT Data API v3
 - **Everything configurable** via `.env` file (no hardcoding)
 - **Production-ready** with Gunicorn WSGI server
 - **HTTPS only** for all internet-facing connections (via reverse proxy)
@@ -25,7 +25,7 @@ Web application for curating YouTube content, allowing users to watch only video
 **Separation Backend/Frontend/Log Viewer:**
 - **Backend**: Microservice on NAS (Docker/systemd) - REST API on internal port 5550 (not exposed)
 - **Log Viewer**: Separate microservice on internal port 5551 (not exposed)
-- **Frontend**: Synology web folder (`/volume1/web/youtube-clear-view/`)
+- **Frontend**: Synology web folder (`/volume1/web/yt-clear-view/`)
 - **Reverse Proxy**: Nginx/Synology reverse proxy handles HTTPS termination
 
 **Access URLs (via reverse proxy, HTTPS only):**
@@ -34,7 +34,7 @@ Web application for curating YouTube content, allowing users to watch only video
 - Frontend Web: `https://ytcv.mi-nas.me/`
 
 ```
-youtube-clear-view/
+yt-clear-view/
 ├── backend/                       # API Microservice on NAS
 │   ├── app/                       # Flask application package (modular)
 │   │   ├── __init__.py            # App factory (create_app)
@@ -56,7 +56,7 @@ youtube-clear-view/
 │   │   │   └── devices.py
 │   │   ├── services/              # Business logic services
 │   │   │   ├── __init__.py
-│   │   │   ├── youtube_api.py     # YouTube Data API v3 integration
+│   │   │   ├── yt_api.py     # YT Data API v3 integration
 │   │   │   └── video_cache.py     # Video caching service
 │   │   ├── middleware/            # Custom middleware
 │   │   │   ├── __init__.py
@@ -77,7 +77,7 @@ youtube-clear-view/
 │   │   ├── test_videos.py
 │   │   ├── test_themes.py
 │   │   ├── test_devices.py
-│   │   └── test_youtube_api.py
+│   │   └── test_yt_api.py
 │   ├── migrations/                # Database migrations (if needed)
 │   ├── logs/                      # Log files directory
 │   ├── requirements.txt           # Python dependencies
@@ -98,7 +98,7 @@ youtube-clear-view/
 │   ├── gunicorn.conf.py
 │   ├── wsgi.py
 │   └── run_log_viewer.sh          # Launcher script
-├── frontend/                      # Deployed to /volume1/web/youtube-clear-view/
+├── frontend/                      # Deployed to /volume1/web/yt-clear-view/
 │   ├── index.html                 # Main page
 │   ├── error/                     # Friendly error pages
 │   │   ├── 404.html
@@ -180,7 +180,7 @@ These specs define mandatory standards. The hierarchy is: **universals > platfor
 ### Prompt for AI:
 
 ```
-Create the initial structure for a project called "youtube-clear-view" with the following modular architecture:
+Create the initial structure for a project called "yt-clear-view" with the following modular architecture:
 
 - Directory backend/ with:
   - app/ package (NOT a single app.py):
@@ -199,7 +199,7 @@ Create the initial structure for a project called "youtube-clear-view" with the 
   - gunicorn.conf.py (Gunicorn config: workers, bind, log level)
   - requirements.txt (Flask, SQLAlchemy, python-dotenv, requests, flask-cors, gunicorn, colorlog, pytest)
   - .env.example (template with all variables)
-  - run_app.sh (installer + launcher for Synology NAS at /volume1/Apps/youtube-clear-view/)
+  - run_app.sh (installer + launcher for Synology NAS at /volume1/Apps/yt-clear-view/)
 
 - Directory log_viewer/ with:
   - app.py (simple Flask app for viewing logs)
@@ -229,7 +229,7 @@ Create the initial structure for a project called "youtube-clear-view" with the 
 IMPORTANT:
 - All code and comments must be in English
 - The run_app.sh script must:
-  1. Create /volume1/Apps/youtube-clear-view/ if not exists
+  1. Create /volume1/Apps/yt-clear-view/ if not exists
   2. Create Python virtual environment (venv)
   3. Install dependencies from requirements.txt
   4. Initialize the database
@@ -295,7 +295,7 @@ Define SQLAlchemy models in backend/app/models/ split across domain files:
 
 2. **backend/app/models/channel.py - Channel**:
    - id (PK, autoincrement)
-   - youtube_channel_id (unique, not null)
+   - yt_channel_id (unique, not null)
    - title (channel name)
    - thumbnail_url
    - description
@@ -321,7 +321,7 @@ Define SQLAlchemy models in backend/app/models/ split across domain files:
 
 6. **backend/app/models/video.py - Video**:
    - id (PK)
-   - youtube_video_id (unique)
+   - yt_video_id (unique)
    - channel_id (FK to Channel)
    - title
    - description
@@ -404,8 +404,8 @@ Implement the configuration, extensions, and logging system:
    - Reasonable defaults where applicable
    - Variables:
      - FLASK_SECRET_KEY (required)
-     - YOUTUBE_API_KEY (required for production, optional for dev)
-     - DATABASE_URI (default: sqlite:///youtube_clear_view.db)
+     - YT_API_KEY (required for production, optional for dev)
+     - DATABASE_URI (default: sqlite:///yt_clear_view.db)
      - FLASK_PORT (default: 5550)
      - FLASK_HOST (default: 0.0.0.0)
      - FLASK_DEBUG (default: False)
@@ -530,20 +530,20 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] step tests run (pytest passes; /api/health OK)
 
 Notes:
-- Tests executed with env: FLASK_SECRET_KEY=dev, YOUTUBE_API_KEY=dev, CORS_ORIGINS=https://ytcv.mi-nas.me.
+- Tests executed with env: FLASK_SECRET_KEY=dev, YT_API_KEY=dev, CORS_ORIGINS=https://ytcv.mi-nas.me.
 - 2026-01-25: Added AUTH_MODE + Google OAuth config validation.
 
 ---
 
-## Step 4: YouTube API Service
+## Step 4: YT API Service
 
 ### Prompt for AI:
 
 ```
-Implement backend/app/services/youtube_api.py with a YouTubeService class:
+Implement backend/app/services/yt_api.py with a YTService class:
 
 1. **__init__(api_key)**:
-   - Initialize with YouTube API key
+   - Initialize with YT API key
    - Configure the API client
    - Setup logger with module name
 
@@ -573,7 +573,7 @@ Implement backend/app/services/youtube_api.py with a YouTubeService class:
 
 Also implement **backend/app/services/video_cache.py**:
 - Simple in-memory cache with TTL (configurable via .env)
-- Cache YouTube API responses to reduce quota usage
+- Cache YT API responses to reduce quota usage
 - Methods: get(key), set(key, value, ttl), invalidate(key), clear()
 - Thread-safe implementation
 
@@ -591,7 +591,7 @@ Add 'google-api-python-client' to requirements.txt.
 
 ```bash
 cd backend
-pytest tests/test_youtube_api.py -v
+pytest tests/test_yt_api.py -v
 # Test with mock API responses (don't need real API key for tests)
 ```
 
@@ -599,7 +599,7 @@ pytest tests/test_youtube_api.py -v
 
 ```bash
 git add backend/app/services/ backend/requirements.txt
-git commit -m "feat: implement YouTube API service with caching"
+git commit -m "feat: implement YT API service with caching"
 git push
 ```
 
@@ -607,12 +607,12 @@ git push
 
 Legend: [ ] not started, [~] partial, [x] done
 
-- [x] YouTubeService implemented with caching and rate limit handling
+- [x] YTService implemented with caching and rate limit handling
 - [x] in-memory TTL cache implemented (thread-safe)
 - [x] duration parsing and response mapping implemented
 - [x] channel video fetch uses uploads playlist to reduce quota usage
-- [x] tests added for YouTube service (mocked client)
-- [x] step tests run (pytest tests/test_youtube_api.py -v)
+- [x] tests added for YT service (mocked client)
+- [x] step tests run (pytest tests/test_yt_api.py -v)
 
 Notes:
 - Tests are mocked; no real API key required.
@@ -728,12 +728,12 @@ Implement backend/app/routes/channels.py with Blueprint for channel management:
 1. **GET /api/channels**:
    - Requires authentication
    - Return user's subscribed channels
-   - Include YouTube channel information
+   - Include YT channel information
 
 2. **POST /api/channels/subscribe**:
-   - Body: {youtube_channel_id: string}
+   - Body: {yt_channel_id: string}
    - Subscribe user to channel
-   - If channel doesn't exist in DB, fetch from YouTube API and create it
+   - If channel doesn't exist in DB, fetch from YT API and create it
    - Return 201 with channel data
 
 3. **DELETE /api/channels/<channel_id>/unsubscribe**:
@@ -743,7 +743,7 @@ Implement backend/app/routes/channels.py with Blueprint for channel management:
 
 4. **POST /api/channels/refresh**:
    - Body: {channel_id: int} (optional, if not passed refresh all)
-   - Fetch new videos from YouTube API
+   - Fetch new videos from YT API
    - Update Video table
    - Return number of new videos found
 
@@ -753,7 +753,7 @@ Implement backend/app/routes/channels.py with Blueprint for channel management:
    - Support pagination for infinite carousel
    - Mark which ones are already watched by user
 
-All require authentication. Use YouTubeService for YouTube data.
+All require authentication. Use YTService for YT data.
 All errors wrapped in try-catch, logged with tracking numbers.
 English comments throughout.
 ```
@@ -778,7 +778,7 @@ git push
 Legend: [ ] not started, [~] partial, [x] done
 
 - [x] channel routes implemented (list, subscribe, unsubscribe, refresh, videos)
-- [x] YouTubeService integrated for channel info and refresh
+- [x] YTService integrated for channel info and refresh
 - [x] OAuth subscription import endpoint added (/api/channels/import)
 - [x] subscription import supports pagination for rate limiting
 - [x] watched markers returned for channel videos
@@ -1132,8 +1132,8 @@ const APP_CONFIG = {
   // Request timeout (ms)
   REQUEST_TIMEOUT: 30000,
 
-  // YouTube configuration
-  YOUTUBE_BASE_URL: 'https://www.youtube.com',
+  // YT configuration
+  YT_BASE_URL: 'https://www.youtube.com',
 
   // Pagination configuration (for infinite carousel)
   DEFAULT_PAGE_SIZE: 20,
@@ -1211,13 +1211,13 @@ Create frontend/index.html with semantic, responsive HTML5 structure:
 
 1. **Head**:
    - Meta tags: viewport, charset UTF-8, description, theme-color
-   - Title: "YouTube Clear View"
+   - Title: "YT Clear View"
    - Links to all CSS (main.css always, then tv/tablet/mobile via media queries)
-   - Preconnect to YouTube API
+   - Preconnect to YT API
 
 2. **Body structure**:
    - Header:
-     - Logo/title "YouTube Clear View"
+     - Logo/title "YT Clear View"
      - Theme toggle button (light/dark switch)
      - User selector (dropdown)
      - Current user displayed
@@ -1240,7 +1240,7 @@ Create frontend/index.html with semantic, responsive HTML5 structure:
    - Footer:
      - Settings (button)
      - Credit line: "GOTXE + ❤️ + IA 🤖"
-     - GitHub icon linking to the project repository (https://github.com/gotxe/youtube-clear-view)
+     - GitHub icon linking to the project repository (https://github.com/gotxe/yt-clear-view)
      - About
 
 3. **Accessibility**:
@@ -1442,7 +1442,7 @@ Generic methods:
 
 Specific methods for each endpoint:
 - **Auth**: login(username), logout(), getUsers(), getCurrentUser(), updateProfile(data)
-- **Channels**: getChannels(), subscribe(youtubeChannelId), unsubscribe(channelId), refreshChannels(channelId?), getChannelVideos(channelId, limit, offset)
+- **Channels**: getChannels(), subscribe(ytChannelId), unsubscribe(channelId), refreshChannels(channelId?), getChannelVideos(channelId, limit, offset)
 - **Videos**: getLatestVideos(limit, offset), getVideosByTheme(themeId, limit, offset), markAsWatched(videoId, deviceId?), markAsUnwatched(videoId), searchVideos(query, filters)
 - **Themes**: getThemes(), createTheme(name, color), updateTheme(themeId, name, color), deleteTheme(themeId), addChannelsToTheme(themeId, channelIds), removeChannelFromTheme(themeId, channelId)
 - **Devices**: registerDevice(deviceIdentifier, userAgent), getDevices(), setDeviceType(deviceId, deviceType), deleteDevice(deviceId), detectDevice(userAgent, screenWidth, screenHeight)
@@ -1708,7 +1708,7 @@ Methods:
   - Channel name
   - Video duration badge
   - "Watched" indicator if watched === true
-  - Click opens video in new YouTube tab
+  - Click opens video in new YT tab
   - Click also marks as watched (if not already)
 - scrollLeft(): scroll carousel left
 - scrollRight(): scroll carousel right
@@ -1744,7 +1744,7 @@ Methods:
 - Touch/drag scroll on mobile devices
 - Keyboard: left/right arrows when focused
 - On video click:
-  1. Open in new tab: `https://youtube.com/watch?v=${video.youtube_video_id}`
+  1. Open in new tab: `https://youtube.com/watch?v=${video.yt_video_id}`
   2. Call API: markAsWatched(video.id, deviceId)
   3. Update UI: add "watched" class with fade animation
 
@@ -1818,10 +1818,10 @@ Implement frontend/js/utils.js with utility functions:
    - Implement debounce for searches
    - Return debounced function
 
-6. **getYouTubeVideoUrl(videoId)**:
+6. **getYTVideoUrl(videoId)**:
    - Return full URL: `https://www.youtube.com/watch?v=${videoId}`
 
-7. **getYouTubeThumbnail(videoId, quality)**:
+7. **getYTThumbnail(videoId, quality)**:
    - quality: 'default', 'medium', 'high', 'maxres'
    - Return thumbnail URL
 
@@ -1868,7 +1868,7 @@ git push
 Legend: [ ] not started, [~] partial, [x] done
 
 - [x] formatting helpers (duration, date, relative time, truncate)
-- [x] debounce and YouTube URL/thumbnail helpers
+- [x] debounce and YT URL/thumbnail helpers
 - [x] dev-only API log panel helpers
 - [x] device fingerprint generator and HTML sanitizer
 - [x] toast notifications, modal helper, and loading spinner
@@ -1943,7 +1943,7 @@ Implement frontend/js/app.js as the main application orchestrator:
    - "Clear search" button to return to normal view
 
 5. **setupRefresh()**:
-   - Button to refresh videos from YouTube API
+   - Button to refresh videos from YT API
    - Call /api/channels/refresh
    - Rebuild carousels with new videos
    - Show notification with count of new videos found
@@ -2011,7 +2011,7 @@ Implement comprehensive testing and debugging tools:
      - Test client
      - Sample user, channel, video, theme data
      - Authenticated client (with valid token)
-     - Mock YouTube API responses
+     - Mock YT API responses
 
 2. **backend/tests/test_auth.py**:
    - Test login (new user creation, existing user login)
@@ -2024,7 +2024,7 @@ Implement comprehensive testing and debugging tools:
    - Test get channels (empty, with subscriptions)
    - Test subscribe (new channel, existing channel)
    - Test unsubscribe
-   - Test refresh channels (mock YouTube API)
+   - Test refresh channels (mock YT API)
    - Test get channel videos with pagination
 
 4. **backend/tests/test_videos.py**:
@@ -2053,7 +2053,7 @@ Implement comprehensive testing and debugging tools:
 All tests must:
 - Be independent (no test depends on another)
 - Clean up after themselves
-- Use mocks for external services (YouTube API)
+- Use mocks for external services (YT API)
 - Test both success and error cases
 - Verify error tracking IDs are generated
 
@@ -2080,7 +2080,7 @@ git push
 
 Legend: [ ] not started, [~] partial, [x] done
 
-- [x] shared pytest fixtures and mock YouTube service
+- [x] shared pytest fixtures and mock YT service
 - [x] pytest configuration updated with markers
 - [x] step tests run (backend pytest suite)
 
@@ -2103,10 +2103,10 @@ Prepare the application for deployment on Synology NAS:
 1. **backend/run_app.sh** (Installer + Launcher):
    ```bash
    #!/bin/bash
-   # YouTube Clear View - Backend Installer and Launcher
-   # Installs to /volume1/Apps/youtube-clear-view/backend/
+   # YT Clear View - Backend Installer and Launcher
+   # Installs to /volume1/Apps/yt-clear-view/backend/
 
-   APP_NAME="youtube-clear-view"
+   APP_NAME="yt-clear-view"
    APP_DIR="/volume1/Apps/${APP_NAME}/backend"
    VENV_DIR="${APP_DIR}/venv"
 
@@ -2141,7 +2141,7 @@ Prepare the application for deployment on Synology NAS:
    print('Database initialized')"
 
    # Launch with Gunicorn (production)
-   echo "Starting YouTube Clear View backend..."
+   echo "Starting YT Clear View backend..."
    exec gunicorn --config gunicorn.conf.py wsgi:application
    ```
 
@@ -2176,7 +2176,7 @@ Prepare the application for deployment on Synology NAS:
 
 5. **log_viewer/run_log_viewer.sh**:
    - Similar to run_app.sh but for log viewer
-   - Installs to /volume1/Apps/youtube-clear-view/log_viewer/
+   - Installs to /volume1/Apps/yt-clear-view/log_viewer/
    - Runs on port 5551
 
 ## FRONTEND
@@ -2298,7 +2298,7 @@ Update (2026-01-25):
 
 ```bash
 # ===========================================
-# YouTube Clear View - Configuration
+# YT Clear View - Configuration
 # ===========================================
 
 # Flask Configuration
@@ -2308,10 +2308,10 @@ FLASK_HOST=0.0.0.0
 FLASK_DEBUG=False
 
 # Database
-DATABASE_URI=sqlite:///youtube_clear_view.db
+DATABASE_URI=sqlite:///yt_clear_view.db
 
-# YouTube API
-YOUTUBE_API_KEY=your-google-cloud-console-api-key
+# YT API
+YT_API_KEY=your-google-cloud-console-api-key
 
 # CORS - IMPORTANT: Frontend is served via reverse proxy
 # All connections are HTTPS
@@ -2352,7 +2352,7 @@ CACHE_TTL=3600
 - [x] Step 1: Initial project structure (modular)
 - [x] Step 2: Database models (split by domain)
 - [x] Step 3: Configuration, extensions, logging system
-- [x] Step 4: YouTube API service with caching
+- [x] Step 4: YT API service with caching
 - [x] Step 5: Routes - Authentication
 - [x] Step 6: Routes - Channels
 - [x] Step 7: Routes - Videos (with pagination for infinite scroll)
@@ -2384,10 +2384,10 @@ CACHE_TTL=3600
 - [ ] Setup reverse proxy (HTTPS with Let's Encrypt)
 - [ ] Deploy backend (Docker or run_app.sh)
 - [ ] Deploy log viewer
-- [ ] Deploy frontend to /volume1/web/youtube-clear-view/
+- [ ] Deploy frontend to /volume1/web/yt-clear-view/
 - [ ] Verify HTTPS working correctly
 - [ ] Verify CORS configured correctly
-- [ ] Obtain YouTube API key
+- [ ] Obtain YT API key
 - [ ] Create first user
 - [ ] Subscribe to test channels
 - [ ] Run full test suite
@@ -2416,7 +2416,7 @@ CACHE_TTL=3600
 ### Performance
 - Lazy loading of images
 - Infinite scroll with pagination (no loading all videos at once)
-- In-memory caching for YouTube API responses
+- In-memory caching for YT API responses
 - Database indexes on frequently queried fields
 - Efficient pagination with offset/limit
 - Image compression and responsive thumbnails

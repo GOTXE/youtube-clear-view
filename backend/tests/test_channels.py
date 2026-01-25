@@ -1,4 +1,4 @@
-"""Channel route tests with mocked YouTube service."""
+"""Channel route tests with mocked YT service."""
 
 import pytest
 
@@ -11,7 +11,7 @@ class TestConfig:
     """Minimal configuration for channel tests."""
 
     FLASK_SECRET_KEY = "test"
-    YOUTUBE_API_KEY = "test"
+    YT_API_KEY = "test"
     DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -30,8 +30,8 @@ class TestConfig:
         return None
 
 
-class FakeYouTubeService:
-    """Fake YouTube service for deterministic tests."""
+class FakeYTService:
+    """Fake YT service for deterministic tests."""
 
     def __init__(self, api_key):
         self.api_key = api_key
@@ -62,7 +62,7 @@ class FakeYouTubeService:
 
 @pytest.fixture()
 def app(monkeypatch):
-    monkeypatch.setattr("app.routes.channels.YouTubeService", FakeYouTubeService)
+    monkeypatch.setattr("app.routes.channels.YTService", FakeYTService)
     app = create_app(TestConfig)
     with app.app_context():
         db.drop_all()
@@ -99,10 +99,10 @@ def test_subscribe_requires_channel_id_tracking_id(client):
 
 def test_subscribe_and_list(client):
     _login(client, "bob")
-    response = client.post("/api/channels/subscribe", json={"youtube_channel_id": "chan"})
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
     assert response.status_code == 201
     data = response.get_json()
-    assert data["youtube_channel_id"] == "chan"
+    assert data["yt_channel_id"] == "chan"
 
     response = client.get("/api/channels")
     channels = response.get_json()
@@ -111,7 +111,7 @@ def test_subscribe_and_list(client):
 
 def test_unsubscribe(client):
     _login(client, "carol")
-    response = client.post("/api/channels/subscribe", json={"youtube_channel_id": "chan"})
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
     channel_id = response.get_json()["id"]
 
     response = client.delete(f"/api/channels/{channel_id}/unsubscribe")
@@ -123,7 +123,7 @@ def test_unsubscribe(client):
 
 def test_refresh_and_videos(client, app):
     _login(client, "dave")
-    response = client.post("/api/channels/subscribe", json={"youtube_channel_id": "chan"})
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
     channel_id = response.get_json()["id"]
 
     response = client.post("/api/channels/refresh", json={"channel_id": channel_id})
@@ -135,7 +135,7 @@ def test_refresh_and_videos(client, app):
 
     with app.app_context():
         user = User.query.filter_by(username="dave").first()
-        video = Video.query.filter_by(youtube_video_id="vid-1").first()
+        video = Video.query.filter_by(yt_video_id="vid-1").first()
         watched = WatchedVideo(user_id=user.id, video_id=video.id)
         db.session.add(watched)
         db.session.commit()

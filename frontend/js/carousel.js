@@ -325,10 +325,10 @@ class Carousel {
     card.appendChild(body);
 
     const handleActivate = () => {
-      const videoId = video.youtube_video_id;
+      const videoId = video.yt_video_id;
       if (videoId) {
-        const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YOUTUBE_BASE_URL
-          ? window.APP_CONFIG.YOUTUBE_BASE_URL
+        const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YT_BASE_URL
+          ? window.APP_CONFIG.YT_BASE_URL
           : 'https://www.youtube.com';
         const url = `${baseUrl}/watch?v=${videoId}`;
         window.open(url, '_blank', 'noopener');

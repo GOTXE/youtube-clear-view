@@ -1,6 +1,6 @@
-# YouTube Clear View
+# YT Clear View
 
-Curated YouTube viewing without the recommendation algorithm.
+Curated YT viewing without the recommendation algorithm.
 
 ## Features
 
@@ -10,7 +10,7 @@ Curated YouTube viewing without the recommendation algorithm.
 - Device detection and responsive layout
 - Light/dark theme with persistence
 - Infinite carousel for videos
-- YouTube Data API v3 integration
+- YT Data API v3 integration
 - HTTPS-only deployment behind reverse proxy
 
 ## Quick Start (Development)

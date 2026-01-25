@@ -1,4 +1,4 @@
-"""YouTube Data API helper using OAuth access tokens."""
+"""YT Data API helper using OAuth access tokens."""
 
 import requests
 
@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 def fetch_subscriptions_page(access_token, page_token=None, max_results=50):
-    """Fetch a single page of subscriptions for the authenticated YouTube account."""
+    """Fetch a single page of subscriptions for the authenticated YT account."""
     if not access_token:
         return None, 401, None
 
@@ -32,7 +32,7 @@ def fetch_subscriptions_page(access_token, page_token=None, max_results=50):
         )
     except requests.RequestException as error:
         logger.warning(
-            "YouTube subscriptions request failed: %s",
+            "YT subscriptions request failed: %s",
             error,
             extra={"tracking_id": generate_tracking_id()},
         )
@@ -40,7 +40,7 @@ def fetch_subscriptions_page(access_token, page_token=None, max_results=50):
 
     if not response.ok:
         logger.warning(
-            "YouTube subscriptions returned %s",
+            "YT subscriptions returned %s",
             response.status_code,
             extra={"tracking_id": generate_tracking_id()},
         )

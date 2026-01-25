@@ -1,8 +1,8 @@
 #!/bin/bash
-# YouTube Clear View - Log Viewer Installer and Launcher
-# Installs to /volume1/Apps/youtube-clear-view/log_viewer/
+# YT Clear View - Log Viewer Installer and Launcher
+# Installs to /volume1/Apps/yt-clear-view/log_viewer/
 
-APP_NAME="youtube-clear-view"
+APP_NAME="yt-clear-view"
 APP_DIR="/volume1/Apps/${APP_NAME}/log_viewer"
 VENV_DIR="${APP_DIR}/venv"
 
@@ -32,5 +32,5 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Launch with Gunicorn (production).
-echo "Starting YouTube Clear View log viewer..."
+echo "Starting YT Clear View log viewer..."
 exec gunicorn --bind 0.0.0.0:5551 wsgi:application

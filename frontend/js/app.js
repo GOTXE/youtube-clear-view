@@ -1,4 +1,4 @@
-// Main application orchestrator for YouTube Clear View.
+// Main application orchestrator for YT Clear View.
 
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('app');
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const buildPlaceholder = channel => {
       const thumb = document.createElement('div');
       thumb.className = 'channel-item__thumb';
-      thumb.textContent = buildInitials(channel.title || channel.youtube_channel_id);
+      thumb.textContent = buildInitials(channel.title || channel.yt_channel_id);
       return thumb;
     };
 
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const name = document.createElement('span');
       name.className = 'channel-item__name';
-      name.textContent = channel.title || channel.youtube_channel_id || 'Unknown';
+      name.textContent = channel.title || channel.yt_channel_id || 'Unknown';
       item.appendChild(name);
 
       ui.channelList.appendChild(item);

@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URI=sqlite:////data/youtube_clear_view.db
+      - DATABASE_URI=sqlite:////data/yt_clear_view.db
       - LOG_FILE=/logs/app.log
     volumes:
       - backend_data:/data

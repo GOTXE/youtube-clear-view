@@ -16,7 +16,7 @@
 3. Run:
 
 ```bash
-cd /volume1/Apps/youtube-clear-view/backend
+cd /volume1/Apps/yt-clear-view/backend
 ./run_app.sh
 ```
 
@@ -39,7 +39,7 @@ Volumes:
 ### Run Script
 
 ```bash
-cd /volume1/Apps/youtube-clear-view/log_viewer
+cd /volume1/Apps/yt-clear-view/log_viewer
 ./run_log_viewer.sh
 ```
 
@@ -68,7 +68,7 @@ cd frontend
 ./deploy-to-synology.sh
 ```
 
-By default, it syncs to `/volume1/web/youtube-clear-view/`.
+By default, it syncs to `/volume1/web/yt-clear-view/`.
 
 ## HTTPS Certificates
 

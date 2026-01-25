@@ -6,12 +6,12 @@ from app.extensions import db
 
 
 class Channel(db.Model):
-    """YouTube channel stored locally for subscriptions and themes."""
+    """YT channel stored locally for subscriptions and themes."""
 
     __tablename__ = "channels"
 
     id = db.Column(db.Integer, primary_key=True)
-    youtube_channel_id = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    yt_channel_id = db.Column(db.String(120), unique=True, nullable=False, index=True)
     title = db.Column(db.String(255))
     thumbnail_url = db.Column(db.String(500))
     description = db.Column(db.Text)
@@ -26,7 +26,7 @@ class Channel(db.Model):
         """Serialize the channel for JSON responses."""
         return {
             "id": self.id,
-            "youtube_channel_id": self.youtube_channel_id,
+            "yt_channel_id": self.yt_channel_id,
             "title": self.title,
             "thumbnail_url": self.thumbnail_url,
             "description": self.description,

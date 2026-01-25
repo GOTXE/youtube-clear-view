@@ -10,7 +10,7 @@ cd "${ROOT_DIR}"
 if [ ! -f "backend/.env" ]; then
   cp "backend/.env.example" "backend/.env"
   echo "Created backend/.env. Update FLASK_SECRET_KEY and CORS_ORIGINS=http://localhost:8080."
-  echo "Set YOUTUBE_API_KEY or FLASK_DEBUG=true for local use."
+  echo "Set YT_API_KEY or FLASK_DEBUG=true for local use."
   exit 1
 fi
 

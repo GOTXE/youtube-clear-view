@@ -1,6 +1,6 @@
-"""Tests for YouTube API service using mocked client."""
+"""Tests for YT API service using mocked client."""
 
-from app.services.youtube_api import YouTubeService
+from app.services.yt_api import YTService
 
 
 class FakeRequest:
@@ -89,8 +89,8 @@ class FakeVideos:
         )
 
 
-class FakeYouTubeClient:
-    """Mock YouTube client wrapper."""
+class FakeYTClient:
+    """Mock YT client wrapper."""
 
     def channels(self):
         return FakeChannels()
@@ -129,8 +129,8 @@ class FakePlaylistItems:
 
 def test_get_channel_info(monkeypatch):
     """Channel info returns expected data."""
-    monkeypatch.setattr("app.services.youtube_api.build", lambda *args, **kwargs: FakeYouTubeClient())
-    service = YouTubeService("key")
+    monkeypatch.setattr("app.services.yt_api.build", lambda *args, **kwargs: FakeYTClient())
+    service = YTService("key")
     info = service.get_channel_info("channel")
     assert info["title"] == "Test Channel"
     assert info["thumbnail"] == "http://img"
@@ -138,8 +138,8 @@ def test_get_channel_info(monkeypatch):
 
 def test_get_channel_videos(monkeypatch):
     """Channel videos returns videos and page token."""
-    monkeypatch.setattr("app.services.youtube_api.build", lambda *args, **kwargs: FakeYouTubeClient())
-    service = YouTubeService("key")
+    monkeypatch.setattr("app.services.yt_api.build", lambda *args, **kwargs: FakeYTClient())
+    service = YTService("key")
     response = service.get_channel_videos("channel", max_results=1)
     assert response["videos"][0]["video_id"] == "vid1"
     assert response["next_page_token"] == "NEXT"
@@ -147,8 +147,8 @@ def test_get_channel_videos(monkeypatch):
 
 def test_search_videos(monkeypatch):
     """Search returns a list of videos."""
-    monkeypatch.setattr("app.services.youtube_api.build", lambda *args, **kwargs: FakeYouTubeClient())
-    service = YouTubeService("key")
+    monkeypatch.setattr("app.services.yt_api.build", lambda *args, **kwargs: FakeYTClient())
+    service = YTService("key")
     results = service.search_videos("query")
     assert results[0]["video_id"] == "vid1"
     assert results[0]["duration"] == 62
@@ -156,8 +156,8 @@ def test_search_videos(monkeypatch):
 
 def test_get_video_details(monkeypatch):
     """Video details include statistics and duration."""
-    monkeypatch.setattr("app.services.youtube_api.build", lambda *args, **kwargs: FakeYouTubeClient())
-    service = YouTubeService("key")
+    monkeypatch.setattr("app.services.yt_api.build", lambda *args, **kwargs: FakeYTClient())
+    service = YTService("key")
     details = service.get_video_details("vid1")
     assert details["video_id"] == "vid1"
     assert details["duration"] == 62

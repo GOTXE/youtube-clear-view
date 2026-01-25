@@ -11,8 +11,8 @@ from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import Channel, UserChannel, Video, WatchedVideo
 from app.services.google_oauth import ensure_access_token
-from app.services.youtube_api import YouTubeService
-from app.services.youtube_oauth import fetch_subscriptions_page
+from app.services.yt_api import YTService
+from app.services.yt_oauth import fetch_subscriptions_page
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
@@ -30,8 +30,8 @@ def _parse_datetime(value):
 
 
 def _get_service():
-    """Create a YouTube service instance using app config."""
-    return YouTubeService(current_app.config.get("YOUTUBE_API_KEY"))
+    """Create a YT service instance using app config."""
+    return YTService(current_app.config.get("YT_API_KEY"))
 
 
 def _bad_request(message):
@@ -63,7 +63,7 @@ def _forbidden(message):
 
 
 def _extract_thumbnail(thumbnails):
-    """Pick the best thumbnail URL from YouTube thumbnail data."""
+    """Pick the best thumbnail URL from YT thumbnail data."""
     if not thumbnails:
         return None
     for key in ("high", "medium", "default"):
@@ -100,21 +100,21 @@ def list_channels():
 @handle_route_errors
 @require_auth
 def subscribe_channel():
-    """Subscribe the current user to a YouTube channel."""
+    """Subscribe the current user to a YT channel."""
     user = g.current_user
     payload = request.get_json(silent=True) or {}
-    youtube_channel_id = (payload.get("youtube_channel_id") or "").strip()
-    if not youtube_channel_id:
-        return _bad_request("Missing youtube_channel_id.")
+    yt_channel_id = (payload.get("yt_channel_id") or "").strip()
+    if not yt_channel_id:
+        return _bad_request("Missing yt_channel_id.")
 
-    channel = Channel.query.filter_by(youtube_channel_id=youtube_channel_id).first()
+    channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
     if not channel:
         service = _get_service()
-        info = service.get_channel_info(youtube_channel_id)
+        info = service.get_channel_info(yt_channel_id)
         if not info:
             return _not_found("Channel info not found.")
         channel = Channel(
-            youtube_channel_id=youtube_channel_id,
+            yt_channel_id=yt_channel_id,
             title=info.get("title"),
             description=info.get("description"),
             thumbnail_url=info.get("thumbnail"),
@@ -170,7 +170,7 @@ def refresh_channels():
     refreshed_at = datetime.utcnow()
     for subscription in subscriptions:
         channel = subscription.channel
-        response = service.get_channel_videos(channel.youtube_channel_id)
+        response = service.get_channel_videos(channel.yt_channel_id)
         for item in response.get("videos", []):
             video_id = item.get("video_id")
             if not video_id:
@@ -179,11 +179,11 @@ def refresh_channels():
             if subscription.last_refreshed_at and published_at:
                 if published_at <= subscription.last_refreshed_at:
                     break
-            exists = Video.query.filter_by(youtube_video_id=video_id).first()
+            exists = Video.query.filter_by(yt_video_id=video_id).first()
             if exists:
                 continue
             video = Video(
-                youtube_video_id=video_id,
+                yt_video_id=video_id,
                 channel_id=channel.id,
                 title=item.get("title"),
                 description=item.get("description"),
@@ -203,7 +203,7 @@ def refresh_channels():
 @handle_route_errors
 @require_auth
 def import_subscriptions():
-    """Import YouTube subscriptions for the authenticated user."""
+    """Import YT subscriptions for the authenticated user."""
     user = g.current_user
     if user.auth_provider != "google":
         return _forbidden("Subscription import requires Google OAuth.")
@@ -235,7 +235,7 @@ def import_subscriptions():
             return _unauthorized("Google OAuth credentials rejected.")
         tracking_id = generate_tracking_id()
         logger.warning(
-            "YouTube subscription import failed with status %s.",
+            "YT subscription import failed with status %s.",
             error_status,
             extra={"tracking_id": tracking_id},
         )
@@ -251,15 +251,15 @@ def import_subscriptions():
     for item in items:
         snippet = item.get("snippet", {})
         resource = snippet.get("resourceId", {})
-        youtube_channel_id = resource.get("channelId")
-        if not youtube_channel_id:
+        yt_channel_id = resource.get("channelId")
+        if not yt_channel_id:
             continue
 
         imported += 1
-        channel = Channel.query.filter_by(youtube_channel_id=youtube_channel_id).first()
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
         if not channel:
             channel = Channel(
-                youtube_channel_id=youtube_channel_id,
+                yt_channel_id=yt_channel_id,
                 title=snippet.get("title"),
                 description=snippet.get("description"),
                 thumbnail_url=_extract_thumbnail(snippet.get("thumbnails", {})),

@@ -11,7 +11,7 @@ class TestConfig:
     """Minimal configuration for theme tests."""
 
     FLASK_SECRET_KEY = "test"
-    YOUTUBE_API_KEY = "test"
+    YT_API_KEY = "test"
     DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -58,7 +58,7 @@ def _seed_channel(app, username):
             user = User(username=username, display_name=username)
             db.session.add(user)
             db.session.flush()
-        channel = Channel(youtube_channel_id="chan", title="Channel")
+        channel = Channel(yt_channel_id="chan", title="Channel")
         db.session.add(channel)
         db.session.flush()
         db.session.add(UserChannel(user_id=user.id, channel_id=channel.id))

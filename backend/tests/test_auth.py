@@ -11,7 +11,7 @@ class TestConfig:
     """Minimal configuration for auth tests."""
 
     FLASK_SECRET_KEY = "test"
-    YOUTUBE_API_KEY = "test"
+    YT_API_KEY = "test"
     DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False

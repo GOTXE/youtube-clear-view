@@ -38,7 +38,7 @@ Endpoints that return lists of videos respond with:
 {
   "videos": [
     {
-      "video": { "id": 1, "youtube_video_id": "abc" },
+      "video": { "id": 1, "yt_video_id": "abc" },
       "channel": { "id": 1, "title": "Channel" },
       "watched": false
     }
@@ -201,7 +201,7 @@ Response:
 [
   {
     "id": 1,
-    "youtube_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
     "title": "Google Developers",
     "thumbnail_url": "https://...",
     "description": "...",
@@ -213,12 +213,12 @@ Response:
 
 ### POST /api/channels/subscribe
 
-Subscribes the user to a YouTube channel.
+Subscribes the user to a YT channel.
 
 Request:
 
 ```json
-{ "youtube_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw" }
+{ "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw" }
 ```
 
 Response:
@@ -226,7 +226,7 @@ Response:
 ```json
 {
   "id": 1,
-  "youtube_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+  "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
   "title": "Google Developers"
 }
 ```
@@ -239,7 +239,7 @@ Response: `204 No Content`
 
 ### POST /api/channels/import
 
-Imports YouTube subscriptions for the authenticated Google account.
+Imports YT subscriptions for the authenticated Google account.
 Requires `AUTH_MODE=google` and a valid OAuth session.
 
 Request (optional):

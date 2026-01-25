@@ -136,8 +136,8 @@ class APIClient {
     return this.get('/api/channels');
   }
 
-  subscribe(youtubeChannelId) {
-    return this.post('/api/channels/subscribe', { youtube_channel_id: youtubeChannelId });
+  subscribe(ytChannelId) {
+    return this.post('/api/channels/subscribe', { yt_channel_id: ytChannelId });
   }
 
   unsubscribe(channelId) {

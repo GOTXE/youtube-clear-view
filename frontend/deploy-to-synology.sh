@@ -6,7 +6,7 @@ set -euo pipefail
 SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEST_USER="${DEPLOY_USER:-admin}"
 DEST_HOST="${DEPLOY_HOST:-nas.local}"
-DEST_PATH="${DEPLOY_PATH:-/volume1/web/youtube-clear-view}"
+DEST_PATH="${DEPLOY_PATH:-/volume1/web/yt-clear-view}"
 
 RSYNC_EXCLUDES=(
   --exclude ".git"

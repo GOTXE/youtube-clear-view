@@ -2,10 +2,10 @@
 
 ## Overview
 
-YouTube Clear View is split into three services that communicate via HTTPS through a reverse proxy:
+YT Clear View is split into three services that communicate via HTTPS through a reverse proxy:
 
 1. **Frontend**: static HTML/CSS/JS served from Synology Web Station.
-2. **Backend API**: Flask microservice with SQLite and YouTube Data API integration.
+2. **Backend API**: Flask microservice with SQLite and YT Data API integration.
 3. **Log Viewer**: separate Flask microservice for viewing log files.
 
 ## Text-Based Architecture Diagram
@@ -19,7 +19,7 @@ YouTube Clear View is split into three services that communicate via HTTPS throu
    | /logs -> Log Viewer (Gunicorn :5551)
    v
 [Synology Web Station]
-   | serves /volume1/web/youtube-clear-view/
+   | serves /volume1/web/yt-clear-view/
 ```
 
 ## Components
@@ -32,7 +32,7 @@ YouTube Clear View is split into three services that communicate via HTTPS throu
 ### Backend API
 - Flask app factory, modular blueprints.
 - SQLAlchemy + SQLite for persistence.
-- YouTube Data API v3 integration with caching.
+- YT Data API v3 integration with caching.
 - Centralized error handling with tracking IDs.
 
 ### Log Viewer

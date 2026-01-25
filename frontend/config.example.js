@@ -10,8 +10,8 @@ const APP_CONFIG = {
   // Request timeout (ms)
   REQUEST_TIMEOUT: 30000,
 
-  // YouTube configuration
-  YOUTUBE_BASE_URL: 'https://www.youtube.com',
+  // YT configuration
+  YT_BASE_URL: 'https://www.youtube.com',
 
   // Pagination configuration (for infinite carousel)
   DEFAULT_PAGE_SIZE: 20,

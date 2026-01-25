@@ -13,7 +13,7 @@ class TestConfig:
     """Minimal configuration shared across tests."""
 
     FLASK_SECRET_KEY = "test"
-    YOUTUBE_API_KEY = "test"
+    YT_API_KEY = "test"
     DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -67,17 +67,17 @@ def sample_user(app):
 @pytest.fixture()
 def sample_channel(app):
     with app.app_context():
-        channel = Channel(youtube_channel_id="chan-sample", title="Sample Channel")
+        channel = Channel(yt_channel_id="chan-sample", title="Sample Channel")
         db.session.add(channel)
         db.session.commit()
-        return {"id": channel.id, "youtube_channel_id": channel.youtube_channel_id}
+        return {"id": channel.id, "yt_channel_id": channel.yt_channel_id}
 
 
 @pytest.fixture()
 def sample_video(app, sample_channel):
     with app.app_context():
         video = Video(
-            youtube_video_id="video-sample",
+            yt_video_id="video-sample",
             channel_id=sample_channel["id"],
             title="Sample Video",
             description="Sample description",
@@ -86,7 +86,7 @@ def sample_video(app, sample_channel):
         )
         db.session.add(video)
         db.session.commit()
-        return {"id": video.id, "youtube_video_id": video.youtube_video_id}
+        return {"id": video.id, "yt_video_id": video.yt_video_id}
 
 
 @pytest.fixture()
@@ -129,9 +129,9 @@ def sample_watched_video(app, sample_user, sample_video):
 
 
 @pytest.fixture()
-def mock_youtube_service(monkeypatch):
-    class FakeYouTubeService:
-        """Fake YouTube service for deterministic tests."""
+def mock_yt_service(monkeypatch):
+    class FakeYTService:
+        """Fake YT service for deterministic tests."""
 
         def __init__(self, api_key):
             self.api_key = api_key
@@ -159,5 +159,5 @@ def mock_youtube_service(monkeypatch):
                 "next_page_token": None,
             }
 
-    monkeypatch.setattr("app.routes.channels.YouTubeService", FakeYouTubeService)
-    return FakeYouTubeService
+    monkeypatch.setattr("app.routes.channels.YTService", FakeYTService)
+    return FakeYTService

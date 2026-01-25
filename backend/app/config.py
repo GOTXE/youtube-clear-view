@@ -12,8 +12,8 @@ class Config:
     """Base configuration class for Flask."""
 
     FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
-    YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-    DATABASE_URI = os.getenv("DATABASE_URI", "sqlite:///youtube_clear_view.db")
+    YT_API_KEY = os.getenv("YT_API_KEY")
+    DATABASE_URI = os.getenv("DATABASE_URI", "sqlite:///yt_clear_view.db")
     FLASK_PORT = int(os.getenv("FLASK_PORT", "5550"))
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
     FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
@@ -53,8 +53,8 @@ class Config:
         """Validate critical configuration values."""
         if not Config.FLASK_SECRET_KEY:
             raise ValueError("FLASK_SECRET_KEY is required.")
-        if not Config.FLASK_DEBUG and not Config.YOUTUBE_API_KEY:
-            raise ValueError("YOUTUBE_API_KEY is required in production.")
+        if not Config.FLASK_DEBUG and not Config.YT_API_KEY:
+            raise ValueError("YT_API_KEY is required in production.")
 
         origins = [origin.strip() for origin in Config.CORS_ORIGINS.split(",") if origin.strip()]
         if not origins:

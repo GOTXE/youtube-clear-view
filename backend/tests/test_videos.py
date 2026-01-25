@@ -13,7 +13,7 @@ class TestConfig:
     """Minimal configuration for video tests."""
 
     FLASK_SECRET_KEY = "test"
-    YOUTUBE_API_KEY = "test"
+    YT_API_KEY = "test"
     DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -59,7 +59,7 @@ def _seed_data(app):
         db.session.add(user)
         db.session.flush()
 
-        channel = Channel(youtube_channel_id="chan", title="Channel")
+        channel = Channel(yt_channel_id="chan", title="Channel")
         db.session.add(channel)
         db.session.flush()
 
@@ -67,13 +67,13 @@ def _seed_data(app):
         db.session.add(subscription)
 
         video1 = Video(
-            youtube_video_id="vid1",
+            yt_video_id="vid1",
             channel_id=channel.id,
             title="Video 1",
             published_at=datetime.utcnow() - timedelta(days=1),
         )
         video2 = Video(
-            youtube_video_id="vid2",
+            yt_video_id="vid2",
             channel_id=channel.id,
             title="Video 2",
             published_at=datetime.utcnow(),
@@ -100,7 +100,7 @@ def test_latest_videos(client, app):
     data = response.get_json()
     assert data["has_more"] is False
     assert len(data["videos"]) == 2
-    assert data["videos"][0]["video"]["youtube_video_id"] == "vid2"
+    assert data["videos"][0]["video"]["yt_video_id"] == "vid2"
     assert data["videos"][0]["watched"] is True
 
 
@@ -115,14 +115,14 @@ def test_videos_by_theme(client, app):
     assert response.status_code == 200
     data = response.get_json()
     assert len(data["videos"]) == 2
-    assert data["videos"][0]["channel"]["youtube_channel_id"] == "chan"
+    assert data["videos"][0]["channel"]["yt_channel_id"] == "chan"
 
 
 def test_watch_and_unwatch(client, app):
     _seed_data(app)
     _login(client, "alice")
     with app.app_context():
-        video = Video.query.filter_by(youtube_video_id="vid1").first()
+        video = Video.query.filter_by(yt_video_id="vid1").first()
         video_id = video.id
 
     response = client.post(f"/api/videos/{video_id}/watch", json={})

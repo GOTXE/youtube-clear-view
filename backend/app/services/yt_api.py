@@ -1,4 +1,4 @@
-"""YouTube Data API v3 integration service."""
+"""YT Data API v3 integration service."""
 
 import os
 
@@ -10,8 +10,8 @@ from app.logging.tracking import generate_tracking_id
 from app.services.video_cache import VideoCache
 
 
-class YouTubeService:
-    """Service wrapper for YouTube Data API v3."""
+class YTService:
+    """Service wrapper for YT Data API v3."""
 
     def __init__(self, api_key):
         """Initialize the API client and cache."""
@@ -23,7 +23,7 @@ class YouTubeService:
 
         if not api_key:
             self.logger.error(
-                "Missing YOUTUBE_API_KEY.",
+                "Missing YT_API_KEY.",
                 extra={"tracking_id": generate_tracking_id()},
             )
             return
@@ -32,7 +32,7 @@ class YouTubeService:
             self.client = build("youtube", "v3", developerKey=api_key, cache_discovery=False)
         except Exception as error:
             self.logger.exception(
-                "Failed to initialize YouTube API client: %s",
+                "Failed to initialize YT API client: %s",
                 error,
                 extra={"tracking_id": generate_tracking_id()},
             )
@@ -52,7 +52,7 @@ class YouTubeService:
             status = error.resp.status
         if status in (403, 429):
             self.logger.warning(
-                "YouTube API rate limit encountered.",
+                "YT API rate limit encountered.",
                 extra={"tracking_id": generate_tracking_id()},
             )
             return True

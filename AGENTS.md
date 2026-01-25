@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is currently a scaffold/design workspace. The intended target layout (see `tech_docs/youtube-curator-guide.md`) is:
+This repository is currently a scaffold/design workspace. The intended target layout (see `tech_docs/yt-curator-guide.md`) is:
 
 - `backend/`: Python (Flask) REST API + SQLite
   - `backend/app/`: app factory (`create_app`), routes, models, services, logging
@@ -32,7 +32,7 @@ Commands below apply once `backend/` and related modules exist:
 ## Testing Guidelines
 
 - Use `pytest`; name tests `test_*.py` and keep tests independent.
-- Mock external YouTube API calls; tests must not require real API keys.
+- Mock external YT API calls; tests must not require real API keys.
 
 ## Commit & Pull Request Guidelines
 

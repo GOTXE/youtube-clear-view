@@ -1,4 +1,4 @@
-# YouTube Data API v3 - Configuration Guide
+# YT Data API v3 - Configuration Guide
 
 ## Google Cloud Console Setup
 
@@ -7,9 +7,9 @@
 - Create a new project or select an existing one
 - Note the project name for reference
 
-### 2. Enable YouTube Data API v3
+### 2. Enable YT Data API v3
 - Navigate to: APIs & Services → Library
-- Search for "YouTube Data API v3"
+- Search for "YT Data API v3"
 - Click "Enable"
 
 ### 3. Create API Key
@@ -22,7 +22,7 @@
 #### API Restriction (REQUIRED):
 - Click on the created key → "Restrict key"
 - Under "API restrictions" → select "Restrict key"
-- Select ONLY: **YouTube Data API v3**
+- Select ONLY: **YT Data API v3**
 - Save
 
 #### Application Restriction:
@@ -32,7 +32,7 @@
 - "IP addresses" only works with a fixed public IP (not applicable with dynamic IP)
 
 ### 5. Set Daily Quota Limit (RECOMMENDED)
-- Navigate to: APIs & Services → YouTube Data API v3 → Quotas
+- Navigate to: APIs & Services → YT Data API v3 → Quotas
 - Set a reasonable daily limit: **5,000 - 10,000 units/day**
 - This prevents unexpected usage/billing if the key is ever leaked
 - Default quota is 10,000 units/day
@@ -40,7 +40,7 @@
 ### 6. Configure in Project
 - Add the key to `backend/.env`:
   ```
-  YOUTUBE_API_KEY=AIzaSy...your-key-here
+  YT_API_KEY=AIzaSy...your-key-here
   ```
 - The `.env` file is in `.gitignore` (NEVER committed to the public repo)
 - For reference, see `backend/.env.example` for the template
@@ -71,4 +71,4 @@
 - **403 Forbidden**: API key invalid, expired, or API not enabled
 - **403 quotaExceeded**: Daily quota limit reached, wait 24h or increase limit
 - **400 keyInvalid**: Key format wrong or key revoked
-- Check usage: APIs & Services → YouTube Data API v3 → Metrics
+- Check usage: APIs & Services → YT Data API v3 → Metrics

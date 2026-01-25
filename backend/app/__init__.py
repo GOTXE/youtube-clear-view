@@ -1,4 +1,4 @@
-"""Application factory for YouTube Clear View."""
+"""Application factory for YT Clear View."""
 
 from flask import Flask
 

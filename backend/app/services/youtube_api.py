@@ -155,23 +155,29 @@ class YouTubeService:
         if not self.client:
             return {"videos": [], "next_page_token": None}
 
+        uploads_playlist_id = self._get_uploads_playlist_id(channel_id)
+        if not uploads_playlist_id:
+            return {"videos": [], "next_page_token": None}
+
         cache_key = f"channel_videos:{channel_id}:{max_results}:{page_token}"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return cached
 
         try:
-            search_request = self.client.search().list(
-                part="snippet",
-                channelId=channel_id,
+            playlist_request = self.client.playlistItems().list(
+                part="snippet,contentDetails",
+                playlistId=uploads_playlist_id,
                 maxResults=max_results,
-                order="date",
-                type="video",
                 pageToken=page_token,
             )
-            search_response = search_request.execute()
-            items = search_response.get("items", [])
-            video_ids = [item.get("id", {}).get("videoId") for item in items if item.get("id")]
+            playlist_response = playlist_request.execute()
+            items = playlist_response.get("items", [])
+            video_ids = [
+                item.get("contentDetails", {}).get("videoId")
+                for item in items
+                if item.get("contentDetails")
+            ]
             if not video_ids:
                 return {"videos": [], "next_page_token": None}
 
@@ -183,7 +189,7 @@ class YouTubeService:
             videos = self._video_response_map(videos_response.get("items", []))
             result = {
                 "videos": videos,
-                "next_page_token": search_response.get("nextPageToken"),
+                "next_page_token": playlist_response.get("nextPageToken"),
             }
             self.cache.set(cache_key, result, self.cache_ttl)
             return result
@@ -195,6 +201,36 @@ class YouTubeService:
         except Exception as error:
             self._log_api_error("Failed to fetch channel videos: %s", error)
             return {"videos": [], "next_page_token": None}
+
+    def _get_uploads_playlist_id(self, channel_id):
+        """Fetch and cache the uploads playlist ID for a channel."""
+        cache_key = f"uploads_playlist:{channel_id}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            response = (
+                self.client.channels()
+                .list(part="contentDetails", id=channel_id)
+                .execute()
+            )
+            items = response.get("items", [])
+            if not items:
+                return None
+            content = items[0].get("contentDetails", {})
+            playlist_id = content.get("relatedPlaylists", {}).get("uploads")
+            if playlist_id:
+                self.cache.set(cache_key, playlist_id, self.cache_ttl)
+            return playlist_id
+        except HttpError as error:
+            if self._handle_http_error(error):
+                return None
+            self._log_api_error("Failed to fetch uploads playlist: %s", error)
+            return None
+        except Exception as error:
+            self._log_api_error("Failed to fetch uploads playlist: %s", error)
+            return None
 
     def search_videos(self, query, channel_id=None, max_results=20):
         """Search videos by query text with optional channel filter."""

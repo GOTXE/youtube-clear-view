@@ -17,6 +17,18 @@ class FakeChannels:
     """Mock channels endpoint."""
 
     def list(self, part, id):
+        if part == "contentDetails":
+            return FakeRequest(
+                {
+                    "items": [
+                        {
+                            "contentDetails": {
+                                "relatedPlaylists": {"uploads": "UPLOADS_PLAYLIST"}
+                            }
+                        }
+                    ]
+                }
+            )
         return FakeRequest(
             {
                 "items": [
@@ -86,8 +98,33 @@ class FakeYouTubeClient:
     def search(self):
         return FakeSearch()
 
+    def playlistItems(self):
+        return FakePlaylistItems()
+
     def videos(self):
         return FakeVideos()
+
+
+class FakePlaylistItems:
+    """Mock playlistItems endpoint."""
+
+    def list(self, **_kwargs):
+        return FakeRequest(
+            {
+                "items": [
+                    {
+                        "contentDetails": {"videoId": "vid1"},
+                        "snippet": {
+                            "title": "Test Video",
+                            "description": "Desc",
+                            "thumbnails": {"high": {"url": "http://thumb"}},
+                            "publishedAt": "2024-01-01T00:00:00Z",
+                        },
+                    }
+                ],
+                "nextPageToken": "NEXT",
+            }
+        )
 
 
 def test_get_channel_info(monkeypatch):

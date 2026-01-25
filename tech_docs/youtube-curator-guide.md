@@ -611,6 +611,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] YouTubeService implemented with caching and rate limit handling
 - [x] in-memory TTL cache implemented (thread-safe)
 - [x] duration parsing and response mapping implemented
+- [x] channel video fetch uses uploads playlist to reduce quota usage
 - [x] tests added for YouTube service (mocked client)
 - [x] step tests run (pytest tests/test_youtube_api.py -v)
 

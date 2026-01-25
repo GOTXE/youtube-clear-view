@@ -126,8 +126,8 @@ class APIClient {
     return this.post('/api/channels/refresh', channelId ? { channel_id: channelId } : {});
   }
 
-  importSubscriptions() {
-    return this.post('/api/channels/import');
+  importSubscriptions(options = {}) {
+    return this.post('/api/channels/import', options);
   }
 
   getChannelVideos(channelId, limit = 20, offset = 0) {

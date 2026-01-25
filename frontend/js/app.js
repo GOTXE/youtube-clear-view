@@ -74,6 +74,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function reportImportStatus(message, type = 'info') {
+    if (typeof window.setAuthStatus === 'function') {
+      window.setAuthStatus(message, type);
+      return;
+    }
+
+    if (message) {
+      showNotification(message, type);
+    }
+  }
+
   function applyFilters(payload) {
     if (!payload || !Array.isArray(payload.videos)) {
       return payload;
@@ -433,20 +448,54 @@ document.addEventListener('DOMContentLoaded', () => {
       return false;
     }
 
-    const importResponse = await api.importSubscriptions();
-    if (!importResponse.ok) {
-      if (showToast) {
-        showNotification('Unable to import subscriptions.', 'error');
+    let pageToken = null;
+    let processed = 0;
+    let total = null;
+    let newSubscriptions = 0;
+    let newChannels = 0;
+
+    reportImportStatus('Importing subscriptions...', 'info');
+
+    while (true) {
+      const response = await api.importSubscriptions({
+        page_token: pageToken,
+        max_results: 50
+      });
+
+      if (!response.ok) {
+        if (showToast) {
+          showNotification('Unable to import subscriptions.', 'error');
+        }
+        reportImportStatus('', 'info');
+        return false;
       }
-      return false;
+
+      const payload = response.data || {};
+      processed += typeof payload.imported === 'number' ? payload.imported : 0;
+      newSubscriptions += typeof payload.new_subscriptions === 'number' ? payload.new_subscriptions : 0;
+      newChannels += typeof payload.new_channels === 'number' ? payload.new_channels : 0;
+      if (typeof payload.total_results === 'number') {
+        total = payload.total_results;
+      }
+
+      if (total) {
+        reportImportStatus(`Importing subscriptions (${processed}/${total})...`, 'info');
+      } else {
+        reportImportStatus(`Importing subscriptions (${processed})...`, 'info');
+      }
+
+      pageToken = payload.next_page_token || null;
+      if (!pageToken) {
+        break;
+      }
+
+      await sleep(800);
     }
 
-    const importPayload = importResponse.data || {};
-    const subscriptionCount = typeof importPayload.new_subscriptions === 'number'
-      ? importPayload.new_subscriptions
-      : 0;
-
+    reportImportStatus('Refreshing videos...', 'info');
     const refreshResponse = await api.refreshChannels();
+    reportImportStatus('', 'info');
+
     if (!refreshResponse.ok) {
       if (showToast) {
         showNotification('Subscriptions imported. Refresh videos failed.', 'warning');
@@ -460,7 +509,11 @@ document.addEventListener('DOMContentLoaded', () => {
       : 0;
 
     if (showToast) {
-      showNotification(`Imported ${subscriptionCount} subscriptions and ${videoCount} videos.`, 'success');
+      showNotification(
+        `Imported ${newSubscriptions} subscriptions, ${newChannels} channels, ${videoCount} videos.`,
+        'success'
+      );
+      showNotification('All subscriptions are up to date.', 'success');
     }
 
     return true;

@@ -241,10 +241,23 @@ Response: `204 No Content`
 Imports YouTube subscriptions for the authenticated Google account.
 Requires `AUTH_MODE=google` and a valid OAuth session.
 
+Request (optional):
+
+```json
+{ "page_token": null, "max_results": 50 }
+```
+
 Response:
 
 ```json
-{ "imported": 12, "new_channels": 10, "new_subscriptions": 12 }
+{
+  "imported": 12,
+  "new_channels": 10,
+  "new_subscriptions": 12,
+  "next_page_token": "NEXT",
+  "total_results": 120,
+  "finished": false
+}
 ```
 
 ### POST /api/channels/refresh

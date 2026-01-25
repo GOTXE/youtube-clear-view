@@ -777,6 +777,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] channel routes implemented (list, subscribe, unsubscribe, refresh, videos)
 - [x] YouTubeService integrated for channel info and refresh
 - [x] OAuth subscription import endpoint added (/api/channels/import)
+- [x] subscription import supports pagination for rate limiting
 - [x] watched markers returned for channel videos
 - [x] tests added for channel routes (mocked service)
 - [x] step tests run (pytest tests/test_channels.py -v)
@@ -1977,6 +1978,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] refresh, search, and filter interactions wired
 - [x] subscription import action wired for Google OAuth users
 - [x] auto-import + refresh when Google user has no channels
+- [x] import progress status shown while syncing subscriptions
 - [x] debug helpers for development
 - [x] step tests run (backend pytest suite)
 

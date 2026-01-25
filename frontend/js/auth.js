@@ -591,9 +591,14 @@
     }
   }
 
+  function setAuthStatus(message, type = 'info') {
+    setStatusMessage(message, type);
+  }
+
   window.initAuth = initAuth;
   window.getCurrentUser = getCurrentUser;
   window.isAuthenticated = isAuthenticated;
   window.logout = logout;
   window.switchUser = switchUser;
+  window.setAuthStatus = setAuthStatus;
 })();

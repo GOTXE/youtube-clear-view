@@ -12,7 +12,7 @@ from app.middleware.error_handler import handle_route_errors
 from app.models import Channel, UserChannel, Video, WatchedVideo
 from app.services.google_oauth import ensure_access_token
 from app.services.youtube_api import YouTubeService
-from app.services.youtube_oauth import fetch_subscriptions
+from app.services.youtube_oauth import fetch_subscriptions_page
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
@@ -195,6 +195,16 @@ def import_subscriptions():
     if user.auth_provider != "google":
         return _forbidden("Subscription import requires Google OAuth.")
 
+    payload = request.get_json(silent=True) or {}
+    page_token = payload.get("page_token")
+    try:
+        max_results = int(payload.get("max_results", 50))
+    except (TypeError, ValueError):
+        return _bad_request("Invalid max_results.")
+
+    if max_results <= 0 or max_results > 50:
+        return _bad_request("Invalid max_results.")
+
     access_token = ensure_access_token(user)
     if not access_token:
         return _unauthorized("Missing or expired Google OAuth credentials.")
@@ -202,7 +212,11 @@ def import_subscriptions():
     if db.session.is_modified(user):
         db.session.commit()
 
-    items, error_status = fetch_subscriptions(access_token)
+    items, error_status, page_info = fetch_subscriptions_page(
+        access_token,
+        page_token=page_token,
+        max_results=max_results,
+    )
     if items is None:
         if error_status in (401, 403):
             return _unauthorized("Google OAuth credentials rejected.")
@@ -263,11 +277,17 @@ def import_subscriptions():
             new_subscriptions += 1
 
     db.session.commit()
+
+    next_token = page_info.get("next_page_token") if page_info else None
+    total_results = page_info.get("total_results") if page_info else None
     return jsonify(
         {
             "imported": imported,
             "new_channels": new_channels,
             "new_subscriptions": new_subscriptions,
+            "next_page_token": next_token,
+            "total_results": total_results,
+            "finished": next_token is None,
         }
     )
 

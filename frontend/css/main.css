@@ -1,12 +1,12 @@
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-card: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --accent-primary: #0b5fff;
-  --accent-secondary: #0ea5e9;
-  --border: #e2e8f0;
+  --bg-primary: hsl(0, 0%, 100%);
+  --bg-secondary: hsl(210, 40%, 98%);
+  --bg-card: hsl(0, 0%, 100%);
+  --text-primary: hsl(222, 47%, 11%);
+  --text-secondary: hsl(215, 19%, 35%);
+  --accent-primary: hsl(219, 100%, 52%);
+  --accent-secondary: hsl(199, 89%, 48%);
+  --border: hsl(214, 32%, 91%);
   --shadow: rgba(15, 23, 42, 0.08);
   --overlay: rgba(15, 23, 42, 0.4);
 
@@ -15,13 +15,13 @@
   --text: var(--text-primary);
   --muted: var(--text-secondary);
   --primary: var(--accent-primary);
-  --primary-contrast: #ffffff;
+  --primary-contrast: hsl(0, 0%, 100%);
   --secondary: var(--accent-secondary);
-  --success: #16a34a;
-  --warning: #d97706;
-  --error: #dc2626;
-  --info: #2563eb;
-  --disabled: #cbd5e1;
+  --success: hsl(142, 76%, 36%);
+  --warning: hsl(32, 95%, 44%);
+  --error: hsl(0, 72%, 51%);
+  --info: hsl(221, 83%, 53%);
+  --disabled: hsl(213, 27%, 84%);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -47,23 +47,23 @@
 }
 
 [data-theme="dark"] {
-  --bg-primary: #0b1120;
-  --bg-secondary: #0f172a;
-  --bg-card: #111827;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --accent-primary: #60a5fa;
-  --accent-secondary: #38bdf8;
-  --border: #1f2937;
+  --bg-primary: hsl(223, 49%, 8%);
+  --bg-secondary: hsl(222, 47%, 11%);
+  --bg-card: hsl(221, 39%, 11%);
+  --text-primary: hsl(214, 32%, 91%);
+  --text-secondary: hsl(215, 20%, 65%);
+  --accent-primary: hsl(213, 94%, 68%);
+  --accent-secondary: hsl(198, 93%, 60%);
+  --border: hsl(215, 28%, 17%);
   --shadow: rgba(15, 23, 42, 0.5);
   --overlay: rgba(15, 23, 42, 0.7);
 
-  --primary-contrast: #0b1120;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #f87171;
-  --info: #60a5fa;
-  --disabled: #334155;
+  --primary-contrast: hsl(223, 49%, 8%);
+  --success: hsl(142, 71%, 45%);
+  --warning: hsl(38, 92%, 50%);
+  --error: hsl(0, 91%, 71%);
+  --info: hsl(213, 94%, 68%);
+  --disabled: hsl(215, 25%, 27%);
 }
 
 * {

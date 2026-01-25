@@ -78,6 +78,14 @@ def test_create_and_list_themes(client, app):
     assert len(themes) == 1
 
 
+def test_create_theme_requires_name_tracking_id(client):
+    _login(client, "alice")
+    response = client.post("/api/themes", json={})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")
+
+
 def test_update_theme(client, app):
     _login(client, "bob")
     response = client.post("/api/themes", json={"name": "Old", "color": "#000"})

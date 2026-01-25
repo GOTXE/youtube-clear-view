@@ -93,6 +93,17 @@ def test_detect_device(client):
     assert data["suggested_type"] == "tv"
 
 
+def test_detect_device_invalid_tracking_id(client):
+    _login(client, "carol")
+    response = client.post(
+        "/api/devices/detect",
+        json={"screen_width": "bad", "screen_height": 0},
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")
+
+
 def test_delete_device(client):
     _login(client, "dave")
     response = client.post(

@@ -61,6 +61,13 @@ def test_login_creates_user_and_cookie(client):
     assert "SameSite=Lax" in cookie
 
 
+def test_login_requires_username_tracking_id(client):
+    response = client.post("/api/auth/login", json={"username": ""})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")
+
+
 def test_current_user_requires_cookie(client):
     response = client.get("/api/auth/current")
     assert response.status_code == 401

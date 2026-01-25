@@ -139,3 +139,12 @@ def test_search_videos(client, app):
     assert response.status_code == 200
     data = response.get_json()
     assert len(data["videos"]) == 2
+
+
+def test_search_requires_query_tracking_id(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    response = client.get("/api/videos/search")
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")

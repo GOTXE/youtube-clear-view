@@ -1279,6 +1279,9 @@ Legend: [ ] not started, [~] partial, [x] done
 Notes:
 - Error pages are self-contained and include a Go Home action.
 
+Update (2026-01-25):
+- [x] error pages now use shared tokenized styles (no hex colors)
+
 ---
 
 ## Step 13: Frontend - CSS with Light/Dark Theme System
@@ -1379,6 +1382,9 @@ Legend: [ ] not started, [~] partial, [x] done
 
 Notes:
 - CSS uses token variables for colors, spacing, and typography.
+
+Update (2026-01-25):
+- [x] token values expressed without hex literals
 
 ---
 
@@ -2056,6 +2062,9 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] pytest configuration updated with markers
 - [x] step tests run (backend pytest suite)
 
+Update (2026-01-25):
+- [x] error responses validated for tracking IDs across test suites
+
 ---
 
 ## Step 22: Deployment Configuration
@@ -2255,6 +2264,9 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] architecture, deployment, and development guides completed
 - [x] README updated with features and quick start
 - [x] step tests run (backend pytest suite)
+
+Update (2026-01-25):
+- [x] MIT license file added to repository root
 
 ---
 

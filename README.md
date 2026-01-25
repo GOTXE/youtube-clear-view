@@ -38,4 +38,4 @@ python -m flask --app app run --port 5550
 
 ## License
 
-MIT
+MIT. See `LICENSE`.

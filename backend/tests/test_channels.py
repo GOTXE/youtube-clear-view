@@ -89,6 +89,14 @@ def test_list_channels_empty(client):
     assert response.get_json() == []
 
 
+def test_subscribe_requires_channel_id_tracking_id(client):
+    _login(client, "alex")
+    response = client.post("/api/channels/subscribe", json={})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")
+
+
 def test_subscribe_and_list(client):
     _login(client, "bob")
     response = client.post("/api/channels/subscribe", json={"youtube_channel_id": "chan"})

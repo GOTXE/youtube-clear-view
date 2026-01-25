@@ -10,7 +10,9 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import Channel, UserChannel, Video, WatchedVideo
+from app.services.google_oauth import ensure_access_token
 from app.services.youtube_api import YouTubeService
+from app.services.youtube_oauth import fetch_subscriptions
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
@@ -43,6 +45,31 @@ def _not_found(message):
     tracking_id = generate_tracking_id()
     logger.warning(message, extra={"tracking_id": tracking_id})
     return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
+
+
+def _unauthorized(message):
+    """Return a JSON unauthorized response with tracking ID."""
+    tracking_id = generate_tracking_id()
+    logger.warning(message, extra={"tracking_id": tracking_id})
+    return jsonify({"error": "Unauthorized.", "tracking_id": tracking_id, "status": 401}), 401
+
+
+def _forbidden(message):
+    """Return a JSON forbidden response with tracking ID."""
+    tracking_id = generate_tracking_id()
+    logger.warning(message, extra={"tracking_id": tracking_id})
+    return jsonify({"error": "Forbidden.", "tracking_id": tracking_id, "status": 403}), 403
+
+
+def _extract_thumbnail(thumbnails):
+    """Pick the best thumbnail URL from YouTube thumbnail data."""
+    if not thumbnails:
+        return None
+    for key in ("high", "medium", "default"):
+        url = thumbnails.get(key, {}).get("url")
+        if url:
+            return url
+    return None
 
 
 @channels_bp.get("/api/channels")
@@ -157,6 +184,92 @@ def refresh_channels():
 
     db.session.commit()
     return jsonify({"new_videos": new_videos})
+
+
+@channels_bp.post("/api/channels/import")
+@handle_route_errors
+@require_auth
+def import_subscriptions():
+    """Import YouTube subscriptions for the authenticated user."""
+    user = g.current_user
+    if user.auth_provider != "google":
+        return _forbidden("Subscription import requires Google OAuth.")
+
+    access_token = ensure_access_token(user)
+    if not access_token:
+        return _unauthorized("Missing or expired Google OAuth credentials.")
+
+    if db.session.is_modified(user):
+        db.session.commit()
+
+    items, error_status = fetch_subscriptions(access_token)
+    if items is None:
+        if error_status in (401, 403):
+            return _unauthorized("Google OAuth credentials rejected.")
+        tracking_id = generate_tracking_id()
+        logger.warning(
+            "YouTube subscription import failed with status %s.",
+            error_status,
+            extra={"tracking_id": tracking_id},
+        )
+        return (
+            jsonify({"error": "Upstream error.", "tracking_id": tracking_id, "status": 502}),
+            502,
+        )
+
+    imported = 0
+    new_channels = 0
+    new_subscriptions = 0
+
+    for item in items:
+        snippet = item.get("snippet", {})
+        resource = snippet.get("resourceId", {})
+        youtube_channel_id = resource.get("channelId")
+        if not youtube_channel_id:
+            continue
+
+        imported += 1
+        channel = Channel.query.filter_by(youtube_channel_id=youtube_channel_id).first()
+        if not channel:
+            channel = Channel(
+                youtube_channel_id=youtube_channel_id,
+                title=snippet.get("title"),
+                description=snippet.get("description"),
+                thumbnail_url=_extract_thumbnail(snippet.get("thumbnails", {})),
+            )
+            db.session.add(channel)
+            db.session.flush()
+            new_channels += 1
+        else:
+            if not channel.title and snippet.get("title"):
+                channel.title = snippet.get("title")
+            if not channel.description and snippet.get("description"):
+                channel.description = snippet.get("description")
+            if not channel.thumbnail_url:
+                channel.thumbnail_url = _extract_thumbnail(snippet.get("thumbnails", {}))
+
+        subscription = UserChannel.query.filter_by(
+            user_id=user.id,
+            channel_id=channel.id,
+        ).first()
+        if not subscription:
+            subscribed_at = _parse_datetime(snippet.get("publishedAt"))
+            subscription = UserChannel(
+                user_id=user.id,
+                channel_id=channel.id,
+                subscribed_at=subscribed_at or datetime.utcnow(),
+            )
+            db.session.add(subscription)
+            new_subscriptions += 1
+
+    db.session.commit()
+    return jsonify(
+        {
+            "imported": imported,
+            "new_channels": new_channels,
+            "new_subscriptions": new_subscriptions,
+        }
+    )
 
 
 @channels_bp.get("/api/channels/<int:channel_id>/videos")

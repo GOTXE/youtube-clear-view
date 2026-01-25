@@ -36,6 +36,16 @@ class Config:
     GUNICORN_WORKERS = int(os.getenv("GUNICORN_WORKERS", "2"))
     ALLOW_DEV_SEED = os.getenv("ALLOW_DEV_SEED", "False").lower() == "true"
 
+    AUTH_MODE = os.getenv("AUTH_MODE", "local")
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+    GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+    GOOGLE_OAUTH_SCOPES = os.getenv(
+        "GOOGLE_OAUTH_SCOPES",
+        "openid email profile https://www.googleapis.com/auth/youtube.readonly",
+    )
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -56,3 +66,20 @@ class Config:
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if Config.LOG_LEVEL.upper() not in valid_levels:
             raise ValueError("LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL.")
+
+        auth_mode = (Config.AUTH_MODE or "local").lower()
+        if auth_mode not in ("local", "google"):
+            raise ValueError("AUTH_MODE must be 'local' or 'google'.")
+
+        if auth_mode == "google":
+            missing = []
+            if not Config.GOOGLE_CLIENT_ID:
+                missing.append("GOOGLE_CLIENT_ID")
+            if not Config.GOOGLE_CLIENT_SECRET:
+                missing.append("GOOGLE_CLIENT_SECRET")
+            if not Config.GOOGLE_REDIRECT_URI:
+                missing.append("GOOGLE_REDIRECT_URI")
+            if not Config.FRONTEND_URL:
+                missing.append("FRONTEND_URL")
+            if missing:
+                raise ValueError(f"Missing Google OAuth config: {', '.join(missing)}")

@@ -1,0 +1,53 @@
+"""Lightweight SQLite schema updates for development."""
+
+from sqlalchemy import text
+
+from app.extensions import db
+from app.logging.logger import get_logger
+from app.logging.tracking import generate_tracking_id
+
+
+def ensure_user_schema():
+    """Ensure newer user columns exist in SQLite dev databases."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+            if not result:
+                return
+
+            columns = {row[1] for row in result}
+            additions = [
+                ("email", "VARCHAR(255)"),
+                ("auth_provider", "VARCHAR(50) NOT NULL DEFAULT 'local'"),
+                ("google_user_id", "VARCHAR(255)"),
+                ("google_avatar_url", "VARCHAR(500)"),
+                ("google_access_token", "VARCHAR(2048)"),
+                ("google_refresh_token", "VARCHAR(2048)"),
+                ("google_token_expires_at", "DATETIME"),
+                ("google_scopes", "TEXT"),
+            ]
+
+            for name, column_def in additions:
+                if name not in columns:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {column_def}"))
+
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_users_email ON users (email)")
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_user_id "
+                    "ON users (google_user_id)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )

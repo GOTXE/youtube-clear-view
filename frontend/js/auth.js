@@ -4,8 +4,11 @@
   let currentUser = null;
   let cachedUsers = [];
   let listenersReady = false;
+  let authMode = 'local';
+  let googleLoginUrl = null;
 
   const userSelector = document.getElementById('user-selector');
+  const googleLoginButton = document.getElementById('google-login-button');
 
   const ui = {
     userSelector,
@@ -13,6 +16,7 @@
     currentUserLabel: document.getElementById('current-user'),
     appRoot: document.getElementById('app'),
     headerActions: document.querySelector('.header-actions'),
+    googleLoginButton,
     userSummary: document.querySelector('.user-summary'),
     newUserButton: null,
     switchUserButton: null,
@@ -33,6 +37,22 @@
     }
 
     return window.appApiClient;
+  }
+
+  function isGoogleMode() {
+    return authMode === 'google';
+  }
+
+  function resolveLoginUrl(path) {
+    if (!path) {
+      return null;
+    }
+
+    try {
+      return new URL(path, window.APP_CONFIG.API_BASE_URL).toString();
+    } catch (error) {
+      return path;
+    }
   }
 
   function applyThemePreference(themePreference) {
@@ -66,6 +86,72 @@
     }
 
     ui.statusMessage.style.color = '';
+  }
+
+  function applyAuthMode() {
+    const selectorContainer = ui.userSelectorWrapper || ui.userSelector;
+    const googleMode = isGoogleMode();
+
+    if (selectorContainer) {
+      selectorContainer.hidden = googleMode;
+    }
+
+    if (ui.newUserButton) {
+      ui.newUserButton.hidden = googleMode || Boolean(currentUser);
+    }
+
+    if (ui.googleLoginButton) {
+      ui.googleLoginButton.hidden = !googleMode || Boolean(currentUser);
+    }
+
+    updateSwitchUserLabel();
+  }
+
+  async function loadAuthProvider() {
+    const api = getApiClient();
+    if (!api) {
+      return;
+    }
+
+    const response = await api.getAuthProvider();
+    if (response.ok && response.data && response.data.auth_mode) {
+      authMode = response.data.auth_mode;
+      googleLoginUrl = response.data.google_login_url;
+    }
+
+    applyAuthMode();
+  }
+
+  function handleAuthErrorParam() {
+    const params = new URLSearchParams(window.location.search);
+    const errorCode = params.get('auth_error');
+    if (!errorCode) {
+      return;
+    }
+
+    if (isGoogleMode()) {
+      setStatusMessage('Google sign-in failed. Please try again.', 'error');
+    }
+
+    params.delete('auth_error');
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
+  function startGoogleLogin() {
+    if (!isGoogleMode()) {
+      return;
+    }
+
+    const loginPath = googleLoginUrl || '/api/auth/google';
+    const resolved = resolveLoginUrl(loginPath);
+    if (!resolved) {
+      setStatusMessage('Google login not available.', 'error');
+      return;
+    }
+
+    window.location.href = resolved;
   }
 
   function ensureButtons() {
@@ -106,6 +192,28 @@
       ui.statusMessage = status;
       ui.userSummary.appendChild(status);
     }
+
+    updateSwitchUserLabel();
+  }
+
+  function ensureGoogleLoginListener() {
+    if (!ui.googleLoginButton || ui.googleLoginButton.dataset.listenerAttached === 'true') {
+      return;
+    }
+
+    ui.googleLoginButton.addEventListener('click', () => {
+      startGoogleLogin();
+    });
+
+    ui.googleLoginButton.dataset.listenerAttached = 'true';
+  }
+
+  function updateSwitchUserLabel() {
+    if (!ui.switchUserButton) {
+      return;
+    }
+
+    ui.switchUserButton.textContent = isGoogleMode() ? 'Sign out' : 'Switch user';
   }
 
   function ensureUserSelectorListener() {
@@ -149,6 +257,11 @@
       ui.switchUserButton.hidden = false;
     }
 
+    if (ui.googleLoginButton) {
+      ui.googleLoginButton.hidden = true;
+    }
+
+    updateSwitchUserLabel();
     setStatusMessage('');
     applyThemePreference(user.theme_preference);
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
@@ -165,19 +278,24 @@
     }
 
     const selectorContainer = ui.userSelectorWrapper || ui.userSelector;
+    const googleMode = isGoogleMode();
     if (selectorContainer) {
-      selectorContainer.hidden = false;
+      selectorContainer.hidden = googleMode;
     }
 
     if (ui.newUserButton) {
-      ui.newUserButton.hidden = false;
+      ui.newUserButton.hidden = googleMode;
     }
 
     if (ui.switchUserButton) {
       ui.switchUserButton.hidden = true;
     }
 
-    setStatusMessage('Select a user to continue.');
+    if (ui.googleLoginButton) {
+      ui.googleLoginButton.hidden = !googleMode;
+    }
+
+    setStatusMessage(googleMode ? 'Sign in with Google to continue.' : 'Select a user to continue.');
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: null } }));
   }
 
@@ -204,6 +322,10 @@
   }
 
   async function loadUsers() {
+    if (isGoogleMode()) {
+      return;
+    }
+
     const api = getApiClient();
     if (!api) {
       setStatusMessage('API client not ready.', 'error');
@@ -366,6 +488,11 @@
   }
 
   async function loginUser(username) {
+    if (isGoogleMode()) {
+      startGoogleLogin();
+      return false;
+    }
+
     const api = getApiClient();
     if (!api) {
       setStatusMessage('API client not ready.', 'error');
@@ -386,8 +513,13 @@
   }
 
   async function initAuth() {
+    await loadAuthProvider();
+    handleAuthErrorParam();
+
     ensureButtons();
     ensureUserSelectorListener();
+    ensureGoogleLoginListener();
+    applyAuthMode();
 
     if (!listenersReady) {
       window.addEventListener('auth-required', () => {
@@ -414,7 +546,9 @@
     }
 
     setUnauthenticated();
-    await loadUsers();
+    if (!isGoogleMode()) {
+      await loadUsers();
+    }
     return null;
   }
 
@@ -433,7 +567,9 @@
     }
 
     setUnauthenticated();
-    await loadUsers();
+    if (!isGoogleMode()) {
+      await loadUsers();
+    }
 
     if (reloadPage) {
       window.location.reload();
@@ -450,7 +586,9 @@
 
   function handleAuthRequired() {
     setUnauthenticated();
-    loadUsers();
+    if (!isGoogleMode()) {
+      loadUsers();
+    }
   }
 
   window.initAuth = initAuth;

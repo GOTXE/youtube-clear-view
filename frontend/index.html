@@ -37,12 +37,18 @@
           <button id="theme-toggle" class="button button--ghost" type="button" aria-pressed="false">
             <span class="button__label">Toggle theme</span>
           </button>
+          <button id="google-login-button" class="button button--ghost" type="button" hidden>
+            Sign in with Google
+          </button>
           <label class="field field--compact" for="user-selector">
             <span class="field__label">User</span>
             <select id="user-selector" class="field__input" aria-label="Select user"></select>
           </label>
           <button id="seed-data-button" class="button button--ghost" type="button" hidden>
             Seed data
+          </button>
+          <button id="import-subscriptions-button" class="button button--ghost" type="button" hidden>
+            Import subscriptions
           </button>
           <div class="user-summary" aria-live="polite">
             <span id="current-user" class="caption">Not signed in</span>

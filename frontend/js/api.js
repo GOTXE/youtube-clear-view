@@ -93,6 +93,10 @@ class APIClient {
     return this.post('/api/auth/logout');
   }
 
+  getAuthProvider() {
+    return this.get('/api/auth/provider');
+  }
+
   getUsers() {
     return this.get('/api/auth/users');
   }
@@ -120,6 +124,10 @@ class APIClient {
 
   refreshChannels(channelId) {
     return this.post('/api/channels/refresh', channelId ? { channel_id: channelId } : {});
+  }
+
+  importSubscriptions() {
+    return this.post('/api/channels/import');
   }
 
   getChannelVideos(channelId, limit = 20, offset = 0) {

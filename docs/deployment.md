@@ -80,11 +80,34 @@ By default, it syncs to `/volume1/web/youtube-clear-view/`.
 - `/api/health` returns `{"status": "ok"}`
 - `/logs` prompts for Basic Auth
 - Frontend loads without console errors
-- Login sets `ytcv_session` cookie
+- Login sets `ytcv_session` cookie (local or Google OAuth)
 - New videos appear after refresh
+
+## Google OAuth Setup
+
+When using OAuth login (`AUTH_MODE=google`), configure the redirect URI in both
+Google Cloud and your `.env`. The redirect URI must point to the backend callback
+exactly.
+
+Examples:
+
+- NAS/production:
+  - Google Cloud “Authorized redirect URI”:
+    - `https://apiyt.mi-nas.me/api/auth/google/callback`
+  - `.env`:
+    - `GOOGLE_REDIRECT_URI=https://apiyt.mi-nas.me/api/auth/google/callback`
+    - `FRONTEND_URL=https://ytcv.mi-nas.me`
+
+- Local development:
+  - Google Cloud “Authorized redirect URI”:
+    - `http://localhost:5550/api/auth/google/callback`
+  - `.env`:
+    - `GOOGLE_REDIRECT_URI=http://localhost:5550/api/auth/google/callback`
+    - `FRONTEND_URL=http://localhost:8080`
 
 ## Troubleshooting
 
 - **401 responses**: verify cookie domain/path and CORS origins.
+- **Google OAuth login fails**: verify `AUTH_MODE=google`, client ID/secret, and redirect URI.
 - **No logs**: check `LOG_FILE` path and volume mounts.
 - **DB errors**: ensure `DATABASE_URI` points to a writable volume.

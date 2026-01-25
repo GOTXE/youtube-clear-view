@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     themesSection: document.getElementById('themes-container'),
     refreshButton: document.getElementById('refresh-videos'),
     seedButton: document.getElementById('seed-data-button'),
+    importButton: document.getElementById('import-subscriptions-button'),
     searchInput: document.getElementById('search-input'),
     searchButton: document.getElementById('search-button'),
     themeSelector: document.getElementById('theme-selector'),
@@ -413,6 +414,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updateImportVisibility(user) {
+    if (!ui.importButton) {
+      return;
+    }
+
+    const provider = user ? user.auth_provider : null;
+    ui.importButton.hidden = !user || provider !== 'google';
+  }
+
+  function setupImportButton() {
+    if (!ui.importButton) {
+      return;
+    }
+
+    ui.importButton.addEventListener('click', async () => {
+      if (!state.currentUser) {
+        showNotification('Sign in before importing subscriptions.', 'warning');
+        return;
+      }
+
+      ui.importButton.disabled = true;
+      const response = await api.importSubscriptions();
+      ui.importButton.disabled = false;
+
+      if (!response.ok) {
+        showNotification('Unable to import subscriptions.', 'error');
+        return;
+      }
+
+      const payload = response.data || {};
+      const count = typeof payload.new_subscriptions === 'number' ? payload.new_subscriptions : 0;
+      showNotification(`Imported ${count} subscriptions.`, 'success');
+      await loadApp();
+    });
+
+    updateImportVisibility(state.currentUser);
+    window.addEventListener('auth:changed', event => {
+      const user = event.detail ? event.detail.user : null;
+      updateImportVisibility(user);
+    });
+  }
+
   function setupDebug() {
     const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     if (!isDev) {
@@ -447,6 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSearch();
     setupRefresh();
     setupSeedButton();
+    setupImportButton();
     setupDebug();
 
     if (state.currentUser) {

@@ -522,6 +522,7 @@ git push
 Legend: [ ] not started, [~] partial, [x] done
 
 - [x] config validation and defaults implemented
+- [x] Google OAuth settings and AUTH_MODE validation added
 - [x] extensions initialized with explicit CORS + credentials
 - [x] logging configured (console + rotating file) with tracking IDs
 - [x] global error handling registered with friendly responses
@@ -531,6 +532,7 @@ Legend: [ ] not started, [~] partial, [x] done
 
 Notes:
 - Tests executed with env: FLASK_SECRET_KEY=dev, YOUTUBE_API_KEY=dev, CORS_ORIGINS=https://ytcv.mi-nas.me.
+- 2026-01-25: Added AUTH_MODE + Google OAuth config validation.
 
 ---
 
@@ -695,12 +697,18 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] auth middleware implemented (httpOnly cookie, session token validation)
 - [x] auth endpoints implemented (login, logout, users, current, profile)
+- [x] auth provider endpoint added (/api/auth/provider)
+- [x] Google OAuth login + callback implemented with state cookie
+- [x] auth/current returns auth provider + email metadata
+- [x] local auth endpoints blocked when AUTH_MODE=google
 - [x] secure cookie settings applied (httpOnly, Secure, SameSite=Lax, path=/api)
 - [x] tests added for auth endpoints
 - [x] step tests run (pytest tests/test_auth.py -v)
 
 Notes:
 - Deprecation warnings about datetime.utcnow() appear in tests; functional behavior OK.
+- 2026-01-25: Added OAuth-based subscription import endpoint.
+- 2026-01-25: Added Google OAuth login/callback and auth provider endpoint.
 
 ---
 
@@ -767,6 +775,7 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] channel routes implemented (list, subscribe, unsubscribe, refresh, videos)
 - [x] YouTubeService integrated for channel info and refresh
+- [x] OAuth subscription import endpoint added (/api/channels/import)
 - [x] watched markers returned for channel videos
 - [x] tests added for channel routes (mocked service)
 - [x] step tests run (pytest tests/test_channels.py -v)
@@ -1453,6 +1462,7 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] APIClient implemented with credentials and timeout handling
 - [x] endpoint-specific methods implemented
+- [x] auth provider + subscription import endpoints added to client
 - [x] retry logic added for rate limiting
 - [x] step tests run (backend pytest suite)
 
@@ -1530,8 +1540,10 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] initAuth checks session and handles 401
 - [x] user selector populated and new user modal implemented
+- [x] Google OAuth login flow added (provider lookup + login redirect)
 - [x] validation for new usernames (non-empty, alphanumeric)
 - [x] auth state updates header UI and theme preference
+- [x] Google auth mode toggles UI controls and sign-out state
 - [x] 401 handler clears state and emits auth change event
 - [x] step tests run (backend pytest suite)
 
@@ -1962,6 +1974,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] initialization flow (config, theme, auth, device)
 - [x] main and theme carousels rendering with filters/search
 - [x] refresh, search, and filter interactions wired
+- [x] subscription import action wired for Google OAuth users
 - [x] debug helpers for development
 - [x] step tests run (backend pytest suite)
 
@@ -2064,6 +2077,8 @@ Legend: [ ] not started, [~] partial, [x] done
 
 Update (2026-01-25):
 - [x] error responses validated for tracking IDs across test suites
+- [x] full backend pytest suite re-run after OAuth changes (venv)
+- [x] lightweight SQLite schema update for new user OAuth fields
 
 ---
 

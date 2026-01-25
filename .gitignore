@@ -10,6 +10,7 @@ __pycache__/
 # Environment
 .env
 .env.*
+Google-No-Sync/
 
 # Logs
 logs/

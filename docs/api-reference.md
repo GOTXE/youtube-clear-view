@@ -13,10 +13,12 @@ https://apiyt.mi-nas.me/api
 Authentication uses httpOnly cookies. The frontend never stores or reads tokens.
 
 - Cookie name: `ytcv_session`
-- Set by `POST /api/auth/login`
+- Set by `POST /api/auth/login` (local mode) or `GET /api/auth/google` (OAuth mode)
 - Cleared by `POST /api/auth/logout`
 
 If the cookie is missing or invalid, `/api/auth/current` responds with `{ "authenticated": false }`.
+
+Authentication mode is controlled with `AUTH_MODE=local|google`. When `AUTH_MODE=google`, the OAuth endpoints are used for login and the local login endpoints return `403`.
 
 ## Error Response Format
 
@@ -70,9 +72,23 @@ Response:
 
 ## Authentication
 
+### GET /api/auth/provider
+
+Returns the active authentication mode.
+
+Response:
+
+```json
+{
+  "auth_mode": "google",
+  "google_login_url": "/api/auth/google"
+}
+```
+
 ### POST /api/auth/login
 
 Logs in or creates a user and sets a secure cookie.
+Only available when `AUTH_MODE=local`.
 
 Request:
 
@@ -87,6 +103,9 @@ Response:
   "user_id": 1,
   "username": "alice",
   "display_name": "alice",
+  "auth_provider": "local",
+  "email": null,
+  "google_avatar_url": null,
   "theme_preference": "light"
 }
 ```
@@ -104,6 +123,7 @@ Response:
 ### GET /api/auth/users
 
 Returns all users for the login selector.
+Only available when `AUTH_MODE=local`.
 
 Response:
 
@@ -125,6 +145,9 @@ Response:
   "user_id": 1,
   "username": "alice",
   "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_avatar_url": "https://...",
   "theme_preference": "dark"
 }
 ```
@@ -155,6 +178,14 @@ Response:
   "theme_preference": "dark"
 }
 ```
+
+### GET /api/auth/google
+
+Redirects the browser to Google's OAuth consent screen. Used when `AUTH_MODE=google`.
+
+### GET /api/auth/google/callback
+
+OAuth callback endpoint. Google redirects here after user consent to establish a session.
 
 ---
 
@@ -204,6 +235,17 @@ Response:
 Unsubscribes the user from a channel.
 
 Response: `204 No Content`
+
+### POST /api/channels/import
+
+Imports YouTube subscriptions for the authenticated Google account.
+Requires `AUTH_MODE=google` and a valid OAuth session.
+
+Response:
+
+```json
+{ "imported": 12, "new_channels": 10, "new_subscriptions": 12 }
+```
 
 ### POST /api/channels/refresh
 

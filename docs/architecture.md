@@ -26,7 +26,7 @@ YouTube Clear View is split into three services that communicate via HTTPS throu
 
 ### Frontend
 - Vanilla HTML/CSS/JS.
-- Authentication via httpOnly cookies (no tokens stored in JS).
+- Authentication via httpOnly cookies (no tokens stored in JS), with local or Google OAuth login.
 - Device detection, theme switching, infinite carousels.
 
 ### Backend API
@@ -41,7 +41,7 @@ YouTube Clear View is split into three services that communicate via HTTPS throu
 
 ## Data Flow
 
-1. User logs in via `/api/auth/login`.
+1. User logs in via `/api/auth/login` (local) or `/api/auth/google` (OAuth).
 2. Backend sets a secure cookie (`ytcv_session`).
 3. Frontend uses `/api/auth/current` to load user profile.
 4. Videos are fetched from `/api/videos/latest` and `/api/videos/by-theme/<id>`.

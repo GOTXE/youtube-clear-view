@@ -84,6 +84,13 @@ def test_current_user_returns_profile(client):
     assert data["authenticated"] is True
 
 
+def test_auth_provider_defaults_local(client):
+    response = client.get("/api/auth/provider")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["auth_mode"] == "local"
+
+
 def test_list_users(client):
     client.post("/api/auth/login", json={"username": "carol"})
     response = client.get("/api/auth/users")

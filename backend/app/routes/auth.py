@@ -3,7 +3,7 @@
 import secrets
 from datetime import datetime
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, redirect, request
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -11,10 +11,18 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import User
+from app.services.google_oauth import (
+    apply_token_response,
+    build_auth_url,
+    exchange_code_for_tokens,
+    fetch_user_info,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+STATE_COOKIE_NAME = "ytcv_oauth_state"
+STATE_COOKIE_MAX_AGE = 10 * 60
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -28,6 +36,35 @@ def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
         samesite="Lax",
         max_age=max_age,
         path="/api",
+    )
+
+
+def _set_state_cookie(response, state):
+    """Set a short-lived OAuth state cookie."""
+    secure_cookie = current_app.config.get("COOKIE_SECURE", True)
+    response.set_cookie(
+        STATE_COOKIE_NAME,
+        state,
+        httponly=True,
+        secure=secure_cookie,
+        samesite="Lax",
+        max_age=STATE_COOKIE_MAX_AGE,
+        path="/api/auth/google",
+    )
+
+
+def _clear_state_cookie(response):
+    """Clear the OAuth state cookie."""
+    secure_cookie = current_app.config.get("COOKIE_SECURE", True)
+    response.set_cookie(
+        STATE_COOKIE_NAME,
+        "",
+        httponly=True,
+        secure=secure_cookie,
+        samesite="Lax",
+        max_age=0,
+        expires=0,
+        path="/api/auth/google",
     )
 
 
@@ -46,10 +83,45 @@ def _clear_session_cookie(response):
     )
 
 
+def _auth_mode():
+    """Return the configured authentication mode."""
+    return (current_app.config.get("AUTH_MODE") or "local").lower()
+
+
+def _forbidden(message):
+    """Return a forbidden response with a tracking ID."""
+    tracking_id = generate_tracking_id()
+    get_logger(__name__).warning(message, extra={"tracking_id": tracking_id})
+    return jsonify({"error": "Forbidden.", "tracking_id": tracking_id, "status": 403}), 403
+
+
+def _server_error(message):
+    """Return a generic server error response with a tracking ID."""
+    tracking_id = generate_tracking_id()
+    get_logger(__name__).error(message, extra={"tracking_id": tracking_id})
+    return (
+        jsonify({"error": "Internal server error.", "tracking_id": tracking_id, "status": 500}),
+        500,
+    )
+
+
+def _redirect_to_frontend(error_code=None):
+    """Redirect back to the configured frontend URL."""
+    base_url = current_app.config.get("FRONTEND_URL") or "/"
+    if not error_code:
+        return redirect(base_url)
+
+    separator = "&" if "?" in base_url else "?"
+    return redirect(f"{base_url}{separator}auth_error={error_code}")
+
+
 @auth_bp.post("/api/auth/login")
 @handle_route_errors
 def login():
     """Login or create a user and set a secure session cookie."""
+    if _auth_mode() != "local":
+        return _forbidden("Local login disabled in Google OAuth mode.")
+
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     if not username:
@@ -78,6 +150,9 @@ def login():
             "user_id": user.id,
             "username": user.username,
             "display_name": user.display_name,
+            "auth_provider": user.auth_provider,
+            "email": user.email,
+            "google_avatar_url": user.google_avatar_url,
             "theme_preference": user.theme_preference,
         }
     )
@@ -106,12 +181,115 @@ def logout():
 @handle_route_errors
 def list_users():
     """Return all users for the login selector."""
+    if _auth_mode() != "local":
+        return _forbidden("User list disabled in Google OAuth mode.")
+
     users = User.query.order_by(User.username.asc()).all()
     data = [
         {"id": user.id, "username": user.username, "display_name": user.display_name}
         for user in users
     ]
     return jsonify(data)
+
+
+@auth_bp.get("/api/auth/provider")
+@handle_route_errors
+def auth_provider():
+    """Return the configured authentication mode."""
+    mode = _auth_mode()
+    login_url = "/api/auth/google" if mode == "google" else None
+    return jsonify({"auth_mode": mode, "google_login_url": login_url})
+
+
+@auth_bp.get("/api/auth/google")
+@handle_route_errors
+def google_login():
+    """Start the Google OAuth flow."""
+    if _auth_mode() != "google":
+        return _forbidden("Google OAuth not enabled.")
+
+    if (
+        not current_app.config.get("GOOGLE_CLIENT_ID")
+        or not current_app.config.get("GOOGLE_CLIENT_SECRET")
+        or not current_app.config.get("GOOGLE_REDIRECT_URI")
+    ):
+        return _server_error("Missing Google OAuth configuration.")
+
+    state = secrets.token_urlsafe(24)
+    auth_url = build_auth_url(state)
+    response = redirect(auth_url)
+    _set_state_cookie(response, state)
+    return response
+
+
+@auth_bp.get("/api/auth/google/callback")
+@handle_route_errors
+def google_callback():
+    """Handle the Google OAuth callback and create a session."""
+    if _auth_mode() != "google":
+        return _forbidden("Google OAuth not enabled.")
+
+    error = request.args.get("error")
+    if error:
+        response = _redirect_to_frontend("oauth_denied")
+        _clear_state_cookie(response)
+        return response
+
+    state = request.args.get("state")
+    code = request.args.get("code")
+    cookie_state = request.cookies.get(STATE_COOKIE_NAME)
+    if not state or not code or state != cookie_state:
+        response = _redirect_to_frontend("state_mismatch")
+        _clear_state_cookie(response)
+        return response
+
+    token_data = exchange_code_for_tokens(code)
+    if not token_data or not token_data.get("access_token"):
+        response = _redirect_to_frontend("token_error")
+        _clear_state_cookie(response)
+        return response
+
+    user_info = fetch_user_info(token_data.get("access_token"))
+    if not user_info or not user_info.get("sub"):
+        response = _redirect_to_frontend("profile_error")
+        _clear_state_cookie(response)
+        return response
+
+    google_user_id = user_info.get("sub")
+    email = user_info.get("email")
+    display_name = user_info.get("name") or email or "Google user"
+    avatar_url = user_info.get("picture")
+
+    user = User.query.filter_by(google_user_id=google_user_id).first()
+    if not user and email:
+        user = User.query.filter_by(email=email).first()
+
+    if not user:
+        username = email or f"google_{google_user_id}"
+        if User.query.filter_by(username=username).first():
+            username = f"google_{google_user_id}"
+        user = User(username=username, display_name=display_name)
+        db.session.add(user)
+
+    user.auth_provider = "google"
+    user.google_user_id = google_user_id
+    user.google_avatar_url = avatar_url
+    if email:
+        user.email = email
+    if display_name and not user.display_name:
+        user.display_name = display_name
+
+    apply_token_response(user, token_data)
+
+    session_token = secrets.token_urlsafe(32)
+    user.session_token = session_token
+    user.session_created_at = datetime.utcnow()
+    db.session.commit()
+
+    response = _redirect_to_frontend()
+    _set_session_cookie(response, session_token)
+    _clear_state_cookie(response)
+    return response
 
 
 @auth_bp.get("/api/auth/current")
@@ -134,6 +312,9 @@ def current_user():
             "user_id": user.id,
             "username": user.username,
             "display_name": user.display_name,
+            "email": user.email,
+            "auth_provider": user.auth_provider,
+            "google_avatar_url": user.google_avatar_url,
             "theme_preference": user.theme_preference,
         }
     )

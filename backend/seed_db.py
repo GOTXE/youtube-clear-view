@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 
-from app import create_app
 from app.extensions import db
 from app.models import Channel, Theme, ThemeChannel, User, UserChannel, Video, WatchedVideo
 
@@ -109,45 +108,61 @@ def ensure_watched(user_id, video_id):
     return watched
 
 
+def seed_in_app():
+    """Seed the database using the current app context."""
+    db.create_all()
+
+    user1 = get_or_create_user("user1", "User One")
+    user2 = get_or_create_user("user2", "User Two")
+
+    channels = []
+    for entry in CHANNEL_SEEDS:
+        channels.append(get_or_create_channel(entry["id"], entry["title"]))
+
+    for channel in channels:
+        ensure_subscription(user1.id, channel.id)
+        ensure_subscription(user2.id, channel.id)
+
+    themes = []
+    for entry in THEME_SEEDS:
+        themes.append(get_or_create_theme(user1.id, entry["name"], entry["color"]))
+
+    for idx, theme in enumerate(themes):
+        channel = channels[idx % len(channels)]
+        ensure_theme_channel(theme.id, channel.id)
+
+    now = datetime.utcnow()
+    videos = []
+    for index, channel in enumerate(channels):
+        for offset in range(2):
+            video_id = f"seed-{index}-{offset}"
+            title = f"Seed Video {index}-{offset}"
+            published_at = now - timedelta(days=offset + index)
+            videos.append(ensure_video(channel.id, video_id, title, published_at, 90 + offset * 30))
+
+    if videos:
+        ensure_watched(user1.id, videos[0].id)
+        ensure_watched(user1.id, videos[-1].id)
+
+    db.session.commit()
+
+    return {
+        "status": "ok",
+        "users": User.query.count(),
+        "channels": Channel.query.count(),
+        "themes": Theme.query.count(),
+        "videos": Video.query.count(),
+    }
+
+
 def seed():
+    from app import create_app
+
     app = create_app()
     with app.app_context():
-        db.create_all()
-
-        user1 = get_or_create_user("user1", "User One")
-        user2 = get_or_create_user("user2", "User Two")
-
-        channels = []
-        for entry in CHANNEL_SEEDS:
-            channels.append(get_or_create_channel(entry["id"], entry["title"]))
-
-        for channel in channels:
-            ensure_subscription(user1.id, channel.id)
-            ensure_subscription(user2.id, channel.id)
-
-        themes = []
-        for entry in THEME_SEEDS:
-            themes.append(get_or_create_theme(user1.id, entry["name"], entry["color"]))
-
-        for idx, theme in enumerate(themes):
-            channel = channels[idx % len(channels)]
-            ensure_theme_channel(theme.id, channel.id)
-
-        now = datetime.utcnow()
-        videos = []
-        for index, channel in enumerate(channels):
-            for offset in range(2):
-                video_id = f"seed-{index}-{offset}"
-                title = f"Seed Video {index}-{offset}"
-                published_at = now - timedelta(days=offset + index)
-                videos.append(ensure_video(channel.id, video_id, title, published_at, 90 + offset * 30))
-
-        if videos:
-            ensure_watched(user1.id, videos[0].id)
-            ensure_watched(user1.id, videos[-1].id)
-
-        db.session.commit()
+        summary = seed_in_app()
         print("Seed data created successfully.")
+        print(summary)
 
 
 if __name__ == "__main__":

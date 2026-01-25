@@ -34,6 +34,7 @@ class Config:
     LOG_VIEWER_PORT = int(os.getenv("LOG_VIEWER_PORT", "5551"))
 
     GUNICORN_WORKERS = int(os.getenv("GUNICORN_WORKERS", "2"))
+    ALLOW_DEV_SEED = os.getenv("ALLOW_DEV_SEED", "False").lower() == "true"
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False

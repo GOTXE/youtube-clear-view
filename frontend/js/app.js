@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     themeCarousels: document.getElementById('theme-carousels'),
     themesSection: document.getElementById('themes-container'),
     refreshButton: document.getElementById('refresh-videos'),
+    seedButton: document.getElementById('seed-data-button'),
     searchInput: document.getElementById('search-input'),
     searchButton: document.getElementById('search-button'),
     themeSelector: document.getElementById('theme-selector'),
@@ -50,6 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   let clearSearchButton = null;
+
+  function isLocalhost() {
+    return ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  }
 
   function showNotification(message, type = 'info') {
     if (typeof window.showNotification === 'function') {
@@ -377,6 +382,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function setupSeedButton() {
+    if (!ui.seedButton) {
+      return;
+    }
+
+    if (!isLocalhost()) {
+      ui.seedButton.hidden = true;
+      return;
+    }
+
+    ui.seedButton.hidden = false;
+    ui.seedButton.addEventListener('click', async () => {
+      if (!state.currentUser) {
+        showNotification('Sign in before seeding data.', 'warning');
+        return;
+      }
+
+      ui.seedButton.disabled = true;
+      const response = await api.post('/api/dev/seed');
+      ui.seedButton.disabled = false;
+
+      if (!response.ok) {
+        showNotification('Unable to seed data.', 'error');
+        return;
+      }
+
+      showNotification('Seed data loaded.', 'success');
+      await loadApp();
+    });
+  }
+
   function setupDebug() {
     const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     if (!isDev) {
@@ -410,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilters();
     setupSearch();
     setupRefresh();
+    setupSeedButton();
     setupDebug();
 
     if (state.currentUser) {

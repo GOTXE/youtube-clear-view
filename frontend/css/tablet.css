@@ -16,7 +16,8 @@
 }
 
 .video-card {
-  min-width: 300px;
+  flex: 0 0 240px;
+  max-width: 240px;
 }
 
 .video-card__thumb {

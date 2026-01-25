@@ -184,12 +184,14 @@ select {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: var(--space-6);
+  min-width: 0;
 }
 
 .app-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  min-width: 0;
 }
 
 .channel-sidebar {
@@ -238,7 +240,21 @@ select {
   border-radius: 50%;
   background: var(--border);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.channel-item__thumb-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .channel-item__name {
@@ -373,20 +389,29 @@ select {
   border-radius: var(--radius-3);
   padding: var(--space-4);
   box-shadow: 0 12px 24px var(--shadow);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .carousel {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  width: 100%;
+  max-width: 100%;
 }
 
 .carousel-track {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   gap: var(--space-4);
   overflow-x: auto;
   scroll-behavior: smooth;
   padding-bottom: var(--space-2);
+  max-width: 100%;
 }
 
 .carousel-control {
@@ -399,7 +424,8 @@ select {
 }
 
 .video-card {
-  min-width: 240px;
+  flex: 0 0 200px;
+  max-width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-2);

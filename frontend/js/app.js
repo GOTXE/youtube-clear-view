@@ -287,23 +287,51 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const buildInitials = value => {
+      const safe = (value || '').trim();
+      if (!safe) {
+        return '?';
+      }
+      const parts = safe.split(/\s+/).filter(Boolean);
+      const initials = parts.slice(0, 2).map(part => part[0]).join('');
+      return (initials || safe[0] || '?').toUpperCase();
+    };
+
+    const buildPlaceholder = channel => {
+      const thumb = document.createElement('div');
+      thumb.className = 'channel-item__thumb';
+      thumb.textContent = buildInitials(channel.title || channel.youtube_channel_id);
+      return thumb;
+    };
+
+    const buildThumbnail = channel => {
+      if (!channel.thumbnail_url) {
+        return buildPlaceholder(channel);
+      }
+
+      const thumb = document.createElement('div');
+      thumb.className = 'channel-item__thumb';
+
+      const img = document.createElement('img');
+      img.className = 'channel-item__thumb-image';
+      img.src = channel.thumbnail_url;
+      img.alt = channel.title || 'Channel thumbnail';
+      img.loading = 'lazy';
+      img.addEventListener('error', () => {
+        const placeholder = buildPlaceholder(channel);
+        thumb.replaceWith(placeholder);
+      });
+
+      thumb.appendChild(img);
+      return thumb;
+    };
+
     sorted.forEach(channel => {
       const item = document.createElement('div');
       item.className = 'channel-item';
       item.setAttribute('role', 'listitem');
 
-      if (channel.thumbnail_url) {
-        const img = document.createElement('img');
-        img.className = 'channel-item__thumb';
-        img.src = channel.thumbnail_url;
-        img.alt = channel.title || 'Channel thumbnail';
-        img.loading = 'lazy';
-        item.appendChild(img);
-      } else {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'channel-item__thumb';
-        item.appendChild(placeholder);
-      }
+      item.appendChild(buildThumbnail(channel));
 
       const name = document.createElement('span');
       name.className = 'channel-item__name';
@@ -320,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const count = Array.isArray(channels) ? channels.length : 0;
-    ui.channelCount.textContent = `${count} channel${count === 1 ? '' : 's'}`;
+    ui.channelCount.textContent = String(count);
   }
 
   async function updateVideoCounts() {

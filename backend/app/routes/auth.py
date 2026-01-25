@@ -3,7 +3,7 @@
 import secrets
 from datetime import datetime
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -19,11 +19,12 @@ COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
     """Attach the session cookie with secure defaults."""
+    secure_cookie = current_app.config.get("COOKIE_SECURE", True)
     response.set_cookie(
         COOKIE_NAME,
         token,
         httponly=True,
-        secure=True,
+        secure=secure_cookie,
         samesite="Lax",
         max_age=max_age,
         path="/api",
@@ -32,11 +33,12 @@ def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
 
 def _clear_session_cookie(response):
     """Expire the session cookie immediately."""
+    secure_cookie = current_app.config.get("COOKIE_SECURE", True)
     response.set_cookie(
         COOKIE_NAME,
         "",
         httponly=True,
-        secure=True,
+        secure=secure_cookie,
         samesite="Lax",
         max_age=0,
         expires=0,

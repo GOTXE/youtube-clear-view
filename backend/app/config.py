@@ -18,6 +18,11 @@ class Config:
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
     FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+    COOKIE_SECURE = os.getenv("COOKIE_SECURE")
+    if COOKIE_SECURE is None:
+        COOKIE_SECURE = not FLASK_DEBUG
+    else:
+        COOKIE_SECURE = COOKIE_SECURE.lower() == "true"
 
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")

@@ -37,6 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const ui = {
+    headerPanel: document.querySelector('.header-panel'),
+    headerToggle: document.getElementById('header-toggle'),
+    topPanels: document.querySelector('.top-panels'),
+    filtersSection: document.querySelector('.filters'),
+    filtersToggle: document.getElementById('filters-toggle'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -56,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     shortsLabel: document.getElementById('shorts-label'),
     searchInput: document.getElementById('search-input'),
     searchButton: document.getElementById('search-button'),
-    themeSelector: document.getElementById('theme-selector'),
     filterUnwatched: document.getElementById('filter-unwatched'),
     filterWeek: document.getElementById('filter-week'),
     filterMonth: document.getElementById('filter-month')
@@ -247,25 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateThemeSelector(themes) {
-    if (!ui.themeSelector) {
-      return;
-    }
-
-    ui.themeSelector.innerHTML = '';
-    const allOption = document.createElement('option');
-    allOption.value = '';
-    allOption.textContent = 'All themes';
-    ui.themeSelector.appendChild(allOption);
-
-    themes.forEach(theme => {
-      const option = document.createElement('option');
-      option.value = theme.id;
-      option.textContent = theme.name;
-      ui.themeSelector.appendChild(option);
-    });
-  }
-
   function renderChannelList(channels) {
     if (!ui.channelList) {
       return;
@@ -426,7 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
       state.themes = themesResponse.data || [];
     }
 
-    updateThemeSelector(state.themes);
     renderChannelList(state.channels);
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
@@ -493,6 +477,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.filterMonth) {
       ui.filterMonth.addEventListener('change', handleFilters);
     }
+  }
+
+  function setupFilterToggle() {
+    if (!ui.filtersSection || !ui.filtersToggle) {
+      return;
+    }
+
+    ui.filtersToggle.addEventListener('click', () => {
+      const isCollapsed = ui.filtersSection.classList.toggle('filters--collapsed');
+      ui.filtersToggle.textContent = isCollapsed ? 'Filters' : 'Hide';
+      ui.filtersToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
+      updateTopPanelsCollapse();
+    });
+  }
+
+  function setupHeaderToggle() {
+    if (!ui.headerPanel || !ui.headerToggle) {
+      return;
+    }
+
+    ui.headerToggle.addEventListener('click', () => {
+      const isCollapsed = ui.headerPanel.classList.toggle('header-panel--collapsed');
+      ui.headerToggle.textContent = isCollapsed ? 'Menu' : 'Hide';
+      ui.headerToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
+      updateTopPanelsCollapse();
+    });
+  }
+
+  function updateTopPanelsCollapse() {
+    if (!ui.topPanels || !ui.headerPanel || !ui.filtersSection) {
+      return;
+    }
+    const bothCollapsed = ui.headerPanel.classList.contains('header-panel--collapsed')
+      && ui.filtersSection.classList.contains('filters--collapsed');
+    ui.topPanels.classList.toggle('top-panels--collapsed', bothCollapsed);
   }
 
   function ensureClearSearchButton() {
@@ -570,12 +589,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     clearCarousels();
 
-    const themeId = ui.themeSelector && ui.themeSelector.value ? ui.themeSelector.value : null;
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
       const filters = { limit, offset };
-      if (themeId) {
-        filters.theme_id = themeId;
-      }
 
       const response = await api.searchVideos(trimmed, filters);
       if (!response.ok) {
@@ -608,13 +623,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.searchButton.addEventListener('click', handleSearch);
     }
 
-    if (ui.themeSelector) {
-      ui.themeSelector.addEventListener('change', () => {
-        if (state.searchActive) {
-          runSearch(state.searchQuery);
-        }
-      });
-    }
   }
 
   function setupRefresh() {
@@ -777,6 +785,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     setupFilters();
+    setupFilterToggle();
+    setupHeaderToggle();
     setupSearch();
     setupRefresh();
     setupImportButton();

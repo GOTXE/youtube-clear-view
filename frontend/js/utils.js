@@ -320,6 +320,7 @@
 
   let logPanel = null;
   let logEntries = null;
+  let logToggle = null;
   const logQueue = [];
   const LOG_LIMIT = 200;
 
@@ -339,6 +340,9 @@
     title.textContent = 'API log';
     header.appendChild(title);
 
+    const actions = document.createElement('div');
+    actions.className = 'dev-log-panel__actions';
+
     const clearButton = document.createElement('button');
     clearButton.type = 'button';
     clearButton.className = 'dev-log-panel__clear';
@@ -348,7 +352,24 @@
         logEntries.innerHTML = '';
       }
     });
-    header.appendChild(clearButton);
+    actions.appendChild(clearButton);
+
+    logToggle = document.createElement('button');
+    logToggle.type = 'button';
+    logToggle.className = 'dev-log-panel__toggle';
+    logToggle.textContent = 'Minimize';
+    logToggle.setAttribute('aria-pressed', 'false');
+    logToggle.addEventListener('click', () => {
+      if (!logPanel) {
+        return;
+      }
+      const minimized = logPanel.classList.toggle('dev-log-panel--minimized');
+      logToggle.textContent = minimized ? 'Open' : 'Minimize';
+      logToggle.setAttribute('aria-pressed', minimized ? 'true' : 'false');
+    });
+    actions.appendChild(logToggle);
+
+    header.appendChild(actions);
 
     logEntries = document.createElement('div');
     logEntries.className = 'dev-log-panel__entries';

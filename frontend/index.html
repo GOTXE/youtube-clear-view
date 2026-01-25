@@ -33,25 +33,6 @@
             <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
           </div>
         </div>
-        <div class="header-actions" aria-label="Header controls">
-          <button id="theme-toggle" class="button button--ghost" type="button" aria-pressed="false">
-            <span class="button__label">Toggle theme</span>
-          </button>
-          <button id="google-login-button" class="button button--ghost" type="button" hidden>
-            Sign in with Google
-          </button>
-          <label class="field field--compact" for="user-selector">
-            <span class="field__label">User</span>
-            <select id="user-selector" class="field__input" aria-label="Select user"></select>
-          </label>
-          <button id="import-subscriptions-button" class="button button--ghost" type="button" hidden>
-            Import subscriptions
-          </button>
-          <div class="user-summary" aria-live="polite">
-            <span id="current-user" class="caption">Not signed in</span>
-            <span id="device-type" class="caption">Device: --</span>
-          </div>
-        </div>
       </header>
 
       <main class="app-main" role="main">
@@ -65,36 +46,63 @@
           </aside>
 
           <div class="app-content">
-            <section class="filters" aria-labelledby="filters-title">
-              <h2 id="filters-title" class="heading-2">Filters</h2>
-              <div class="filters__search">
-                <label class="field" for="search-input">
-                  <span class="field__label">Search</span>
-                  <div class="field__group">
-                    <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
-                    <button id="search-button" class="button" type="button">Search</button>
+            <div class="top-panels">
+              <section class="header-panel">
+                <div class="header-panel__bar">
+                  <div class="header-panel__controls header-actions" aria-label="Header controls">
+                    <button id="theme-toggle" class="button button--ghost" type="button" aria-pressed="false">
+                      <span class="button__label">Toggle theme</span>
+                    </button>
+                    <button id="google-login-button" class="button button--ghost" type="button" hidden>
+                      Sign in with Google
+                    </button>
+                    <button id="import-subscriptions-button" class="button button--ghost" type="button" hidden>
+                      Import subscriptions
+                    </button>
+                    <div class="user-summary" aria-live="polite">
+                      <span id="current-user" class="caption">Not signed in</span>
+                      <span id="device-type" class="caption">Device: --</span>
+                    </div>
                   </div>
-                </label>
-              </div>
-              <div class="filters__options" role="group" aria-label="Video filters">
-                <label class="checkbox">
-                  <input id="filter-unwatched" type="checkbox">
-                  <span>Unwatched</span>
-                </label>
-                <label class="checkbox">
-                  <input id="filter-week" type="checkbox">
-                  <span>Last week</span>
-                </label>
-                <label class="checkbox">
-                  <input id="filter-month" type="checkbox">
-                  <span>Last month</span>
-                </label>
-              </div>
-              <label class="field" for="theme-selector">
-                <span class="field__label">Themes</span>
-                <select id="theme-selector" class="field__input" aria-label="Select theme"></select>
-              </label>
-            </section>
+                  <button id="header-toggle" class="button button--ghost button--tiny" type="button" aria-pressed="false">
+                    Hide
+                  </button>
+                </div>
+              </section>
+
+              <section class="filters" aria-labelledby="filters-title">
+                <div class="filters__bar">
+                  <h2 id="filters-title" class="heading-2">Filters</h2>
+                  <div class="filters__controls">
+                    <div class="filters__search">
+                      <label class="field field--inline" for="search-input">
+                        <div class="field__group">
+                          <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
+                          <button id="search-button" class="button button--compact" type="button">Search</button>
+                        </div>
+                      </label>
+                    </div>
+                    <div class="filters__options" role="group" aria-label="Video filters">
+                      <label class="filter-chip">
+                        <input id="filter-unwatched" type="checkbox">
+                        <span>Unwatched</span>
+                      </label>
+                      <label class="filter-chip">
+                        <input id="filter-week" type="checkbox">
+                        <span>Last week</span>
+                      </label>
+                      <label class="filter-chip">
+                        <input id="filter-month" type="checkbox">
+                        <span>Last month</span>
+                      </label>
+                    </div>
+                  </div>
+                  <button id="filters-toggle" class="button button--ghost button--tiny" type="button" aria-pressed="false">
+                    Hide
+                  </button>
+                </div>
+              </section>
+            </div>
 
             <section class="carousel-section" aria-labelledby="latest-title">
               <div class="section-header">

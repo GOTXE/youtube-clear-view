@@ -302,7 +302,7 @@ class Carousel {
 
     const durationText = this.formatDuration(video.duration);
     if (durationText) {
-      details.appendChild(document.createTextNode(durationText));
+      details.appendChild(document.createTextNode(`Duración: ${durationText}`));
     }
 
     if (watched) {

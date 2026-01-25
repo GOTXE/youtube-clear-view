@@ -552,7 +552,7 @@ select {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--text);
-  font-size: var(--font-body-small);
+  font-size: var(--font-caption);
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   white-space: nowrap;
@@ -806,6 +806,8 @@ select {
   background: var(--bg-secondary);
   color: var(--text);
   font-weight: 600;
+  cursor: move;
+  user-select: none;
 }
 
 .dev-log-panel__actions {
@@ -853,6 +855,9 @@ select {
   color: var(--muted);
   font-family: 'Courier New', monospace;
   line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .dev-log-panel__entry--success {
@@ -861,6 +866,22 @@ select {
 
 .dev-log-panel__entry--error {
   color: var(--error);
+}
+
+.dev-log-panel__entry--new {
+  animation: log-flash 1s ease-in-out infinite;
+}
+
+@keyframes log-flash {
+  0% {
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  50% {
+    background: transparent;
+  }
+  100% {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
 }
 
 .modal {

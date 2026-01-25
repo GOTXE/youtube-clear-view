@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     videosLabel: document.getElementById('videos-label'),
     shortsLabel: document.getElementById('shorts-label'),
     searchInput: document.getElementById('search-input'),
-    searchButton: document.getElementById('search-button'),
+    searchButton: null,
     filterUnwatched: document.getElementById('filter-unwatched'),
     filterWeek: document.getElementById('filter-week'),
     filterMonth: document.getElementById('filter-month')
@@ -592,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function ensureClearSearchButton() {
-    if (clearSearchButton || !ui.searchButton) {
+    if (clearSearchButton) {
       return;
     }
 
@@ -605,7 +605,10 @@ document.addEventListener('DOMContentLoaded', () => {
       clearSearch();
     });
 
-    ui.searchButton.parentNode.appendChild(clearSearchButton);
+    const searchGroup = ui.searchInput ? ui.searchInput.closest('.field__group') : null;
+    if (searchGroup) {
+      searchGroup.appendChild(clearSearchButton);
+    }
   }
 
   function clearSearch() {
@@ -694,10 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (ui.searchInput) {
       ui.searchInput.addEventListener('input', debounced);
-    }
-
-    if (ui.searchButton) {
-      ui.searchButton.addEventListener('click', handleSearch);
     }
 
   }

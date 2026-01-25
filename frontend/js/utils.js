@@ -336,6 +336,101 @@
   let logToggle = null;
   const logQueue = [];
   const LOG_LIMIT = 200;
+  const LOG_STORAGE_KEY = 'ytcv_dev_log_position';
+
+  function applySavedLogPosition(panel) {
+    if (!panel) {
+      return;
+    }
+    const raw = localStorage.getItem(LOG_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    try {
+      const data = JSON.parse(raw);
+      if (!data) {
+        return;
+      }
+      if (typeof data.left === 'number') {
+        panel.style.left = `${data.left}px`;
+      }
+      if (typeof data.top === 'number') {
+        panel.style.top = `${data.top}px`;
+      }
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    } catch (error) {
+      // Ignore invalid cache.
+    }
+  }
+
+  function initDrag(panel, handle) {
+    if (!panel || !handle) {
+      return;
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let originX = 0;
+    let originY = 0;
+
+    const clampPosition = () => {
+      const rect = panel.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      const nextX = Math.min(Math.max(rect.left, 8), Math.max(maxX, 8));
+      const nextY = Math.min(Math.max(rect.top, 8), Math.max(maxY, 8));
+      panel.style.left = `${nextX}px`;
+      panel.style.top = `${nextY}px`;
+    };
+
+    const onMouseMove = event => {
+      if (!isDragging) {
+        return;
+      }
+      const nextLeft = originX + (event.clientX - startX);
+      const nextTop = originY + (event.clientY - startY);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) {
+        return;
+      }
+      isDragging = false;
+      handle.classList.remove('is-dragging');
+      clampPosition();
+      const rect = panel.getBoundingClientRect();
+      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    handle.addEventListener('mousedown', event => {
+      if (event.button !== 0) {
+        return;
+      }
+      isDragging = true;
+      const rect = panel.getBoundingClientRect();
+      startX = event.clientX;
+      startY = event.clientY;
+      originX = rect.left;
+      originY = rect.top;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      handle.classList.add('is-dragging');
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    window.addEventListener('resize', () => {
+      if (!isDragging) {
+        clampPosition();
+      }
+    });
+  }
 
   function initDevLogPanel() {
     if (!isLocalhost() || logPanel || !document.body) {
@@ -390,6 +485,8 @@
     logPanel.appendChild(header);
     logPanel.appendChild(logEntries);
     document.body.appendChild(logPanel);
+    applySavedLogPosition(logPanel);
+    initDrag(logPanel, header);
 
     while (logQueue.length) {
       const entry = logQueue.shift();
@@ -404,13 +501,18 @@
 
     const entry = document.createElement('div');
     entry.className = `dev-log-panel__entry dev-log-panel__entry--${type}`;
+    entry.classList.add('dev-log-panel__entry--new');
     const timestamp = new Date().toLocaleTimeString();
     entry.textContent = `[${timestamp}] ${message}`;
-    logEntries.appendChild(entry);
+    logEntries.prepend(entry);
 
     while (logEntries.children.length > LOG_LIMIT) {
-      logEntries.removeChild(logEntries.firstChild);
+      logEntries.removeChild(logEntries.lastChild);
     }
+
+    window.setTimeout(() => {
+      entry.classList.remove('dev-log-panel__entry--new');
+    }, 8000);
   }
 
   function logApiEvent(message, type = 'info') {

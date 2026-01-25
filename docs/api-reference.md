@@ -16,7 +16,7 @@ Authentication uses httpOnly cookies. The frontend never stores or reads tokens.
 - Set by `POST /api/auth/login`
 - Cleared by `POST /api/auth/logout`
 
-If the cookie is missing or invalid, the API responds with `401 Unauthorized` and a tracking ID.
+If the cookie is missing or invalid, `/api/auth/current` responds with `{ "authenticated": false }`.
 
 ## Error Response Format
 
@@ -115,17 +115,24 @@ Response:
 
 ### GET /api/auth/current
 
-Returns the authenticated user's profile.
+Returns the authenticated user's profile, or `authenticated: false` if no session exists.
 
 Response:
 
 ```json
 {
+  "authenticated": true,
   "user_id": 1,
   "username": "alice",
   "display_name": "Alice",
   "theme_preference": "dark"
 }
+```
+
+If no session exists:
+
+```json
+{ "authenticated": false }
 ```
 
 ### PUT /api/auth/profile

@@ -70,10 +70,9 @@ def test_login_requires_username_tracking_id(client):
 
 def test_current_user_requires_cookie(client):
     response = client.get("/api/auth/current")
-    assert response.status_code == 401
+    assert response.status_code == 200
     data = response.get_json()
-    assert data["status"] == 401
-    assert data.get("tracking_id")
+    assert data["authenticated"] is False
 
 
 def test_current_user_returns_profile(client):
@@ -82,6 +81,7 @@ def test_current_user_returns_profile(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["username"] == "bob"
+    assert data["authenticated"] is True
 
 
 def test_list_users(client):

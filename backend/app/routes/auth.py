@@ -116,12 +116,21 @@ def list_users():
 
 @auth_bp.get("/api/auth/current")
 @handle_route_errors
-@require_auth
 def current_user():
-    """Return the current authenticated user."""
-    user = g.current_user
+    """Return the current authenticated user if a valid session exists."""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return jsonify({"authenticated": False})
+
+    user = User.query.filter_by(session_token=token).first()
+    if not user:
+        response = jsonify({"authenticated": False})
+        _clear_session_cookie(response)
+        return response
+
     return jsonify(
         {
+            "authenticated": True,
             "user_id": user.id,
             "username": user.username,
             "display_name": user.display_name,

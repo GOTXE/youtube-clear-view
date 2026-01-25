@@ -404,12 +404,12 @@
     }
 
     const response = await api.getCurrentUser();
-    if (response.ok && response.data) {
+    if (response.ok && response.data && response.data.authenticated) {
       setAuthenticated(response.data);
       return response.data;
     }
 
-    if (response.status !== 401) {
+    if (!response.ok) {
       setStatusMessage('Unable to verify session.', 'error');
     }
 

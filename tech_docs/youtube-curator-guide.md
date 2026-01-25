@@ -2444,3 +2444,9 @@ Types:
 **Project ready to begin!**
 
 Follow the steps in order, run tests after each step, and make descriptive commits following Conventional Commits.
+
+---
+
+## Pending Experiments
+
+- Investigate Shorts detection using the undocumented `UUSH` playlist prefix (StackOverflow reference) and compare with `/shorts/<id>` redirect heuristic.

@@ -169,7 +169,7 @@ def log_stats():
                     recent_errors.append(entry)
                 break
 
-    return jsonify({"levels": levels, "recent_errors": recent_errors[-20:]})
+    return jsonify({"levels": levels, "recent_errors": list(reversed(recent_errors[-20:]))})
 
 
 def create_app():

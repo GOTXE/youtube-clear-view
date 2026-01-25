@@ -102,6 +102,33 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card--debug {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.stat-card--info {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.stat-card--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.stat-card--error {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.stat-card--critical {
+  border-color: rgba(220, 38, 38, 0.65);
+  background: rgba(220, 38, 38, 0.2);
 }
 
 .stat-value {
@@ -135,6 +162,13 @@ body {
   background: var(--surface);
   color: var(--text);
   font-size: var(--font-body);
+}
+
+.field__input--compact {
+  height: 36px;
+  width: 110px;
+  padding: 0 var(--space-2);
+  font-size: var(--font-body-small);
 }
 
 .field--checkboxes {
@@ -224,6 +258,22 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.log-entry--highlight {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.recent-error {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+
+.recent-errors--alert .recent-error {
+  animation: pulse 2s ease-in-out infinite;
+}
+
 .log-entry--debug {
   color: var(--info);
 }
@@ -245,6 +295,38 @@ body {
   font-weight: 700;
 }
 
+.recent-error.log-entry--warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.recent-error.log-entry--error {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+.recent-error.log-entry--critical {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: rgba(220, 38, 38, 0.6);
+}
+
+.button--loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+}
+
 .tracking-button {
   background: transparent;
   border: none;
@@ -259,4 +341,49 @@ body {
   .page {
     padding: var(--space-6);
   }
+}
+
+.level-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.level-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.level-chip.is-active {
+  border-color: transparent;
+  color: #fff;
+}
+
+.level-chip.is-active[data-level="DEBUG"] {
+  background: var(--info);
+}
+
+.level-chip.is-active[data-level="INFO"] {
+  background: var(--success);
+}
+
+.level-chip.is-active[data-level="WARNING"] {
+  background: var(--warning);
+}
+
+.level-chip.is-active[data-level="ERROR"] {
+  background: var(--error);
+}
+
+.level-chip.is-active[data-level="CRITICAL"] {
+  background: #991b1b;
+}
+
+.level-chip.is-active[data-level="ALL"] {
+  background: var(--secondary);
 }

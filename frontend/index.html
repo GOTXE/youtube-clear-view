@@ -44,9 +44,6 @@
             <span class="field__label">User</span>
             <select id="user-selector" class="field__input" aria-label="Select user"></select>
           </label>
-          <button id="seed-data-button" class="button button--ghost" type="button" hidden>
-            Seed data
-          </button>
           <button id="import-subscriptions-button" class="button button--ghost" type="button" hidden>
             Import subscriptions
           </button>
@@ -94,7 +91,15 @@
             <h2 id="latest-title" class="heading-2">Latest Videos</h2>
             <button id="refresh-videos" class="button button--ghost" type="button">Refresh</button>
           </div>
+          <p id="last-updated" class="caption"></p>
           <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
+        </section>
+
+        <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
+          <div class="section-header">
+            <h2 id="shorts-title" class="heading-2">Shorts</h2>
+          </div>
+          <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
         </section>
 
         <section id="themes-container" class="themes-section" aria-label="Theme carousels">

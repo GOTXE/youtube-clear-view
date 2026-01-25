@@ -69,6 +69,10 @@ def latest_videos():
     if limit <= 0 or offset < 0:
         return _bad_request("Invalid pagination values.")
 
+    content_type = request.args.get("content_type")
+    if content_type and content_type not in ("video", "short"):
+        return _bad_request("Invalid content_type.")
+
     channel_ids = [
         sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
     ]
@@ -78,6 +82,10 @@ def latest_videos():
     query = Video.query.filter(Video.channel_id.in_(channel_ids)).order_by(
         Video.published_at.desc()
     )
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
     payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 
@@ -97,6 +105,10 @@ def videos_by_theme(theme_id):
     if limit <= 0 or offset < 0:
         return _bad_request("Invalid pagination values.")
 
+    content_type = request.args.get("content_type")
+    if content_type and content_type not in ("video", "short"):
+        return _bad_request("Invalid content_type.")
+
     theme = Theme.query.filter_by(id=theme_id, user_id=user.id).first()
     if not theme:
         tracking_id = generate_tracking_id()
@@ -113,6 +125,10 @@ def videos_by_theme(theme_id):
     query = Video.query.filter(Video.channel_id.in_(channel_ids)).order_by(
         Video.published_at.desc()
     )
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
     payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 

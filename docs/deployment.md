@@ -109,5 +109,6 @@ Examples:
 
 - **401 responses**: verify cookie domain/path and CORS origins.
 - **Google OAuth login fails**: verify `AUTH_MODE=google`, client ID/secret, and redirect URI.
+- **OAuth console warnings about CSP / ERR_BLOCKED_BY_CLIENT**: these are browser/ad-blocker warnings from Google login pages and do not affect authentication. Disable blockers if you want a clean console.
 - **No logs**: check `LOG_FILE` path and volume mounts.
 - **DB errors**: ensure `DATABASE_URI` points to a writable volume.

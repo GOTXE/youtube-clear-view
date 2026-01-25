@@ -359,6 +359,12 @@ select {
   color: var(--muted);
 }
 
+.video-card__description {
+  font-size: var(--font-body-small);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .toast {
   position: fixed;
   bottom: var(--space-6);
@@ -369,6 +375,63 @@ select {
   border: 1px solid var(--border);
   box-shadow: 0 12px 24px var(--shadow);
   color: var(--text);
+}
+
+.dev-log-panel {
+  position: fixed;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  width: min(360px, 90vw);
+  max-height: 40vh;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  box-shadow: 0 12px 24px var(--shadow);
+  font-size: 12px;
+  z-index: 9999;
+}
+
+.dev-log-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dev-log-panel__clear {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.dev-log-panel__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+  max-height: 32vh;
+}
+
+.dev-log-panel__entry {
+  color: var(--muted);
+  font-family: 'Courier New', monospace;
+  line-height: 1.4;
+}
+
+.dev-log-panel__entry--success {
+  color: var(--success);
+}
+
+.dev-log-panel__entry--error {
+  color: var(--error);
 }
 
 .modal {

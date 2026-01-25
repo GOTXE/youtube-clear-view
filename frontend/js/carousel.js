@@ -282,6 +282,20 @@ class Carousel {
     channelEl.className = 'video-card__meta';
     channelEl.textContent = channel.title || 'Unknown channel';
 
+    const descriptionText = (video.description || '').trim();
+    let truncatedDescription = descriptionText;
+    if (descriptionText) {
+      if (typeof window.truncateText === 'function') {
+        truncatedDescription = window.truncateText(descriptionText, 140);
+      } else if (descriptionText.length > 140) {
+        truncatedDescription = `${descriptionText.slice(0, 137)}...`;
+      }
+    }
+
+    const descriptionEl = document.createElement('p');
+    descriptionEl.className = 'video-card__description';
+    descriptionEl.textContent = truncatedDescription;
+
     const details = document.createElement('p');
     details.className = 'video-card__meta';
 
@@ -296,6 +310,9 @@ class Carousel {
 
     body.appendChild(titleEl);
     body.appendChild(channelEl);
+    if (truncatedDescription) {
+      body.appendChild(descriptionEl);
+    }
     body.appendChild(details);
 
     card.appendChild(thumb);

@@ -43,6 +43,7 @@ class UserChannel(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     channel_id = db.Column(db.Integer, db.ForeignKey("channels.id"), nullable=False, index=True)
     subscribed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_refreshed_at = db.Column(db.DateTime)
 
     user = db.relationship("User", back_populates="user_channels")
     channel = db.relationship("Channel", back_populates="user_channels")
@@ -58,4 +59,5 @@ class UserChannel(db.Model):
             "user_id": self.user_id,
             "channel_id": self.channel_id,
             "subscribed_at": self.subscribed_at.isoformat() if self.subscribed_at else None,
+            "last_refreshed_at": self.last_refreshed_at.isoformat() if self.last_refreshed_at else None,
         }

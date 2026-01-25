@@ -88,7 +88,6 @@ youtube-clear-view/
 │   ├── run_app.sh                 # Installer + launcher for Synology NAS
 │   ├── Dockerfile                 # Docker image definition
 │   ├── docker-compose.yml         # Docker deployment
-│   └── seed_db.py                 # Test data seeding script
 ├── log_viewer/                    # Separate log viewer microservice
 │   ├── app.py                     # Flask app for log viewing
 │   ├── templates/
@@ -273,7 +272,7 @@ Legend: [ ] not started, [~] partial, [x] done
 Notes:
 - Flask-SQLAlchemy added to backend/requirements.txt to match extensions usage.
 - Added backend/tests/test_placeholder.py to avoid pytest no-tests failure.
-- backend/Dockerfile, backend/docker-compose.yml, backend/seed_db.py were created ahead of their steps; confirm whether to keep or remove.
+- backend/Dockerfile and backend/docker-compose.yml were created ahead of their steps; confirm whether to keep or remove.
 
 ---
 
@@ -779,6 +778,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] OAuth subscription import endpoint added (/api/channels/import)
 - [x] subscription import supports pagination for rate limiting
 - [x] watched markers returned for channel videos
+- [x] subscription refresh timestamps stored per user/channel
 - [x] tests added for channel routes (mocked service)
 - [x] step tests run (pytest tests/test_channels.py -v)
 
@@ -852,6 +852,7 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] video routes implemented (latest, by-theme, watch, unwatch, search)
 - [x] pagination and watched markers included
+- [x] content_type filtering for videos vs shorts
 - [x] search filters for channel and theme implemented
 - [x] index added for video title/description to improve search performance
 - [x] tests added for video routes
@@ -1772,6 +1773,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] Infinite loading with sentinel observer and loading indicators
 - [x] Lazy-loaded thumbnails with skeleton placeholders
 - [x] Watched state handling and API integration
+- [x] Video cards render truncated descriptions
 - [x] step tests run (backend pytest suite)
 
 ---
@@ -1861,6 +1863,7 @@ Legend: [ ] not started, [~] partial, [x] done
 
 - [x] formatting helpers (duration, date, relative time, truncate)
 - [x] debounce and YouTube URL/thumbnail helpers
+- [x] dev-only API log panel helpers
 - [x] device fingerprint generator and HTML sanitizer
 - [x] toast notifications, modal helper, and loading spinner
 - [x] step tests run (backend pytest suite)
@@ -1979,6 +1982,8 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] subscription import action wired for Google OAuth users
 - [x] auto-import + refresh when Google user has no channels
 - [x] import progress status shown while syncing subscriptions
+- [x] shorts carousel added alongside latest videos
+- [x] last-updated label shown based on channel refresh times
 - [x] debug helpers for development
 - [x] step tests run (backend pytest suite)
 
@@ -2031,15 +2036,7 @@ Implement comprehensive testing and debugging tools:
    - Test set device type
    - Test device deletion
 
-7. **backend/seed_db.py**:
-   - Create sample users (user1, user2)
-   - Create sample channels (use real YouTube channel IDs)
-   - Create sample themes
-   - Associate channels to users and themes
-   - Mark some videos as watched
-   - Command: python seed_db.py
-
-8. **backend/pytest.ini** (root):
+7. **backend/pytest.ini** (root):
    - Configure pytest settings
    - Test discovery paths
    - Markers for slow tests
@@ -2065,8 +2062,8 @@ pytest tests/ -v --tb=short
 ### Git Commands:
 
 ```bash
-git add backend/tests/ backend/seed_db.py pytest.ini
-git commit -m "feat: add comprehensive test suite and data seeding script"
+git add backend/tests/ pytest.ini
+git commit -m "feat: add comprehensive test suite"
 git push
 ```
 
@@ -2075,7 +2072,6 @@ git push
 Legend: [ ] not started, [~] partial, [x] done
 
 - [x] shared pytest fixtures and mock YouTube service
-- [x] seed_db.py implemented with sample users, channels, themes, videos
 - [x] pytest configuration updated with markers
 - [x] step tests run (backend pytest suite)
 

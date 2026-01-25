@@ -314,6 +314,87 @@
     document.body.appendChild(overlay);
   }
 
+  function isLocalhost() {
+    return ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  }
+
+  let logPanel = null;
+  let logEntries = null;
+  const logQueue = [];
+  const LOG_LIMIT = 200;
+
+  function initDevLogPanel() {
+    if (!isLocalhost() || logPanel || !document.body) {
+      return;
+    }
+
+    logPanel = document.createElement('section');
+    logPanel.className = 'dev-log-panel';
+    logPanel.setAttribute('aria-live', 'polite');
+
+    const header = document.createElement('div');
+    header.className = 'dev-log-panel__header';
+
+    const title = document.createElement('span');
+    title.textContent = 'API log';
+    header.appendChild(title);
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'dev-log-panel__clear';
+    clearButton.textContent = 'Clear';
+    clearButton.addEventListener('click', () => {
+      if (logEntries) {
+        logEntries.innerHTML = '';
+      }
+    });
+    header.appendChild(clearButton);
+
+    logEntries = document.createElement('div');
+    logEntries.className = 'dev-log-panel__entries';
+
+    logPanel.appendChild(header);
+    logPanel.appendChild(logEntries);
+    document.body.appendChild(logPanel);
+
+    while (logQueue.length) {
+      const entry = logQueue.shift();
+      appendLogEntry(entry.message, entry.type);
+    }
+  }
+
+  function appendLogEntry(message, type) {
+    if (!logEntries || !message) {
+      return;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = `dev-log-panel__entry dev-log-panel__entry--${type}`;
+    const timestamp = new Date().toLocaleTimeString();
+    entry.textContent = `[${timestamp}] ${message}`;
+    logEntries.appendChild(entry);
+
+    while (logEntries.children.length > LOG_LIMIT) {
+      logEntries.removeChild(logEntries.firstChild);
+    }
+  }
+
+  function logApiEvent(message, type = 'info') {
+    if (!isLocalhost()) {
+      return;
+    }
+
+    if (!logPanel) {
+      logQueue.push({ message, type });
+      if (document.readyState !== 'loading') {
+        initDevLogPanel();
+      }
+      return;
+    }
+
+    appendLogEntry(message, type);
+  }
+
   window.formatDuration = formatDuration;
   window.formatDate = formatDate;
   window.timeAgo = timeAgo;
@@ -326,4 +407,8 @@
   window.showModal = showModal;
   window.loadingSpinner = loadingSpinner;
   window.sanitizeHTML = sanitizeHTML;
+  window.initDevLogPanel = initDevLogPanel;
+  window.logApiEvent = logApiEvent;
+
+  document.addEventListener('DOMContentLoaded', initDevLogPanel);
 })();

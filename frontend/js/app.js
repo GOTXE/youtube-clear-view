@@ -39,11 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const ui = {
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
+    shortsCarousel: document.getElementById('shorts-carousel'),
+    shortsSection: document.getElementById('shorts-section'),
     themeCarousels: document.getElementById('theme-carousels'),
     themesSection: document.getElementById('themes-container'),
     refreshButton: document.getElementById('refresh-videos'),
-    seedButton: document.getElementById('seed-data-button'),
     importButton: document.getElementById('import-subscriptions-button'),
+    lastUpdatedLabel: document.getElementById('last-updated'),
     searchInput: document.getElementById('search-input'),
     searchButton: document.getElementById('search-button'),
     themeSelector: document.getElementById('theme-selector'),
@@ -53,10 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   let clearSearchButton = null;
-
-  function isLocalhost() {
-    return ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  }
 
   function showNotification(message, type = 'info') {
     if (typeof window.showNotification === 'function') {
@@ -123,6 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.latestCarousel) {
       ui.latestCarousel.innerHTML = '';
     }
+    if (ui.shortsCarousel) {
+      ui.shortsCarousel.innerHTML = '';
+    }
     if (ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
@@ -134,7 +135,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
-      const response = await api.getLatestVideos(limit, offset);
+      const response = await api.getLatestVideos(limit, offset, 'video');
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      return applyFilters(response.data);
+    });
+
+    await carousel.init();
+    state.carousels.push(carousel);
+  }
+
+  async function renderShortsCarousel() {
+    if (!ui.shortsCarousel) {
+      return;
+    }
+
+    const carousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
+      const response = await api.getLatestVideos(limit, offset, 'short');
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
@@ -209,6 +227,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updateLastUpdatedLabel(channels) {
+    if (!ui.lastUpdatedLabel) {
+      return;
+    }
+
+    const timestamps = (channels || [])
+      .map(channel => channel.last_refreshed_at)
+      .filter(Boolean)
+      .map(value => new Date(value))
+      .filter(date => !Number.isNaN(date.getTime()));
+
+    if (!timestamps.length) {
+      ui.lastUpdatedLabel.textContent = 'Last updated: not yet.';
+      return;
+    }
+
+    timestamps.sort((a, b) => b.getTime() - a.getTime());
+    const latest = timestamps[0];
+    const relative = typeof window.timeAgo === 'function' ? window.timeAgo(latest.toISOString()) : '';
+    ui.lastUpdatedLabel.textContent = relative
+      ? `Last updated ${relative}.`
+      : `Last updated ${latest.toLocaleString()}.`;
+  }
+
   async function loadApp() {
     if (!state.currentUser) {
       return;
@@ -240,13 +282,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateThemeSelector(state.themes);
+    updateLastUpdatedLabel(state.channels);
 
     clearCarousels();
     await renderMainCarousel();
+    await renderShortsCarousel();
     await renderThemeCarousels(state.themes);
 
     if (ui.themesSection) {
       ui.themesSection.hidden = false;
+    }
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = false;
+    }
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = false;
     }
 
     setLoading(false, 'latest-carousel');
@@ -255,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function reloadCarousels() {
     clearCarousels();
     await renderMainCarousel();
+    await renderShortsCarousel();
     await renderThemeCarousels(state.themes);
   }
 
@@ -338,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ui.themesSection) {
       ui.themesSection.hidden = true;
     }
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = true;
+    }
 
     if (clearSearchButton) {
       clearSearchButton.hidden = false;
@@ -408,37 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ? response.data.new_videos
         : 0;
       showNotification(`${count} new videos found.`, 'success');
-      await loadApp();
-    });
-  }
-
-  function setupSeedButton() {
-    if (!ui.seedButton) {
-      return;
-    }
-
-    if (!isLocalhost()) {
-      ui.seedButton.hidden = true;
-      return;
-    }
-
-    ui.seedButton.hidden = false;
-    ui.seedButton.addEventListener('click', async () => {
-      if (!state.currentUser) {
-        showNotification('Sign in before seeding data.', 'warning');
-        return;
-      }
-
-      ui.seedButton.disabled = true;
-      const response = await api.post('/api/dev/seed');
-      ui.seedButton.disabled = false;
-
-      if (!response.ok) {
-        showNotification('Unable to seed data.', 'error');
-        return;
-      }
-
-      showNotification('Seed data loaded.', 'success');
       await loadApp();
     });
   }
@@ -585,7 +608,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilters();
     setupSearch();
     setupRefresh();
-    setupSeedButton();
     setupImportButton();
     setupDebug();
 

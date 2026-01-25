@@ -205,7 +205,8 @@ Response:
     "title": "Google Developers",
     "thumbnail_url": "https://...",
     "description": "...",
-    "subscribed_at": "2024-01-01T00:00:00"
+    "subscribed_at": "2024-01-01T00:00:00",
+    "last_refreshed_at": "2024-01-01T12:00:00"
   }
 ]
 ```
@@ -273,7 +274,7 @@ Request (optional):
 Response:
 
 ```json
-{ "new_videos": 5 }
+{ "new_videos": 5, "refreshed_at": "2024-01-01T12:00:00" }
 ```
 
 ### GET /api/channels/<channel_id>/videos
@@ -307,6 +308,7 @@ Returns latest videos from subscribed channels.
 Query params:
 - `limit`
 - `offset`
+- `content_type` (optional: `video` or `short`)
 
 Response:
 
@@ -327,6 +329,7 @@ Returns videos for channels in a theme.
 Query params:
 - `limit`
 - `offset`
+- `content_type` (optional: `video` or `short`)
 
 Response: Same format as latest videos.
 

@@ -34,7 +34,6 @@ class Config:
     LOG_VIEWER_PORT = int(os.getenv("LOG_VIEWER_PORT", "5551"))
 
     GUNICORN_WORKERS = int(os.getenv("GUNICORN_WORKERS", "2"))
-    ALLOW_DEV_SEED = os.getenv("ALLOW_DEV_SEED", "False").lower() == "true"
 
     AUTH_MODE = os.getenv("AUTH_MODE", "local")
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

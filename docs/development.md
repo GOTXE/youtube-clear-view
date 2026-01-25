@@ -24,12 +24,6 @@ python -m flask --app app run --port 5550
 pytest backend/tests -v
 ```
 
-## Seed Data
-
-```bash
-python backend/seed_db.py
-```
-
 ## Project Structure
 
 - `backend/`: Flask API + SQLite

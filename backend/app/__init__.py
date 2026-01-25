@@ -6,7 +6,7 @@ from .config import Config
 from .extensions import db, init_extensions
 from .logging.logger import configure_logging, get_logger
 from .middleware.error_handler import register_error_handlers
-from .migrations import ensure_user_schema
+from .migrations import ensure_user_channel_schema, ensure_user_schema
 from .routes import register_routes
 
 
@@ -37,6 +37,7 @@ def create_app(config_class=Config):
     with app.app_context():
         db.create_all()
         ensure_user_schema()
+        ensure_user_channel_schema()
 
     logger = get_logger(__name__)
     logger.info("Application initialized.", extra={"tracking_id": "SYSTEM"})

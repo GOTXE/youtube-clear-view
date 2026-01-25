@@ -51,3 +51,27 @@ def ensure_user_schema():
             error,
             extra={"tracking_id": generate_tracking_id()},
         )
+
+
+def ensure_user_channel_schema():
+    """Ensure newer user channel columns exist in SQLite dev databases."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_channels)")).fetchall()
+            if not result:
+                return
+
+            columns = {row[1] for row in result}
+            if "last_refreshed_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_refreshed_at DATETIME"))
+    except Exception as error:
+        logger.warning(
+            "User channel schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )

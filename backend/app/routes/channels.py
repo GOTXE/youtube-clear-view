@@ -23,7 +23,8 @@ def _parse_datetime(value):
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=None)
     except ValueError:
         return None
 
@@ -85,6 +86,11 @@ def list_channels():
         data = channel.to_dict()
         data["subscribed_at"] = (
             subscription.subscribed_at.isoformat() if subscription.subscribed_at else None
+        )
+        data["last_refreshed_at"] = (
+            subscription.last_refreshed_at.isoformat()
+            if subscription.last_refreshed_at
+            else None
         )
         results.append(data)
     return jsonify(results)
@@ -155,18 +161,24 @@ def refresh_channels():
         subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
         if not subscription:
             return _not_found("Subscription not found.")
-        channels = [subscription.channel]
+        subscriptions = [subscription]
     else:
-        channels = [sub.channel for sub in UserChannel.query.filter_by(user_id=user.id).all()]
+        subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
 
     service = _get_service()
     new_videos = 0
-    for channel in channels:
+    refreshed_at = datetime.utcnow()
+    for subscription in subscriptions:
+        channel = subscription.channel
         response = service.get_channel_videos(channel.youtube_channel_id)
         for item in response.get("videos", []):
             video_id = item.get("video_id")
             if not video_id:
                 continue
+            published_at = _parse_datetime(item.get("published_at"))
+            if subscription.last_refreshed_at and published_at:
+                if published_at <= subscription.last_refreshed_at:
+                    break
             exists = Video.query.filter_by(youtube_video_id=video_id).first()
             if exists:
                 continue
@@ -176,14 +188,15 @@ def refresh_channels():
                 title=item.get("title"),
                 description=item.get("description"),
                 thumbnail_url=item.get("thumbnail"),
-                published_at=_parse_datetime(item.get("published_at")),
+                published_at=published_at,
                 duration=item.get("duration"),
             )
             db.session.add(video)
             new_videos += 1
+        subscription.last_refreshed_at = refreshed_at
 
     db.session.commit()
-    return jsonify({"new_videos": new_videos})
+    return jsonify({"new_videos": new_videos, "refreshed_at": refreshed_at.isoformat()})
 
 
 @channels_bp.post("/api/channels/import")

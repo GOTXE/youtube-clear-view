@@ -29,6 +29,12 @@ cd backend
 python -m flask --app app run --port 5550
 ```
 
+Or use the helper script:
+
+```bash
+./scripts/run_local.sh
+```
+
 ## Documentation
 
 - API reference: `docs/api-reference.md`

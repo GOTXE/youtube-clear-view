@@ -8,8 +8,9 @@ Curated YT viewing without the recommendation algorithm.
 - Separate log viewer microservice
 - Vanilla HTML/CSS/JS frontend
 - Device detection and responsive layout
-- Light/dark theme with persistence
+- Dark-by-default theme with persistence
 - Infinite carousel for videos
+- UI localization (EN/ES) with external JSON dictionaries
 - YT Data API v3 integration
 - HTTPS-only deployment behind reverse proxy
 

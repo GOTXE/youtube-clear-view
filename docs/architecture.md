@@ -33,11 +33,13 @@ YT Clear View is split into three services that communicate via HTTPS through a 
 - Flask app factory, modular blueprints.
 - SQLAlchemy + SQLite for persistence.
 - YT Data API v3 integration with caching.
+- Channel thumbnail caching stored under `backend/instance/channel_thumbnails` with periodic refresh.
 - Centralized error handling with tracking IDs.
 
 ### Log Viewer
 - Separate Flask app reading backend log files.
 - HTTP Basic Auth for access control.
+- UI supports severity filtering and auto-refresh for recent entries.
 
 ## Data Flow
 

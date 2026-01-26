@@ -29,6 +29,7 @@ pytest backend/tests -v
 - `backend/`: Flask API + SQLite
 - `log_viewer/`: log monitoring service
 - `frontend/`: static UI
+- `frontend/i18n/`: UI translation JSON files (EN/ES)
 - `docs/`: public docs
 - `tech_docs/`: local notes (gitignored)
 
@@ -53,6 +54,20 @@ Use Conventional Commits:
 - `docs: ...`
 - `test: ...`
 - `chore: ...`
+
+## Localization (i18n)
+
+- Language is auto-detected from the browser.
+- Override with `?lang=es` or `?lang=en`.
+- Translation files live in `frontend/i18n/`.
+- Add a new language by creating `frontend/i18n/<lang>.json` and adding the code to `SUPPORTED` in `frontend/js/i18n.js`.
+
+The UI waits for translations to load before rendering to avoid a brief flash of the default language.
+
+## Log Viewer UX
+
+- Severity filters, auto-refresh, and highlighted newest entries are available in the log viewer UI.
+- Access via `/logs` on the log viewer service.
 
 ## Git Workflow
 

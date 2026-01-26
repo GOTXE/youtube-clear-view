@@ -39,6 +39,7 @@ Commands below apply once `backend/` and related modules exist:
 - Current commit history is informal (e.g., “inicio”, “correccion carpeta”). Going forward, prefer Conventional Commits:
   - `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, `chore: ...`
 - PRs should include: purpose, how to test, and screenshots for UI changes. Link related issues when applicable.
+- Release tags: follow SemVer guidance in `tech_docs/yt-curator-guide.md` (use annotated tags like `v0.X.Y-beta.N` and never retag).
 
 ## Security & Configuration Tips
 

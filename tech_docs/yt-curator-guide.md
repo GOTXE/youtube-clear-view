@@ -2450,6 +2450,22 @@ Types:
 
 ---
 
+## Release Tags (SemVer)
+
+- Use annotated SemVer tags for releases (pre-1.0): `v0.X.Y-beta.N`
+- Tags are immutable pointers; do **not** move/rewrite tags. Publish a new tag for changes.
+- Tag from a clean branch after tests pass.
+- Push tags explicitly: `git push origin <tag>`
+
+Example:
+
+```
+git tag -a v0.8.0-beta.1 -m "v0.8.0-beta.1"
+git push origin v0.8.0-beta.1
+```
+
+---
+
 **Project ready to begin!**
 
 Follow the steps in order, run tests after each step, and make descriptive commits following Conventional Commits.

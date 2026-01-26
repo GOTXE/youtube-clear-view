@@ -1,8 +1,11 @@
 """Channel management routes."""
 
 from datetime import datetime, timedelta
+import os
+from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, g, jsonify, request
+import requests
+from flask import Blueprint, current_app, g, jsonify, redirect, request, send_file
 from sqlalchemy import func
 
 from app.extensions import db
@@ -17,6 +20,85 @@ from app.services.yt_oauth import fetch_subscriptions_page
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
+THUMBNAIL_TTL_DAYS = 90
+
+
+def _thumbnail_cache_dir():
+    """Return the directory for cached channel thumbnails."""
+    cache_dir = os.path.join(current_app.instance_path, "channel_thumbnails")
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
+def _resolve_thumbnail_extension(content_type, url):
+    """Resolve a thumbnail file extension."""
+    mapping = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    if content_type:
+        normalized = content_type.split(";", 1)[0].strip().lower()
+        if normalized in mapping:
+            return mapping[normalized]
+
+    if url:
+        ext = os.path.splitext(urlparse(url).path)[1]
+        if ext:
+            return ext
+    return ".jpg"
+
+
+def _thumbnail_is_stale(channel):
+    """Check if cached thumbnail is stale or missing."""
+    if not channel.thumbnail_cache_path or not channel.thumbnail_cached_at:
+        return True
+    cache_dir = _thumbnail_cache_dir()
+    cached_path = os.path.join(cache_dir, channel.thumbnail_cache_path)
+    if not os.path.exists(cached_path):
+        return True
+    cutoff = datetime.utcnow() - timedelta(days=THUMBNAIL_TTL_DAYS)
+    return channel.thumbnail_cached_at < cutoff
+
+
+def _cache_channel_thumbnail(channel):
+    """Fetch and cache a channel thumbnail if needed."""
+    if not channel.thumbnail_url:
+        return None
+
+    cache_dir = _thumbnail_cache_dir()
+    if not _thumbnail_is_stale(channel):
+        return os.path.join(cache_dir, channel.thumbnail_cache_path)
+
+    try:
+        response = requests.get(channel.thumbnail_url, timeout=10)
+    except requests.RequestException:
+        return None
+
+    if response.status_code != 200 or not response.content:
+        return None
+
+    ext = _resolve_thumbnail_extension(response.headers.get("content-type"), channel.thumbnail_url)
+    filename = f"channel_{channel.id}{ext}"
+    cached_path = os.path.join(cache_dir, filename)
+
+    if channel.thumbnail_cache_path and channel.thumbnail_cache_path != filename:
+        old_path = os.path.join(cache_dir, channel.thumbnail_cache_path)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    with open(cached_path, "wb") as file_handle:
+        file_handle.write(response.content)
+
+    channel.thumbnail_cache_path = filename
+    channel.thumbnail_cached_at = datetime.utcnow()
+    db.session.commit()
+
+    return cached_path
 
 
 def _parse_datetime(value):
@@ -179,6 +261,7 @@ def list_channels():
     for subscription in subscriptions:
         channel = subscription.channel
         data = channel.to_dict()
+        data["thumbnail_local_url"] = f"/api/channels/{channel.id}/thumbnail"
         data["latest_video_at"] = (
             latest_video_map.get(channel.id).isoformat()
             if latest_video_map.get(channel.id)
@@ -199,6 +282,21 @@ def list_channels():
         )
         results.append(data)
     return jsonify(results)
+
+
+@channels_bp.get("/api/channels/<int:channel_id>/thumbnail")
+@handle_route_errors
+def channel_thumbnail(channel_id):
+    """Return a cached channel thumbnail or redirect to the source."""
+    channel = Channel.query.filter_by(id=channel_id).first()
+    if not channel or not channel.thumbnail_url:
+        return "", 404
+
+    cached_path = _cache_channel_thumbnail(channel)
+    if cached_path and os.path.exists(cached_path):
+        return send_file(cached_path, mimetype="image/*", max_age=60 * 60 * 24)
+
+    return redirect(channel.thumbnail_url)
 
 
 @channels_bp.post("/api/channels/subscribe")

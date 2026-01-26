@@ -103,6 +103,10 @@ def ensure_channel_schema():
                 conn.execute(
                     text("CREATE UNIQUE INDEX IF NOT EXISTS uq_channels_yt_channel_id ON channels (yt_channel_id)")
                 )
+            if "thumbnail_cache_path" not in columns:
+                conn.execute(text("ALTER TABLE channels ADD COLUMN thumbnail_cache_path VARCHAR(500)"))
+            if "thumbnail_cached_at" not in columns:
+                conn.execute(text("ALTER TABLE channels ADD COLUMN thumbnail_cached_at DATETIME"))
             if "youtube_channel_id" in columns:
                 conn.execute(
                     text("CREATE INDEX IF NOT EXISTS ix_channels_youtube_channel_id ON channels (youtube_channel_id)")

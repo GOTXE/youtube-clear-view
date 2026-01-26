@@ -14,6 +14,8 @@ class Channel(db.Model):
     yt_channel_id = db.Column(db.String(120), unique=True, nullable=False, index=True)
     title = db.Column(db.String(255))
     thumbnail_url = db.Column(db.String(500))
+    thumbnail_cache_path = db.Column(db.String(500))
+    thumbnail_cached_at = db.Column(db.DateTime)
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 

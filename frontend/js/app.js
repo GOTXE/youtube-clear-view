@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     channels: [],
     selectedChannelId: null,
     selectedChannelYtId: null,
+    prefetchedThumbnails: new Set(),
     filters: {
       unwatched: false,
       month: false
@@ -325,7 +326,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const buildThumbnail = channel => {
-      if (!channel.thumbnail_url) {
+      const baseUrl = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL
+        ? window.APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
+        : '';
+      const localUrl = channel.thumbnail_local_url && baseUrl
+        ? `${baseUrl}${channel.thumbnail_local_url}`
+        : null;
+      const sourceUrl = localUrl || channel.thumbnail_url;
+
+      if (!sourceUrl) {
         return buildPlaceholder(channel);
       }
 
@@ -334,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const img = document.createElement('img');
       img.className = 'channel-item__thumb-image';
-      img.src = channel.thumbnail_url;
+      img.src = sourceUrl;
       img.alt = channel.title || 'Channel thumbnail';
       img.loading = 'lazy';
       img.addEventListener('error', () => {
@@ -407,6 +416,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+  }
+
+  function prefetchChannelThumbnails(channels) {
+    if (!Array.isArray(channels) || !channels.length) {
+      return;
+    }
+
+    const baseUrl = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL
+      ? window.APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
+      : '';
+
+    const queue = channels
+      .filter(channel => channel.thumbnail_local_url && !state.prefetchedThumbnails.has(channel.id))
+      .map(channel => ({
+        id: channel.id,
+        url: baseUrl ? `${baseUrl}${channel.thumbnail_local_url}` : channel.thumbnail_local_url
+      }))
+      .filter(item => item.url);
+
+    if (!queue.length) {
+      return;
+    }
+
+    let index = 0;
+    let active = 0;
+    const concurrency = 4;
+
+    const loadNext = () => {
+      while (active < concurrency && index < queue.length) {
+        const item = queue[index++];
+        state.prefetchedThumbnails.add(item.id);
+        active += 1;
+
+        const img = new Image();
+        img.onload = () => {
+          active -= 1;
+          loadNext();
+        };
+        img.onerror = () => {
+          active -= 1;
+          loadNext();
+        };
+        img.src = item.url;
+      }
+    };
+
+    loadNext();
   }
 
   function updateChannelCount(channels) {
@@ -496,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
     await updateVideoCounts();
+    prefetchChannelThumbnails(state.channels);
 
     clearCarousels();
     await renderMainCarousel();

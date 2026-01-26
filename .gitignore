@@ -23,6 +23,9 @@ logs/
 *.sqlite3
 *.db
 
+# Local instance data (SQLite + cached thumbnails)
+backend/instance/
+
 # Node
 node_modules/
 

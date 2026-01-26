@@ -1,5 +1,6 @@
 """Application factory for YT Clear View."""
 
+import os
 from flask import Flask
 
 from .config import Config
@@ -45,6 +46,7 @@ def create_app(config_class=Config):
         ensure_user_channel_schema()
         ensure_channel_schema()
         ensure_video_schema()
+        os.makedirs(os.path.join(app.instance_path, "channel_thumbnails"), exist_ok=True)
 
     logger = get_logger(__name__)
     logger.info("Application initialized.", extra={"tracking_id": "SYSTEM"})

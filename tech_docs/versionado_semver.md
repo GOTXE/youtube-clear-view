@@ -2,8 +2,8 @@
 
 ## Estado Actual
 
-**Versión actual**: `v0.9.0-beta.2`
-**Branch**: `thumbnail_cache`
+**Versión actual**: `v0.9.0-beta.3`
+**Branch**: `la que esté usando el usuario`
 **Fase**: Pre-release (0.x.x) - Desarrollo activo
 
 ---
@@ -36,6 +36,255 @@ Mientras el proyecto esté en fase 0.x.x:
 | **Hot fix crítico** | PATCH | 0.8.1 → 0.8.2 | Security fix, crash fix |
 
 > **Nota**: En fase 0.x.x, MAJOR se mantiene en 0. Solo sube a 1.0.0 cuando esté listo para producción.
+
+---
+
+## 2.1. Cómo los Fixes Modifican la Versión
+
+Los **fixes** incrementan diferentes partes de la versión dependiendo del contexto actual:
+
+### 1️⃣ Fix en Versión Estable (sin prerelease)
+
+**Situación**: Ya tienes una versión estable (ej: `v0.9.0`) en `main` y encuentras un bug.
+
+**Acción**: Incrementar **PATCH** (tercer dígito)
+
+```bash
+v0.9.0 → v0.9.1  (primer fix)
+v0.9.1 → v0.9.2  (segundo fix)
+v0.9.2 → v0.9.3  (tercer fix)
+```
+
+**Ejemplos**:
+```bash
+# Bug fix normal
+git tag -a v0.9.1 -m "fix: resolve OAuth token refresh bug"
+
+# Security hotfix
+git tag -a v0.9.2 -m "fix(security): sanitize channel titles to prevent XSS"
+
+# Critical crash fix
+git tag -a v0.9.3 -m "fix: prevent infinite loop on error response"
+```
+
+---
+
+### 2️⃣ Fix Durante Pre-release (alpha/beta/rc)
+
+**Situación**: Estás en una versión pre-release (ej: `v0.9.0-beta.2`) y encuentras bugs durante testing.
+
+**Acción**: Incrementar el **número de prerelease**, NO el PATCH
+
+```bash
+v0.9.0-beta.2 → v0.9.0-beta.3  (siguiente beta con fixes)
+```
+
+**Razón**: Aún no has lanzado `v0.9.0` estable, los fixes son parte del proceso de estabilización de esa versión.
+
+**Ejemplos según fase**:
+```bash
+# Fix en alpha
+v0.9.0-alpha.1 → v0.9.0-alpha.2
+git tag -a v0.9.0-alpha.2 -m "fix: correct migration script for categories table"
+
+# Fix en beta
+v0.9.0-beta.1 → v0.9.0-beta.2
+git tag -a v0.9.0-beta.2 -m "fix: star rating not persisting on page refresh"
+
+# Fix en RC
+v0.9.0-rc.1 → v0.9.0-rc.2
+git tag -a v0.9.0-rc.2 -m "fix: category color contrast in dark mode"
+```
+
+---
+
+### 3️⃣ Workflow de Hotfix (después de stable)
+
+**Situación**: Lanzaste `v0.9.0` estable, luego encuentras un bug crítico.
+
+**Acción**: Crear branch de hotfix, fix, y tag PATCH
+
+```bash
+v0.9.0 (stable) → v0.9.1 (hotfix)
+```
+
+**Proceso completo**:
+```bash
+# 1. Crear branch de hotfix desde el tag estable
+git checkout -b hotfix/0.9.1 v0.9.0
+
+# 2. Hacer el fix
+git commit -m "fix: resolve OAuth token expiration bug"
+
+# 3. Crear tag de fix (PATCH bump)
+git tag -a v0.9.1 -m "fix: resolve OAuth token expiration bug
+
+Critical fix for OAuth authentication flow.
+Token expiration was not being handled correctly."
+
+# 4. Merge a main
+git checkout main
+git merge hotfix/0.9.1
+git push origin main v0.9.1
+
+# 5. Merge también a desarrollo para no perder el fix
+git checkout desarrollo_paso_31
+git merge hotfix/0.9.1
+git push origin desarrollo_paso_31
+```
+
+---
+
+### Tabla Resumen: Qué Hacer con Fixes
+
+| Estado Actual | Tipo de Fix | Nueva Versión | Bump |
+|---------------|-------------|---------------|------|
+| `v0.9.0-alpha.1` | Bug encontrado en testing | `v0.9.0-alpha.2` | Prerelease increment |
+| `v0.9.0-beta.2` | Bug encontrado en testing | `v0.9.0-beta.3` | Prerelease increment |
+| `v0.9.0-rc.1` | Bug crítico antes de release | `v0.9.0-rc.2` | Prerelease increment |
+| `v0.9.0` (stable) | Bug después de release | `v0.9.1` | **PATCH bump** |
+| `v0.9.1` | Otro bug | `v0.9.2` | **PATCH bump** |
+| `v0.9.2` | Security fix urgente | `v0.9.3` | **PATCH bump** |
+
+---
+
+### Ejemplo Práctico: Tu Caso Actual
+
+**Estado actual**: `v0.9.0-beta.3`
+
+#### Si encuentras bugs ahora (durante beta):
+
+```bash
+# Opción A: Continuar con beta (si aún falta testing)
+v0.9.0-beta.2 → v0.9.0-beta.3
+
+git commit -m "fix: correct category assignment logic"
+git tag -a v0.9.0-beta.3 -m "fix: category assignment and UI tweaks"
+git push origin v0.9.0-beta.3
+```
+
+```bash
+# Opción B: Pasar a RC (si solo quedan fixes menores)
+v0.9.0-beta.2 → v0.9.0-rc.1
+
+git commit -m "fix: minor UI adjustments"
+git tag -a v0.9.0-rc.1 -m "chore: prepare v0.9.0 release candidate"
+git push origin v0.9.0-rc.1
+```
+
+```bash
+# Opción C: Release estable (si no hay más bugs)
+v0.9.0-beta.2 → v0.9.0
+
+git checkout main
+git merge desarrollo_paso_31
+git tag -a v0.9.0 -m "Release v0.9.0: Category classification system"
+git push origin main v0.9.0
+```
+
+#### Después de lanzar v0.9.0 estable:
+
+```bash
+# Cualquier fix será PATCH bump
+v0.9.0 → v0.9.1  (primer fix post-release)
+v0.9.1 → v0.9.2  (segundo fix)
+```
+
+---
+
+### Timeline Ejemplo de Fixes
+
+**Escenario realista de desarrollo**:
+
+```
+📅 2025-01-20: v0.9.0-alpha.1 (modelos + migrations)
+                ↓
+           (encuentra bug en migration)
+                ↓
+📅 2025-01-21: v0.9.0-alpha.2 (fix migration)
+                ↓
+           (completa backend + frontend)
+                ↓
+📅 2025-01-25: v0.9.0-beta.1 (feature completo)
+                ↓
+           (testing encuentra bug en rating)
+                ↓
+📅 2025-01-26: v0.9.0-beta.2 (fix rating persistence)
+                ↓
+           (testing encuentra bug en dark mode)
+                ↓
+📅 2025-01-27: v0.9.0-beta.3 (fix dark mode colors)
+                ↓
+           (todos los tests pasan)
+                ↓
+📅 2025-01-28: v0.9.0-rc.1 (release candidate)
+                ↓
+           (validación final - todo OK)
+                ↓
+📅 2025-01-30: v0.9.0 (STABLE RELEASE) 🎉
+                ↓
+           (usuario reporta bug en producción)
+                ↓
+📅 2025-02-01: v0.9.1 (hotfix crítico)
+                ↓
+           (otro bug menor)
+                ↓
+📅 2025-02-03: v0.9.2 (segundo hotfix)
+```
+
+---
+
+### Regla Práctica: Pregúntate
+
+**Al encontrar un bug, pregúntate**:
+
+1. **¿Ya lancé una versión estable sin sufijo (-alpha/-beta/-rc)?**
+   - ✅ **Sí** → PATCH bump (0.9.0 → 0.9.1)
+   - ❌ **No, estoy en pre-release** → Incrementa prerelease (beta.2 → beta.3)
+
+2. **¿El fix rompe compatibilidad con versiones anteriores?**
+   - ✅ **Sí, breaking change** → MINOR bump (o MAJOR si estás en 1.x.x)
+   - ❌ **No, backward compatible** → PATCH bump
+
+3. **¿Es un fix trivial o crítico?**
+   - **Trivial** (typo, log message): Puede esperar al siguiente release
+   - **Crítico** (crash, security): Hotfix inmediato con PATCH bump
+
+---
+
+### Casos Especiales
+
+#### Fix que agrega funcionalidad menor
+
+Si el fix requiere agregar una pequeña función auxiliar:
+
+```bash
+# ✅ Correcto - sigue siendo fix
+git tag -a v0.9.1 -m "fix: add missing validation to prevent crash"
+
+# ❌ Incorrecto - si agrega feature real
+# Esto debería ser v0.10.0, no v0.9.1
+```
+
+**Criterio**: Si el cambio es visible para el usuario como nueva funcionalidad → MINOR bump, no PATCH.
+
+#### Múltiples fixes acumulados
+
+Puedes combinar varios fixes pequeños en un solo PATCH:
+
+```bash
+# Varios commits de fix
+git commit -m "fix: OAuth token refresh"
+git commit -m "fix: dark mode contrast"
+git commit -m "fix: rating persistence"
+
+# Un solo tag PATCH que los agrupa
+git tag -a v0.9.1 -m "fix: multiple bug fixes
+
+- OAuth token refresh handling
+- Dark mode color contrast improved
+- Star rating persistence on reload"
+```
 
 ---
 

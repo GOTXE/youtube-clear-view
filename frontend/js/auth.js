@@ -14,8 +14,11 @@
     userSelector,
     userSelectorWrapper: userSelector ? userSelector.closest('label') : null,
     currentUserLabel: document.getElementById('current-user'),
+    currentUserName: document.getElementById('current-user-name'),
+    sessionInfo: document.querySelector('.session-info'),
     appRoot: document.getElementById('app'),
     headerActions: document.querySelector('.header-actions'),
+    logoutButton: document.getElementById('logout-button'),
     googleLoginButton,
     userSummary: document.querySelector('.user-summary'),
     newUserButton: null,
@@ -169,7 +172,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.id = 'new-user-button';
-      button.className = 'button button--ghost';
+      button.className = 'menu-item';
       button.textContent = t('newUser');
       button.addEventListener('click', () => {
         openCreateUserModal();
@@ -179,16 +182,18 @@
     }
 
     if (!ui.switchUserButton) {
-      const button = document.createElement('button');
+      const button = ui.logoutButton || document.createElement('button');
       button.type = 'button';
-      button.id = 'switch-user-button';
-      button.className = 'button button--ghost';
-      button.textContent = t('switchUser');
+      if (!ui.logoutButton) {
+        button.id = 'logout-button';
+        button.className = 'menu-item';
+        ui.headerActions.insertBefore(button, ui.userSummary || null);
+      }
+      button.textContent = t('signOut');
       button.addEventListener('click', async () => {
-        await switchUser();
+        await logout();
       });
       ui.switchUserButton = button;
-      ui.headerActions.insertBefore(button, ui.userSummary || null);
     }
 
     if (!ui.statusMessage && ui.userSummary) {
@@ -219,7 +224,7 @@
       return;
     }
 
-    ui.switchUserButton.textContent = isGoogleMode() ? t('signOut') : t('switchUser');
+    ui.switchUserButton.textContent = t('signOut');
   }
 
   function ensureUserSelectorListener() {
@@ -243,7 +248,13 @@
     currentUser = user;
     if (ui.currentUserLabel) {
       const displayName = user.display_name || user.username;
-      ui.currentUserLabel.textContent = t('signedInAs', { name: displayName });
+      ui.currentUserLabel.textContent = t('signedInAsPrefix');
+      if (ui.currentUserName) {
+        ui.currentUserName.textContent = displayName;
+      }
+      if (ui.sessionInfo) {
+        ui.sessionInfo.classList.remove('session-info--alert');
+      }
     }
 
     if (ui.userSelector) {
@@ -277,6 +288,12 @@
     currentUser = null;
     if (ui.currentUserLabel) {
       ui.currentUserLabel.textContent = t('notSignedIn');
+    }
+    if (ui.currentUserName) {
+      ui.currentUserName.textContent = '';
+    }
+    if (ui.sessionInfo) {
+      ui.sessionInfo.classList.add('session-info--alert');
     }
 
     if (ui.userSelector) {

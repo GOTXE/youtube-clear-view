@@ -52,18 +52,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const ui = {
-    headerPanel: document.querySelector('.header-panel'),
-    headerToggle: document.getElementById('header-toggle'),
-    topPanels: document.querySelector('.top-panels'),
-    filtersSection: document.querySelector('.filters'),
-    filtersToggle: document.getElementById('filters-toggle'),
     appSubtitle: document.getElementById('app-subtitle'),
     appSubtitleSecondary: document.getElementById('app-subtitle-secondary'),
     subscriptionsTitle: document.getElementById('subscriptions-title'),
     filtersTitle: document.getElementById('filters-title'),
+    filtersSearchLabel: document.getElementById('filters-search-label'),
     channelSidebar: document.querySelector('.channel-sidebar'),
-    filtersOptions: document.querySelector('.filters__options'),
     themeToggle: document.getElementById('theme-toggle'),
+    menuToggle: document.getElementById('menu-toggle'),
+    menuPanel: document.getElementById('menu-panel'),
+    menuFilters: document.getElementById('menu-filters'),
+    logoutButton: document.getElementById('logout-button'),
+    languageButtons: document.querySelectorAll('.menu-language__button'),
+    filterPanel: document.getElementById('filter-panel'),
+    filterPanelClose: document.getElementById('filters-close'),
+    filterPanelClear: document.getElementById('filters-clear'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -81,15 +84,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     videosLabel: document.getElementById('videos-label'),
     shortsLabel: document.getElementById('shorts-label'),
     searchInput: document.getElementById('search-input'),
-    filterUnwatchedLabel: document.getElementById('filter-unwatched-label'),
-    filterMonthLabel: document.getElementById('filter-month-label'),
-    githubLabel: document.getElementById('github-label'),
-    searchButton: null,
     filterUnwatched: document.getElementById('filter-unwatched'),
-    filterMonth: document.getElementById('filter-month')
+    filterMonth: document.getElementById('filter-month'),
+    githubLabel: document.getElementById('github-label'),
+    sessionInfo: document.querySelector('.session-info'),
+    currentUserName: document.getElementById('current-user-name')
   };
-
-  let clearSearchButton = null;
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
       ui.appSubtitle.textContent = t('subtitlePrimary');
@@ -103,11 +103,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.filtersTitle) {
       ui.filtersTitle.textContent = t('filters');
     }
-    if (ui.filterUnwatchedLabel) {
-      ui.filterUnwatchedLabel.textContent = t('unwatched');
-    }
-    if (ui.filterMonthLabel) {
-      ui.filterMonthLabel.textContent = t('lastMonth');
+    if (ui.filtersSearchLabel) {
+      ui.filtersSearchLabel.textContent = t('searchLabel');
     }
     if (ui.searchInput) {
       ui.searchInput.placeholder = t('searchPlaceholder');
@@ -125,11 +122,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.olderTitle) {
       ui.olderTitle.textContent = t('olderVideosShorts');
     }
-    if (ui.filtersToggle) {
-      ui.filtersToggle.textContent = t('hide');
-    }
-    if (ui.headerToggle) {
-      ui.headerToggle.textContent = t('hide');
+    if (ui.menuFilters) {
+      ui.menuFilters.textContent = t('filters');
     }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
@@ -137,6 +131,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const googleButton = document.getElementById('google-login-button');
     if (googleButton) {
       googleButton.textContent = t('signInWithGoogle');
+    }
+    if (ui.filterUnwatched) {
+      ui.filterUnwatched.textContent = t('unwatched');
+    }
+    if (ui.filterMonth) {
+      ui.filterMonth.textContent = t('lastMonth');
+    }
+    if (ui.filterPanelClear) {
+      ui.filterPanelClear.textContent = t('clear');
+    }
+    if (ui.filterPanelClose) {
+      ui.filterPanelClose.setAttribute('aria-label', t('close'));
     }
     if (ui.themeToggle) {
       const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
@@ -155,8 +161,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.channelSidebar) {
       ui.channelSidebar.setAttribute('aria-label', t('subscriptionsAria'));
     }
-    if (ui.filtersOptions) {
-      ui.filtersOptions.setAttribute('aria-label', t('filtersAria'));
+    if (ui.filterPanel) {
+      ui.filterPanel.setAttribute('aria-label', t('filtersAria'));
     }
     if (ui.githubLabel) {
       ui.githubLabel.textContent = t('viewOnGitHub');
@@ -165,9 +171,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (currentUser) {
       currentUser.textContent = t('notSignedIn');
     }
-    const deviceLabel = document.getElementById('device-type');
-    if (deviceLabel) {
-      deviceLabel.textContent = t('deviceLabel', { device: '--' });
+    if (ui.sessionInfo) {
+      ui.sessionInfo.classList.add('session-info--alert');
+    }
+    const menuToggleLabel = document.querySelector('#menu-toggle .sr-only');
+    if (menuToggleLabel) {
+      menuToggleLabel.textContent = t('openMenu');
+    }
+    if (ui.menuPanel) {
+      ui.menuPanel.setAttribute('aria-label', t('menuLabel'));
     }
   }
 
@@ -696,10 +708,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function setupFilters() {
-    const handleFilters = () => {
-      state.filters.unwatched = Boolean(ui.filterUnwatched && ui.filterUnwatched.checked);
-      state.filters.month = Boolean(ui.filterMonth && ui.filterMonth.checked);
+    const updateButtons = () => {
+      if (ui.filterUnwatched) {
+        ui.filterUnwatched.classList.toggle('is-active', state.filters.unwatched);
+        ui.filterUnwatched.setAttribute('aria-pressed', state.filters.unwatched ? 'true' : 'false');
+      }
+      if (ui.filterMonth) {
+        ui.filterMonth.classList.toggle('is-active', state.filters.month);
+        ui.filterMonth.setAttribute('aria-pressed', state.filters.month ? 'true' : 'false');
+      }
+    };
 
+    const applyFiltersNow = () => {
       renderChannelList(state.channels);
       if (state.searchActive) {
         runSearch(state.searchQuery);
@@ -709,102 +729,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     if (ui.filterUnwatched) {
-      ui.filterUnwatched.addEventListener('change', handleFilters);
+      ui.filterUnwatched.addEventListener('click', () => {
+        const next = !state.filters.unwatched;
+        state.filters.unwatched = next;
+        if (next) {
+          state.filters.month = false;
+        }
+        updateButtons();
+        applyFiltersNow();
+      });
     }
+
     if (ui.filterMonth) {
-      ui.filterMonth.addEventListener('change', handleFilters);
-    }
-  }
-
-  function setupFilterToggle() {
-    if (!ui.filtersSection || !ui.filtersToggle) {
-      return;
-    }
-
-    ui.filtersToggle.addEventListener('click', () => {
-      const isCollapsed = ui.filtersSection.classList.toggle('filters--collapsed');
-      ui.filtersToggle.textContent = isCollapsed ? t('filters') : t('hide');
-      ui.filtersToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
-      updateTopPanelsCollapse();
-    });
-  }
-
-  function setupHeaderToggle() {
-    if (!ui.headerPanel || !ui.headerToggle) {
-      return;
+      ui.filterMonth.addEventListener('click', () => {
+        const next = !state.filters.month;
+        state.filters.month = next;
+        if (next) {
+          state.filters.unwatched = false;
+        }
+        updateButtons();
+        applyFiltersNow();
+      });
     }
 
-    ui.headerToggle.addEventListener('click', () => {
-      const isCollapsed = ui.headerPanel.classList.toggle('header-panel--collapsed');
-      ui.headerToggle.textContent = isCollapsed ? t('menu') : t('hide');
-      ui.headerToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
-      updateTopPanelsCollapse();
-    });
-  }
-
-  function updateTopPanelsCollapse() {
-    if (!ui.topPanels || !ui.headerPanel || !ui.filtersSection) {
-      return;
-    }
-    const bothCollapsed = ui.headerPanel.classList.contains('header-panel--collapsed')
-      && ui.filtersSection.classList.contains('filters--collapsed');
-    ui.topPanels.classList.toggle('top-panels--collapsed', bothCollapsed);
-    positionCollapsedPanels(bothCollapsed);
-  }
-
-  function positionCollapsedPanels(shouldPin) {
-    if (!ui.topPanels) {
-      return;
-    }
-
-    if (!shouldPin) {
-      ui.topPanels.style.position = '';
-      ui.topPanels.style.left = '';
-      ui.topPanels.style.top = '';
-      ui.topPanels.style.zIndex = '';
-      ui.topPanels.style.flexDirection = '';
-      ui.topPanels.style.alignItems = '';
-      ui.topPanels.style.gap = '';
-      return;
-    }
-
-    const sidebar = document.querySelector('.channel-sidebar');
-    const brand = document.querySelector('.brand');
-    if (!sidebar) {
-      return;
-    }
-
-    const rect = sidebar.getBoundingClientRect();
-    const gap = 8;
-    const brandRect = brand ? brand.getBoundingClientRect() : null;
-    const targetTop = brandRect ? brandRect.bottom + 8 : rect.top - ui.topPanels.offsetHeight - gap;
-    ui.topPanels.style.position = 'fixed';
-    ui.topPanels.style.left = `${rect.left}px`;
-    ui.topPanels.style.top = `${Math.max(targetTop, gap)}px`;
-    ui.topPanels.style.zIndex = '5';
-    ui.topPanels.style.flexDirection = 'row';
-    ui.topPanels.style.alignItems = 'center';
-    ui.topPanels.style.gap = `${gap}px`;
-  }
-
-  function ensureClearSearchButton() {
-    if (clearSearchButton) {
-      return;
-    }
-
-    clearSearchButton = document.createElement('button');
-    clearSearchButton.type = 'button';
-    clearSearchButton.className = 'button button--ghost';
-    clearSearchButton.textContent = t('clear');
-    clearSearchButton.hidden = true;
-    clearSearchButton.addEventListener('click', () => {
-      clearSearch();
-    });
-
-    const searchGroup = ui.searchInput ? ui.searchInput.closest('.field__group') : null;
-    if (searchGroup) {
-      searchGroup.appendChild(clearSearchButton);
-    }
+    updateButtons();
   }
 
   function clearSearch() {
@@ -822,10 +770,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.videosCount.hidden = false;
     }
 
-
-    if (clearSearchButton) {
-      clearSearchButton.hidden = true;
-    }
 
     reloadCarousels();
   }
@@ -855,10 +799,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.olderSection.hidden = true;
     }
 
-    if (clearSearchButton) {
-      clearSearchButton.hidden = false;
-    }
-
     clearCarousels();
 
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
@@ -882,8 +822,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function setupSearch() {
-    ensureClearSearchButton();
-
     const handleSearch = () => {
       const query = ui.searchInput ? ui.searchInput.value : '';
       runSearch(query);
@@ -897,6 +835,169 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.searchInput.addEventListener('input', debounced);
     }
 
+  }
+
+  function setupMenu() {
+    if (!ui.menuToggle || !ui.menuPanel) {
+      return;
+    }
+
+    const setMenuOpen = isOpen => {
+      ui.menuPanel.hidden = !isOpen;
+      ui.menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+
+    ui.menuToggle.addEventListener('click', event => {
+      event.stopPropagation();
+      const isOpen = ui.menuPanel.hidden;
+      setMenuOpen(isOpen);
+    });
+
+    document.addEventListener('click', event => {
+      if (ui.menuPanel.hidden) {
+        return;
+      }
+      if (ui.menuPanel.contains(event.target) || ui.menuToggle.contains(event.target)) {
+        return;
+      }
+      setMenuOpen(false);
+    });
+
+    if (ui.menuFilters) {
+      ui.menuFilters.addEventListener('click', () => {
+        setMenuOpen(false);
+        openFilterPanel();
+      });
+    }
+
+    const updateMenuAuth = user => {
+      if (ui.logoutButton) {
+        ui.logoutButton.hidden = !user;
+      }
+      if (ui.refreshButton) {
+        ui.refreshButton.hidden = !user;
+      }
+    };
+
+    updateMenuAuth(state.currentUser);
+    window.addEventListener('auth:changed', event => {
+      const user = event.detail ? event.detail.user : null;
+      updateMenuAuth(user);
+    });
+  }
+
+  function setupLanguageMenu() {
+    if (!ui.languageButtons || ui.languageButtons.length === 0) {
+      return;
+    }
+
+    const current = window.ytcvI18n ? window.ytcvI18n.language : 'en';
+    ui.languageButtons.forEach(button => {
+      const lang = button.dataset.lang;
+      button.classList.toggle('is-active', lang === current);
+      button.addEventListener('click', () => {
+        try {
+          localStorage.setItem('ytcv_lang', lang);
+        } catch (error) {
+          // Ignore storage errors.
+        }
+        window.location.reload();
+      });
+    });
+  }
+
+  function setupFilterPanel() {
+    if (!ui.filterPanel) {
+      return;
+    }
+
+    const header = ui.filterPanel.querySelector('.filter-panel__header');
+    const panel = ui.filterPanel;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let originX = 0;
+    let originY = 0;
+
+    const clamp = () => {
+      const rect = panel.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      const nextX = Math.min(Math.max(rect.left, 8), Math.max(maxX, 8));
+      const nextY = Math.min(Math.max(rect.top, 8), Math.max(maxY, 8));
+      panel.style.left = `${nextX}px`;
+      panel.style.top = `${nextY}px`;
+    };
+
+    const onMouseMove = event => {
+      if (!isDragging) {
+        return;
+      }
+      panel.style.left = `${originX + (event.clientX - startX)}px`;
+      panel.style.top = `${originY + (event.clientY - startY)}px`;
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) {
+        return;
+      }
+      isDragging = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      clamp();
+    };
+
+    if (header) {
+      header.addEventListener('mousedown', event => {
+        if (event.button !== 0) {
+          return;
+        }
+        isDragging = true;
+        const rect = panel.getBoundingClientRect();
+        startX = event.clientX;
+        startY = event.clientY;
+        originX = rect.left;
+        originY = rect.top;
+        panel.style.right = 'auto';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    window.addEventListener('resize', clamp);
+
+    if (ui.filterPanelClose) {
+      ui.filterPanelClose.addEventListener('click', () => {
+        panel.hidden = true;
+      });
+    }
+
+    if (ui.filterPanelClear) {
+      ui.filterPanelClear.addEventListener('click', () => {
+        state.filters.unwatched = false;
+        state.filters.month = false;
+        if (ui.filterUnwatched) {
+          ui.filterUnwatched.classList.remove('is-active');
+          ui.filterUnwatched.setAttribute('aria-pressed', 'false');
+        }
+        if (ui.filterMonth) {
+          ui.filterMonth.classList.remove('is-active');
+          ui.filterMonth.setAttribute('aria-pressed', 'false');
+        }
+        clearSearch();
+      });
+    }
+  }
+
+  function openFilterPanel() {
+    if (!ui.filterPanel) {
+      return;
+    }
+
+    ui.filterPanel.hidden = false;
+    if (ui.searchInput) {
+      ui.searchInput.focus();
+    }
   }
 
   function setupRefresh() {
@@ -1064,18 +1165,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupFilters();
-    setupFilterToggle();
-    setupHeaderToggle();
     setupSearch();
+    setupMenu();
+    setupFilterPanel();
+    setupLanguageMenu();
     setupRefresh();
     setupImportButton();
     setupDebug();
-    window.addEventListener('resize', () => {
-      const collapsed = ui.topPanels && ui.topPanels.classList.contains('top-panels--collapsed');
-      if (collapsed) {
-        positionCollapsedPanels(true);
-      }
-    });
 
     if (state.currentUser) {
       await bootstrapAuthenticated();

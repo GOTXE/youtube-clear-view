@@ -98,5 +98,10 @@
   "modalClose": "Cerrar",
   "modalOk": "OK",
   "subscriptionsAria": "Canales suscritos",
-  "filtersAria": "Filtros de video"
+  "filtersAria": "Filtros de video",
+  "signedInAsPrefix": "Sesion iniciada como",
+  "searchLabel": "Buscar",
+  "close": "Cerrar",
+  "openMenu": "Abrir menu",
+  "menuLabel": "Menu de la app"
 }

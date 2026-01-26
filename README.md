@@ -20,7 +20,6 @@ Curated YT viewing without the recommendation algorithm.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
-pytest backend/tests -v
 ```
 
 Create `backend/.env` from `backend/.env.example`, then run:

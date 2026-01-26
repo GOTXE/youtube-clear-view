@@ -40,6 +40,18 @@ The script starts:
 - Frontend at `http://localhost:8080`
 - Log viewer at `http://localhost:5551/logs` (default `admin/admin` if not set in `.env`)
 
+## Production (simple)
+
+Use a separate script for production:
+
+```bash
+./scripts/run_prod.sh
+```
+
+Notes:
+- Use a real web server (nginx) to serve `frontend/`.
+- Make sure `backend/.env` has your production URLs and OAuth values.
+
 ## Google Cloud setup (required)
 
 You need a Google Cloud project with YouTube Data API v3 enabled and OAuth credentials for login.

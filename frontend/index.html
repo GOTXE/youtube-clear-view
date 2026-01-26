@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <style>
+      html:not(.i18n-ready) body {
+        visibility: hidden;
+      }
+    </style>
+    <script>
+      (function () {
+        try {
+          var storedTheme = localStorage.getItem('ytcv_theme');
+          var theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <title>YT Clear View</title>
+    <link rel="preconnect" href="https://www.youtube.com">
+    <link rel="preconnect" href="https://i.ytimg.com">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/tv.css" media="screen and (min-width: 1600px)">
+    <link rel="stylesheet" href="css/tablet.css" media="screen and (min-width: 768px) and (max-width: 1199px)">
+    <link rel="stylesheet" href="css/mobile.css" media="screen and (max-width: 767px)">
+  </head>
+  <body>
+    <div id="app" class="app" data-theme="dark">
+      <header class="app-header" role="banner">
+        <div class="header-row">
+          <div class="brand">
+            <span class="brand__mark" aria-hidden="true"></span>
+            <div class="brand__text">
+              <h1 id="app-title" class="heading-1">YT Clear View</h1>
+              <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+              <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
+                No Algorithm, just your favorite channels.
+              </p>
+              <p class="caption session-info">
+                <span id="current-user" class="session-info__label">Not signed in</span>
+                <span id="current-user-name" class="session-info__name"></span>
+              </p>
+            </div>
+          </div>
+          <div class="menu-wrapper">
+            <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-panel">
+              <span class="sr-only">Open menu</span>
+              <span class="menu-toggle__icon" aria-hidden="true">☰</span>
+            </button>
+            <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
+              <div class="menu-panel__section">
+                <button id="menu-filters" class="menu-item" type="button">Filters</button>
+                <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
+                  <span class="button__label">Toggle theme</span>
+                </button>
+              </div>
+              <div class="menu-panel__section header-actions">
+                <button id="google-login-button" class="menu-item" type="button" hidden>
+                  Sign in with Google
+                </button>
+                <button id="import-subscriptions-button" class="menu-item" type="button" hidden>
+                  Import subscriptions
+                </button>
+                <button id="refresh-videos" class="menu-item" type="button">Refresh</button>
+                <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
+                <div class="user-summary" aria-live="polite"></div>
+              </div>
+              <div class="menu-panel__section">
+                <div class="menu-language" aria-label="Language selector">
+                  <button class="menu-language__button" type="button" data-lang="es">🇪🇸 ES</button>
+                  <button class="menu-language__button" type="button" data-lang="en">🇺🇸 EN</button>
+                </div>
+              </div>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main" role="main">
+        <div class="app-layout">
+          <aside class="channel-sidebar" aria-label="Subscribed channels">
+            <div class="channel-sidebar__header">
+                <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
+              <span id="channel-count" class="caption">0</span>
+            </div>
+            <div id="channel-list" class="channel-list" role="list"></div>
+          </aside>
+
+          <div class="app-content">
+
+            <section class="carousel-section" aria-labelledby="latest-title">
+              <div class="section-header">
+                <h2 id="latest-title" class="heading-2">
+                  <span id="videos-label">Videos</span>
+                  <span id="videos-count" class="count-pill">0</span>
+                </h2>
+              </div>
+              <p id="last-updated" class="caption"></p>
+              <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
+
+            <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
+              <div class="section-header">
+                <h2 id="shorts-title" class="heading-2">
+                  <span id="shorts-label">Shorts</span>
+                  <span id="shorts-count" class="count-pill">0</span>
+                </h2>
+              </div>
+              <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
+
+            <section id="older-section" class="carousel-section" aria-labelledby="older-title">
+              <div class="section-header">
+                <h2 id="older-title" class="heading-2">Older Videos & Shorts</h2>
+              </div>
+              <div id="older-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
+
+          </div>
+        </div>
+      </main>
+
+      <section id="filter-panel" class="filter-panel" hidden>
+        <div class="filter-panel__header">
+          <h2 id="filters-title" class="heading-2">Filters</h2>
+          <button id="filters-close" class="filter-panel__close" type="button">✕</button>
+        </div>
+        <div class="filter-panel__body">
+          <label class="field" for="search-input">
+            <span id="filters-search-label" class="field__label">Search</span>
+            <div class="field__group">
+              <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
+            </div>
+          </label>
+          <div class="filter-panel__actions">
+            <button id="filter-unwatched" class="filter-pill" type="button" aria-pressed="false">Unwatched</button>
+            <button id="filter-month" class="filter-pill" type="button" aria-pressed="false">Last month</button>
+          </div>
+          <div class="filter-panel__footer">
+            <button id="filters-clear" class="button button--ghost" type="button">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="app-footer" role="contentinfo">
+        <p class="caption">GOTXE + ❤️ + IA 🤖</p>
+        <div class="footer-links">
+          <a class="footer-link" id="issues-link" href="https://github.com/GOTXE/youtube-clear-view/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer">
+            <span id="issues-label">Report issue</span>
+          </a>
+          <a class="footer-link" href="https://github.com/GOTXE/youtube-clear-view" target="_blank" rel="noreferrer">
+            <svg class="footer-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38C13.71 14.53 16 11.54 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            <span id="github-label" class="sr-only">View project on GitHub</span>
+          </a>
+        </div>
+      </footer>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/device.js"></script>
+    <script src="js/theme-switcher.js"></script>
+    <script src="js/carousel.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

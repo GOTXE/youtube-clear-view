@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YT Clear View - Log Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <main class="page">
+      <header class="page__header">
+        <div>
+          <p class="eyebrow">Log Viewer</p>
+          <h1 class="heading-1">YT Clear View - System Logs</h1>
+          <p class="body">Monitor backend events, errors, and tracking IDs.</p>
+        </div>
+        <div class="page__header-actions">
+          <div class="stats" id="stats"></div>
+          <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Switch to dark mode">
+            <span class="icon-moon" aria-hidden="true">🌙</span>
+            <span class="icon-sun" aria-hidden="true">☀️</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="toolbar">
+        <div class="field">
+          <span class="field__label">Levels</span>
+          <div class="level-filters" role="group" aria-label="Levels">
+            <button type="button" class="level-chip is-active" data-level="ALL" aria-pressed="true">All</button>
+            <button type="button" class="level-chip" data-level="CRITICAL" aria-pressed="false">Critical</button>
+            <button type="button" class="level-chip" data-level="ERROR" aria-pressed="false">Error</button>
+            <button type="button" class="level-chip" data-level="WARNING" aria-pressed="false">Warning</button>
+            <button type="button" class="level-chip" data-level="INFO" aria-pressed="false">Info</button>
+            <button type="button" class="level-chip" data-level="DEBUG" aria-pressed="false">Debug</button>
+          </div>
+        </div>
+        <label class="field">
+          <span class="field__label">Search</span>
+          <input id="filter-search" class="field__input" type="text" placeholder="Search logs">
+        </label>
+        <label class="field">
+          <span class="field__label">Tracking ID</span>
+          <input id="filter-tracking" class="field__input" type="text" placeholder="ERR-YYYYMMDD-XXXXXX">
+        </label>
+        <label class="field">
+          <span class="field__label">Auto refresh</span>
+          <select id="auto-refresh" class="field__input field__input--compact" aria-label="Auto refresh interval">
+            <option value="">Off</option>
+            <option value="5" selected>5s</option>
+            <option value="15">15s</option>
+            <option value="30">30s</option>
+            <option value="60">60s</option>
+            <option value="120">120s</option>
+            <option value="300">300s</option>
+          </select>
+        </label>
+        <button id="refresh" class="button" hidden>Refresh</button>
+      </section>
+
+      <section class="grid">
+        <div class="card log-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Entries</h2>
+            <span id="log-count" class="caption">0 entries</span>
+          </div>
+          <div id="log-entries" class="log-entries"></div>
+          <div class="log-card__footer">
+            <button id="load-more" class="button button--ghost">Load More</button>
+          </div>
+        </div>
+        <div class="card log-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Recent Errors</h2>
+            <span class="caption">Latest error and critical logs</span>
+          </div>
+          <div id="recent-errors" class="log-entries"></div>
+        </div>
+      </section>
+    </main>
+    <footer class="page-footer">
+      <a class="footer-link" href="https://github.com/GOTXE/youtube-clear-view/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer">
+        Report issue
+      </a>
+      <a class="footer-link" href="https://github.com/GOTXE/youtube-clear-view" target="_blank" rel="noreferrer">
+        GitHub
+      </a>
+    </footer>
+
+    <script>
+      const entriesContainer = document.getElementById('log-entries');
+      const recentErrors = document.getElementById('recent-errors');
+      const statsContainer = document.getElementById('stats');
+      const logCount = document.getElementById('log-count');
+      const loadMoreButton = document.getElementById('load-more');
+      const refreshButton = document.getElementById('refresh');
+      const levelButtons = Array.from(document.querySelectorAll('.level-chip'));
+      const allLevelButton = levelButtons.find(button => button.dataset.level === 'ALL');
+      const valueLevelButtons = levelButtons.filter(button => button.dataset.level && button.dataset.level !== 'ALL');
+      const searchInput = document.getElementById('filter-search');
+      const trackingInput = document.getElementById('filter-tracking');
+      const autoRefreshSelect = document.getElementById('auto-refresh');
+      const themeToggle = document.getElementById('theme-toggle');
+
+      let offset = 0;
+      const limit = 200;
+      let hasMore = false;
+      let refreshInterval = null;
+      const seenEntryKeys = new Set();
+      let initialLoadDone = false;
+
+      function setTheme(theme) {
+        const nextTheme = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('ytcv_log_theme', nextTheme);
+        if (themeToggle) {
+          const label = nextTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+          themeToggle.setAttribute('aria-label', label);
+        }
+      }
+
+      function initThemeToggle() {
+        if (!themeToggle) {
+          return;
+        }
+        const stored = localStorage.getItem('ytcv_log_theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initial = stored || (prefersDark ? 'dark' : 'light');
+        setTheme(initial);
+        themeToggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme') || 'light';
+          setTheme(current === 'dark' ? 'light' : 'dark');
+        });
+      }
+
+      function setLevelButtonState(button, active) {
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      }
+
+      function syncLevelButtons() {
+        const activeValues = valueLevelButtons.filter(button => button.classList.contains('is-active'));
+
+        if (activeValues.length === 0) {
+          if (allLevelButton) {
+            setLevelButtonState(allLevelButton, true);
+          }
+          return;
+        }
+
+        if (activeValues.length === valueLevelButtons.length) {
+          if (allLevelButton) {
+            setLevelButtonState(allLevelButton, true);
+          }
+          activeValues.forEach(button => setLevelButtonState(button, false));
+          return;
+        }
+
+        if (allLevelButton) {
+          setLevelButtonState(allLevelButton, false);
+        }
+      }
+
+      function getSelectedLevels() {
+        if (allLevelButton && allLevelButton.classList.contains('is-active')) {
+          return [];
+        }
+        return valueLevelButtons
+          .filter(button => button.classList.contains('is-active'))
+          .map(button => button.dataset.level);
+      }
+
+      const trackingRegex = /ERR-\\d{8}-[A-Z0-9]{6}/g;
+
+      function extractTrackingId(entry) {
+        const match = entry.match(trackingRegex);
+        return match ? match[0] : null;
+      }
+
+      function entryKey(entry) {
+        let hash = 5381;
+        for (let i = 0; i < entry.length; i += 1) {
+          hash = ((hash << 5) + hash) + entry.charCodeAt(i);
+          hash &= 0xffffffff;
+        }
+        return `entry-${Math.abs(hash)}`;
+      }
+
+      function getEntryLevel(entry) {
+        const levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
+        return levels.find(level => entry.includes(`[${level}]`));
+      }
+
+      function addTrackingNodes(container, entry) {
+        let lastIndex = 0;
+        let match;
+        trackingRegex.lastIndex = 0;
+        while ((match = trackingRegex.exec(entry)) !== null) {
+          if (match.index > lastIndex) {
+            const text = document.createElement('span');
+            text.textContent = entry.slice(lastIndex, match.index);
+            container.appendChild(text);
+          }
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'tracking-button';
+          button.textContent = match[0];
+          button.addEventListener('click', () => {
+            trackingInput.value = match[0];
+            fetchEntries(true);
+          });
+          container.appendChild(button);
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < entry.length) {
+          const text = document.createElement('span');
+          text.textContent = entry.slice(lastIndex);
+          container.appendChild(text);
+        }
+      }
+
+      function sanitize(text) {
+        const span = document.createElement('span');
+        span.textContent = text;
+        return span.textContent;
+      }
+
+      function renderEntries(entries) {
+        if (offset === 0) {
+          entriesContainer.innerHTML = '';
+        }
+        entries.forEach(entry => {
+          const level = getEntryLevel(entry);
+          const div = document.createElement('div');
+          div.className = `log-entry${level ? ` log-entry--${level.toLowerCase()}` : ''}`;
+          const key = entryKey(entry);
+          div.dataset.entryKey = key;
+          if (level) {
+            div.dataset.level = level;
+          }
+          addTrackingNodes(div, sanitize(entry));
+          entriesContainer.appendChild(div);
+
+          if (!seenEntryKeys.has(key)) {
+            seenEntryKeys.add(key);
+            if (initialLoadDone) {
+              div.classList.add('log-entry--flash');
+              setTimeout(() => div.classList.remove('log-entry--flash'), 5000);
+            }
+          }
+        });
+        if (!initialLoadDone && entries.length) {
+          initialLoadDone = true;
+        }
+      }
+
+      function renderRecentErrors(entries) {
+        recentErrors.innerHTML = '';
+        recentErrors.classList.toggle('recent-errors--alert', entries.length > 0);
+        entries.forEach(entry => {
+          const level = getEntryLevel(entry);
+          const div = document.createElement('div');
+          div.className = `log-entry recent-error log-entry--error${level ? ` log-entry--${level.toLowerCase()}` : ''}`;
+          const key = entryKey(entry);
+          div.dataset.entryKey = key;
+          addTrackingNodes(div, sanitize(entry));
+          div.addEventListener('click', () => {
+            const matching = entriesContainer.querySelector(`[data-entry-key="${key}"]`);
+            if (matching) {
+              matching.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              matching.classList.add('log-entry--highlight');
+              setTimeout(() => matching.classList.remove('log-entry--highlight'), 1500);
+              return;
+            }
+            const trackingId = extractTrackingId(entry);
+            if (trackingId) {
+              trackingInput.value = trackingId;
+              fetchEntries(true).then(() => {
+                const retry = entriesContainer.querySelector(`[data-entry-key="${key}"]`);
+                if (retry) {
+                  retry.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  retry.classList.add('log-entry--highlight');
+                  setTimeout(() => retry.classList.remove('log-entry--highlight'), 1500);
+                }
+              });
+            }
+          });
+          recentErrors.appendChild(div);
+        });
+      }
+
+      function renderStats(levels) {
+        statsContainer.innerHTML = '';
+        const ordered = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'];
+        const seen = new Set();
+        ordered.forEach(level => {
+          if (levels[level] === undefined) {
+            return;
+          }
+          seen.add(level);
+          const normalized = sanitize(level).toLowerCase();
+          const card = document.createElement('div');
+          card.className = `stat-card stat-card--${normalized}`;
+          card.innerHTML = `
+            <span class="caption">${sanitize(level)}</span>
+            <span class="stat-value">${levels[level]}</span>
+          `;
+          statsContainer.appendChild(card);
+        });
+
+        Object.entries(levels).forEach(([level, count]) => {
+          if (seen.has(level)) {
+            return;
+          }
+          const normalized = sanitize(level).toLowerCase();
+          const card = document.createElement('div');
+          card.className = `stat-card stat-card--${normalized}`;
+          card.innerHTML = `
+            <span class="caption">${sanitize(level)}</span>
+            <span class="stat-value">${count}</span>
+          `;
+          statsContainer.appendChild(card);
+        });
+      }
+
+      async function fetchEntries(reset = false) {
+        if (reset) {
+          offset = 0;
+        }
+        const selectedLevels = getSelectedLevels();
+        const params = new URLSearchParams({
+          limit,
+          offset,
+        });
+        if (selectedLevels.length) params.append('level', selectedLevels.join(','));
+        if (searchInput.value) params.append('search', searchInput.value);
+        if (trackingInput.value) params.append('tracking_id', trackingInput.value);
+
+        const response = await fetch(`/logs/api/entries?${params.toString()}`);
+        if (!response.ok) {
+          entriesContainer.innerHTML = '<div class=\"log-entry\">Failed to load entries.</div>';
+          return;
+        }
+        const data = await response.json();
+        hasMore = data.has_more;
+        renderEntries(data.entries);
+        logCount.textContent = `${offset + data.entries.length} entries`;
+        offset = data.next_offset ?? offset;
+        loadMoreButton.disabled = !hasMore;
+      }
+
+      async function refreshAll(reset = false) {
+        refreshButton.classList.add('button--loading');
+        refreshButton.disabled = true;
+        await Promise.all([fetchEntries(reset), fetchStats()]);
+        refreshButton.disabled = false;
+        refreshButton.classList.remove('button--loading');
+      }
+
+      async function fetchStats() {
+        const response = await fetch('/logs/api/stats');
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        renderStats(data.levels);
+        renderRecentErrors(data.recent_errors || []);
+      }
+
+      refreshButton.addEventListener('click', () => refreshAll(true));
+
+      loadMoreButton.addEventListener('click', () => {
+        if (hasMore) {
+          fetchEntries();
+        }
+      });
+
+      levelButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          if (button.dataset.level === 'ALL') {
+            if (allLevelButton) {
+              setLevelButtonState(allLevelButton, true);
+            }
+            valueLevelButtons.forEach(other => setLevelButtonState(other, false));
+            refreshAll(true);
+            return;
+          }
+
+          const nextState = !button.classList.contains('is-active');
+          setLevelButtonState(button, nextState);
+          syncLevelButtons();
+          refreshAll(true);
+        });
+      });
+      searchInput.addEventListener('input', () => refreshAll(true));
+      trackingInput.addEventListener('input', () => refreshAll(true));
+
+      autoRefreshSelect.addEventListener('change', () => {
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+        }
+        const seconds = Number(autoRefreshSelect.value || 0);
+        if (seconds > 0) {
+          refreshInterval = setInterval(() => refreshAll(true), seconds * 1000);
+        }
+      });
+
+      let scrollTimer = null;
+      const handleScroll = () => {
+        document.body.classList.add('is-scrolling');
+        if (scrollTimer) {
+          clearTimeout(scrollTimer);
+        }
+        scrollTimer = setTimeout(() => {
+          document.body.classList.remove('is-scrolling');
+        }, 800);
+      };
+      document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+
+      initThemeToggle();
+      const initialSeconds = Number(autoRefreshSelect.value || 0);
+      if (initialSeconds > 0) {
+        refreshInterval = setInterval(() => refreshAll(true), initialSeconds * 1000);
+      }
+      refreshAll(true);
+    </script>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 """Database models package."""
 
+from .category import Category, ChannelCategory, PREDEFINED_CATEGORIES
 from .channel import Channel, UserChannel
 from .device import UserDevice
 from .theme import Theme, ThemeChannel
@@ -10,6 +11,9 @@ __all__ = [
     "User",
     "Channel",
     "UserChannel",
+    "Category",
+    "ChannelCategory",
+    "PREDEFINED_CATEGORIES",
     "Theme",
     "ThemeChannel",
     "Video",

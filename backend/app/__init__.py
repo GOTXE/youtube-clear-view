@@ -8,7 +8,11 @@ from .extensions import db, init_extensions
 from .logging.logger import configure_logging, get_logger
 from .middleware.error_handler import register_error_handlers
 from .migrations import (
+    ensure_category_schema,
+    ensure_channel_category_schema,
+    ensure_channel_classification_columns,
     ensure_channel_schema,
+    ensure_user_channel_rating_columns,
     ensure_user_channel_schema,
     ensure_user_schema,
     ensure_video_schema,
@@ -46,6 +50,11 @@ def create_app(config_class=Config):
         ensure_user_channel_schema()
         ensure_channel_schema()
         ensure_video_schema()
+        # Category system migrations
+        ensure_category_schema()
+        ensure_channel_category_schema()
+        ensure_channel_classification_columns()
+        ensure_user_channel_rating_columns()
         os.makedirs(os.path.join(app.instance_path, "channel_thumbnails"), exist_ok=True)
 
     logger = get_logger(__name__)

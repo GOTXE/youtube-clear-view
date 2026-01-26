@@ -557,3 +557,24 @@ body {
 .level-chip.is-active[data-level="ALL"] {
   background: var(--level-all);
 }
+
+.page-footer {
+  padding: 0 var(--space-10) var(--space-6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--muted);
+}
+
+.footer-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: var(--font-body-small);
+  font-weight: 600;
+}
+
+.footer-link:hover,
+.footer-link:focus-visible {
+  text-decoration: underline;
+}

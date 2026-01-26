@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a problem in YT Clear View
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+      placeholder: Short description of the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or console output
+      description: Paste any relevant logs or console errors.
+      render: shell
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: v0.10.1
+  - type: input
+    id: page
+    attributes:
+      label: Page or route
+      placeholder: / or /logs
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 121 / Firefox 122 / Safari 17
+  - type: input
+    id: locale
+    attributes:
+      label: Locale
+      placeholder: en-US / es-ES

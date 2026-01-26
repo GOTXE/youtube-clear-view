@@ -103,5 +103,6 @@
   "searchLabel": "Buscar",
   "close": "Cerrar",
   "openMenu": "Abrir menu",
-  "menuLabel": "Menu de la app"
+  "menuLabel": "Menu de la app",
+  "reportIssue": "Reportar problema"
 }

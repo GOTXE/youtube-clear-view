@@ -167,6 +167,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.githubLabel) {
       ui.githubLabel.textContent = t('viewOnGitHub');
     }
+    const issuesLabel = document.getElementById('issues-label');
+    if (issuesLabel) {
+      issuesLabel.textContent = t('reportIssue');
+    }
     const currentUser = document.getElementById('current-user');
     if (currentUser) {
       currentUser.textContent = t('notSignedIn');

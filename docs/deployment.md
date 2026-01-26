@@ -70,6 +70,12 @@ cd frontend
 
 By default, it syncs to `/volume1/web/yt-clear-view/`.
 
+## Channel Thumbnail Cache
+
+The backend caches channel thumbnails under `backend/instance/channel_thumbnails`.
+This reduces API calls by reusing thumbnails across users. If you move or reset
+the instance volume, the thumbnails will be re-downloaded on demand.
+
 ## HTTPS Certificates
 
 - Use Let's Encrypt in Synology Control Panel.

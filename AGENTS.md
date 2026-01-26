@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is currently a scaffold/design workspace. The intended target layout (see `tech_docs/yt-curator-guide.md`) is:
+This repository is currently a scaffold/design workspace. The intended target layout is:
 
 - `backend/`: Python (Flask) REST API + SQLite
   - `backend/app/`: app factory (`create_app`), routes, models, services, logging
@@ -10,7 +10,7 @@ This repository is currently a scaffold/design workspace. The intended target la
 - `log_viewer/`: separate Flask microservice for viewing logs
 - `frontend/`: vanilla HTML/CSS/JS client (plus `frontend/assets/`)
 - `docs/`: public documentation (API, deployment, development)
-- `tech_docs/`: private/local notes (intended to be gitignored)
+- `tech_docs/`: private/local notes (gitignored; not synced to GitHub)
 
 ## Build, Test, and Development Commands
 

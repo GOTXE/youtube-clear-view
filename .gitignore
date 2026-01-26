@@ -10,6 +10,8 @@ __pycache__/
 # Environment
 .env
 .env.*
+!.env.example
+!backend/.env.example
 Google-No-Sync/
 
 # Logs
@@ -38,3 +40,31 @@ backend/.venv/
 
 # Frontend config
 frontend/config.js
+
+# Local documentation / notes (private)
+tech_docs/
+
+# IDE / editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Credentials / secrets (defense in depth)
+client_secret*.json
+credentials*.json
+token*.json
+google.auth.txt
+*.pem
+*.key
+*.p12
+*.crt
+*.jks
+*.har

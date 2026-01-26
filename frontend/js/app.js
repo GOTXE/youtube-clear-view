@@ -1,16 +1,30 @@
 // Main application orchestrator for YT Clear View.
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('app');
   if (!root) {
     return;
   }
 
+  if (window.ytcvI18nReady) {
+    await window.ytcvI18nReady;
+  }
+
+  const t = (key, vars) => (
+    window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+      ? window.ytcvI18n.t(key, vars)
+      : key
+  );
+  const markI18nReady = () => {
+    document.documentElement.classList.add('i18n-ready');
+  };
+
   if (typeof window.APP_CONFIG === 'undefined') {
     const message = document.createElement('p');
     message.className = 'body';
-    message.textContent = 'Missing APP_CONFIG.';
+    message.textContent = t('missingConfig');
     root.appendChild(message);
+    markI18nReady();
     return;
   }
 
@@ -43,12 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
     topPanels: document.querySelector('.top-panels'),
     filtersSection: document.querySelector('.filters'),
     filtersToggle: document.getElementById('filters-toggle'),
+    appSubtitle: document.getElementById('app-subtitle'),
+    appSubtitleSecondary: document.getElementById('app-subtitle-secondary'),
+    subscriptionsTitle: document.getElementById('subscriptions-title'),
+    filtersTitle: document.getElementById('filters-title'),
+    channelSidebar: document.querySelector('.channel-sidebar'),
+    filtersOptions: document.querySelector('.filters__options'),
+    themeToggle: document.getElementById('theme-toggle'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
     olderCarousel: document.getElementById('older-carousel'),
     shortsSection: document.getElementById('shorts-section'),
     olderSection: document.getElementById('older-section'),
+    olderTitle: document.getElementById('older-title'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
     lastUpdatedLabel: document.getElementById('last-updated'),
@@ -59,12 +81,98 @@ document.addEventListener('DOMContentLoaded', () => {
     videosLabel: document.getElementById('videos-label'),
     shortsLabel: document.getElementById('shorts-label'),
     searchInput: document.getElementById('search-input'),
+    filterUnwatchedLabel: document.getElementById('filter-unwatched-label'),
+    filterMonthLabel: document.getElementById('filter-month-label'),
+    githubLabel: document.getElementById('github-label'),
     searchButton: null,
     filterUnwatched: document.getElementById('filter-unwatched'),
     filterMonth: document.getElementById('filter-month')
   };
 
   let clearSearchButton = null;
+  function applyLocalizedCopy() {
+    if (ui.appSubtitle) {
+      ui.appSubtitle.textContent = t('subtitlePrimary');
+    }
+    if (ui.appSubtitleSecondary) {
+      ui.appSubtitleSecondary.textContent = t('subtitleSecondary');
+    }
+    if (ui.subscriptionsTitle) {
+      ui.subscriptionsTitle.textContent = t('subscriptions');
+    }
+    if (ui.filtersTitle) {
+      ui.filtersTitle.textContent = t('filters');
+    }
+    if (ui.filterUnwatchedLabel) {
+      ui.filterUnwatchedLabel.textContent = t('unwatched');
+    }
+    if (ui.filterMonthLabel) {
+      ui.filterMonthLabel.textContent = t('lastMonth');
+    }
+    if (ui.searchInput) {
+      ui.searchInput.placeholder = t('searchPlaceholder');
+      ui.searchInput.setAttribute('aria-label', t('searchAriaLabel'));
+    }
+    if (ui.refreshButton) {
+      ui.refreshButton.textContent = t('refresh');
+    }
+    if (ui.videosLabel) {
+      ui.videosLabel.textContent = t('videos');
+    }
+    if (ui.shortsLabel) {
+      ui.shortsLabel.textContent = t('shorts');
+    }
+    if (ui.olderTitle) {
+      ui.olderTitle.textContent = t('olderVideosShorts');
+    }
+    if (ui.filtersToggle) {
+      ui.filtersToggle.textContent = t('hide');
+    }
+    if (ui.headerToggle) {
+      ui.headerToggle.textContent = t('hide');
+    }
+    if (ui.importButton) {
+      ui.importButton.textContent = t('importSubscriptions');
+    }
+    const googleButton = document.getElementById('google-login-button');
+    if (googleButton) {
+      googleButton.textContent = t('signInWithGoogle');
+    }
+    if (ui.themeToggle) {
+      const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
+        ? 'light'
+        : 'dark';
+      const icon = activeTheme === 'dark' ? '🌙' : '☀️';
+      const modeKey = activeTheme === 'dark' ? 'themeDark' : 'themeLight';
+      const label = t('themeLabel', { mode: t(modeKey), icon });
+      const labelSpan = ui.themeToggle.querySelector('.button__label');
+      if (labelSpan) {
+        labelSpan.textContent = label;
+      } else {
+        ui.themeToggle.textContent = label;
+      }
+    }
+    if (ui.channelSidebar) {
+      ui.channelSidebar.setAttribute('aria-label', t('subscriptionsAria'));
+    }
+    if (ui.filtersOptions) {
+      ui.filtersOptions.setAttribute('aria-label', t('filtersAria'));
+    }
+    if (ui.githubLabel) {
+      ui.githubLabel.textContent = t('viewOnGitHub');
+    }
+    const currentUser = document.getElementById('current-user');
+    if (currentUser) {
+      currentUser.textContent = t('notSignedIn');
+    }
+    const deviceLabel = document.getElementById('device-type');
+    if (deviceLabel) {
+      deviceLabel.textContent = t('deviceLabel', { device: '--' });
+    }
+  }
+
+  applyLocalizedCopy();
+  markI18nReady();
 
   function showNotification(message, type = 'info') {
     if (typeof window.showNotification === 'function') {
@@ -254,8 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
     allItem.dataset.channelId = '';
     allItem.dataset.ytChannelId = '';
     allItem.innerHTML = `
-      <div class="channel-item__thumb">ALL</div>
-      <span class="channel-item__name">All</span>
+      <div class="channel-item__thumb">${t('allChannels').toUpperCase()}</div>
+      <span class="channel-item__name">${t('allChannels')}</span>
     `;
     ui.channelList.appendChild(allItem);
 
@@ -295,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!sorted.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
-      empty.textContent = 'No subscriptions yet.';
+      empty.textContent = t('noSubscriptions');
       ui.channelList.appendChild(empty);
     }
 
@@ -304,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sorted.length && !filtered.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
-      empty.textContent = 'No channels match the current filters.';
+      empty.textContent = t('noChannelsMatch');
       ui.channelList.appendChild(empty);
     }
 
@@ -344,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const img = document.createElement('img');
       img.className = 'channel-item__thumb-image';
       img.src = sourceUrl;
-      img.alt = channel.title || 'Channel thumbnail';
+      img.alt = channel.title || t('channelThumbnailAlt');
       img.loading = 'lazy';
       img.addEventListener('error', () => {
         const placeholder = buildPlaceholder(channel);
@@ -366,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const name = document.createElement('span');
       name.className = 'channel-item__name';
-      name.textContent = channel.title || channel.yt_channel_id || 'Unknown';
+      name.textContent = channel.title || channel.yt_channel_id || t('unknownChannel');
       item.appendChild(name);
 
       const status = document.createElement('span');
@@ -511,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(date => !Number.isNaN(date.getTime()));
 
     if (!timestamps.length) {
-      ui.lastUpdatedLabel.textContent = 'Last updated: not yet.';
+      ui.lastUpdatedLabel.textContent = t('lastUpdatedNone');
       return;
     }
 
@@ -519,8 +627,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const latest = timestamps[0];
     const relative = typeof window.timeAgo === 'function' ? window.timeAgo(latest.toISOString()) : '';
     ui.lastUpdatedLabel.textContent = relative
-      ? `Last updated ${relative}.`
-      : `Last updated ${latest.toLocaleString()}.`;
+      ? t('lastUpdatedRelative', { relative })
+      : t('lastUpdatedAbsolute', { date: latest.toLocaleString() });
   }
 
   async function loadApp() {
@@ -615,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ui.filtersToggle.addEventListener('click', () => {
       const isCollapsed = ui.filtersSection.classList.toggle('filters--collapsed');
-      ui.filtersToggle.textContent = isCollapsed ? 'Filters' : 'Hide';
+      ui.filtersToggle.textContent = isCollapsed ? t('filters') : t('hide');
       ui.filtersToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
       updateTopPanelsCollapse();
     });
@@ -628,7 +736,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ui.headerToggle.addEventListener('click', () => {
       const isCollapsed = ui.headerPanel.classList.toggle('header-panel--collapsed');
-      ui.headerToggle.textContent = isCollapsed ? 'Menu' : 'Hide';
+      ui.headerToggle.textContent = isCollapsed ? t('menu') : t('hide');
       ui.headerToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
       updateTopPanelsCollapse();
     });
@@ -687,7 +795,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearSearchButton = document.createElement('button');
     clearSearchButton.type = 'button';
     clearSearchButton.className = 'button button--ghost';
-    clearSearchButton.textContent = 'Clear';
+    clearSearchButton.textContent = t('clear');
     clearSearchButton.hidden = true;
     clearSearchButton.addEventListener('click', () => {
       clearSearch();
@@ -708,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderChannelList(state.channels);
 
     if (ui.videosLabel) {
-      ui.videosLabel.textContent = 'Videos';
+      ui.videosLabel.textContent = t('videos');
     }
     if (ui.videosCount) {
       ui.videosCount.hidden = false;
@@ -734,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderChannelList(state.channels);
 
     if (ui.videosLabel) {
-      ui.videosLabel.textContent = `Search results for "${trimmed}"`;
+      ui.videosLabel.textContent = t('searchResults', { query: trimmed });
     }
     if (ui.videosCount) {
       ui.videosCount.hidden = true;
@@ -800,14 +908,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
       const response = await api.refreshChannels(targetChannelId);
       if (!response.ok) {
-        showNotification('Unable to refresh videos.', 'error');
+        showNotification(t('unableRefreshVideos'), 'error');
         return;
       }
 
       const count = response.data && typeof response.data.new_videos === 'number'
         ? response.data.new_videos
         : 0;
-      showNotification(`${count} new videos found.`, 'success');
+      showNotification(t('newVideosFound', { count }), 'success');
       await loadApp();
     });
   }
@@ -823,7 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let newSubscriptions = 0;
     let newChannels = 0;
 
-    reportImportStatus('Importing subscriptions...', 'info');
+    reportImportStatus(t('importingSubscriptions'), 'info');
 
     while (true) {
       const response = await api.importSubscriptions({
@@ -833,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!response.ok) {
         if (showToast) {
-          showNotification('Unable to import subscriptions.', 'error');
+          showNotification(t('unableImportSubscriptions'), 'error');
         }
         reportImportStatus('', 'info');
         return false;
@@ -848,9 +956,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (total) {
-        reportImportStatus(`Importing subscriptions (${processed}/${total})...`, 'info');
+        reportImportStatus(t('importingSubscriptionsProgress', { processed, total }), 'info');
       } else {
-        reportImportStatus(`Importing subscriptions (${processed})...`, 'info');
+        reportImportStatus(t('importingSubscriptionsProgressPartial', { processed }), 'info');
       }
 
       pageToken = payload.next_page_token || null;
@@ -861,13 +969,13 @@ document.addEventListener('DOMContentLoaded', () => {
       await sleep(800);
     }
 
-    reportImportStatus('Refreshing videos...', 'info');
+    reportImportStatus(t('refreshInProgress'), 'info');
     const refreshResponse = await api.refreshChannels();
     reportImportStatus('', 'info');
 
     if (!refreshResponse.ok) {
       if (showToast) {
-        showNotification('Subscriptions imported. Refresh videos failed.', 'warning');
+        showNotification(t('importFailed'), 'warning');
       }
       return true;
     }
@@ -879,10 +987,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (showToast) {
       showNotification(
-        `Imported ${newSubscriptions} subscriptions, ${newChannels} channels, ${videoCount} videos.`,
+        t('importSummary', {
+          subscriptions: newSubscriptions,
+          channels: newChannels,
+          videos: videoCount
+        }),
         'success'
       );
-      showNotification('All subscriptions are up to date.', 'success');
+      showNotification(t('allSubscriptionsUpToDate'), 'success');
     }
 
     return true;
@@ -904,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ui.importButton.addEventListener('click', async () => {
       if (!state.currentUser) {
-        showNotification('Sign in before importing subscriptions.', 'warning');
+        showNotification(t('signInBeforeImport'), 'warning');
         return;
       }
 

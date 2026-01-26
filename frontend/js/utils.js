@@ -2,6 +2,11 @@
 
 (() => {
   const NOTIFICATION_DURATION = (window.APP_CONFIG && window.APP_CONFIG.NOTIFICATION_DURATION) || 3000;
+  const t = (key, vars) => (
+    window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+      ? window.ytcvI18n.t(key, vars)
+      : key
+  );
 
   function formatDuration(seconds) {
     if (typeof seconds !== 'number' || Number.isNaN(seconds)) {
@@ -49,27 +54,28 @@
 
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
     if (seconds < 0) {
-      return 'just now';
+      return t('timeJustNow');
     }
 
     const intervals = [
-      { label: 'year', seconds: 31536000 },
-      { label: 'month', seconds: 2592000 },
-      { label: 'week', seconds: 604800 },
-      { label: 'day', seconds: 86400 },
-      { label: 'hour', seconds: 3600 },
-      { label: 'minute', seconds: 60 },
-      { label: 'second', seconds: 1 }
+      { key: 'timeYear', seconds: 31536000 },
+      { key: 'timeMonth', seconds: 2592000 },
+      { key: 'timeWeek', seconds: 604800 },
+      { key: 'timeDay', seconds: 86400 },
+      { key: 'timeHour', seconds: 3600 },
+      { key: 'timeMinute', seconds: 60 },
+      { key: 'timeSecond', seconds: 1 }
     ];
 
     for (const interval of intervals) {
       const count = Math.floor(seconds / interval.seconds);
       if (count >= 1) {
-        return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`;
+        const unitKey = count === 1 ? interval.key : `${interval.key}Plural`;
+        return t('timeAgo', { count, unit: t(unitKey) });
       }
     }
 
-    return 'just now';
+    return t('timeJustNow');
   }
 
   function truncateText(text, maxLength) {
@@ -197,7 +203,7 @@
 
       const heading = document.createElement('h2');
       heading.className = 'heading-2';
-      heading.textContent = title || 'Message';
+      heading.textContent = title || t('modalMessageTitle');
 
       const body = document.createElement('div');
       if (typeof content === 'string') {
@@ -214,13 +220,13 @@
 
       const buttonConfigs = buttons.length
         ? buttons
-        : [{ text: 'Close', primary: true }];
+        : [{ text: t('modalClose'), primary: true }];
 
       buttonConfigs.forEach(buttonConfig => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = buttonConfig.primary ? 'button' : 'button button--ghost';
-        button.textContent = buttonConfig.text || 'OK';
+        button.textContent = buttonConfig.text || t('modalOk');
 
         button.addEventListener('click', () => {
           if (typeof buttonConfig.onClick === 'function') {
@@ -327,210 +333,6 @@
     document.body.appendChild(overlay);
   }
 
-  function isLocalhost() {
-    return ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  }
-
-  let logPanel = null;
-  let logEntries = null;
-  let logToggle = null;
-  const logQueue = [];
-  const LOG_LIMIT = 200;
-  const LOG_STORAGE_KEY = 'ytcv_dev_log_position';
-
-  function applySavedLogPosition(panel) {
-    if (!panel) {
-      return;
-    }
-    const raw = localStorage.getItem(LOG_STORAGE_KEY);
-    if (!raw) {
-      return;
-    }
-    try {
-      const data = JSON.parse(raw);
-      if (!data) {
-        return;
-      }
-      if (typeof data.left === 'number') {
-        panel.style.left = `${data.left}px`;
-      }
-      if (typeof data.top === 'number') {
-        panel.style.top = `${data.top}px`;
-      }
-      panel.style.right = 'auto';
-      panel.style.bottom = 'auto';
-    } catch (error) {
-      // Ignore invalid cache.
-    }
-  }
-
-  function initDrag(panel, handle) {
-    if (!panel || !handle) {
-      return;
-    }
-
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    let originX = 0;
-    let originY = 0;
-
-    const clampPosition = () => {
-      const rect = panel.getBoundingClientRect();
-      const maxX = window.innerWidth - rect.width;
-      const maxY = window.innerHeight - rect.height;
-      const nextX = Math.min(Math.max(rect.left, 8), Math.max(maxX, 8));
-      const nextY = Math.min(Math.max(rect.top, 8), Math.max(maxY, 8));
-      panel.style.left = `${nextX}px`;
-      panel.style.top = `${nextY}px`;
-    };
-
-    const onMouseMove = event => {
-      if (!isDragging) {
-        return;
-      }
-      const nextLeft = originX + (event.clientX - startX);
-      const nextTop = originY + (event.clientY - startY);
-      panel.style.left = `${nextLeft}px`;
-      panel.style.top = `${nextTop}px`;
-    };
-
-    const onMouseUp = () => {
-      if (!isDragging) {
-        return;
-      }
-      isDragging = false;
-      handle.classList.remove('is-dragging');
-      clampPosition();
-      const rect = panel.getBoundingClientRect();
-      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    handle.addEventListener('mousedown', event => {
-      if (event.button !== 0) {
-        return;
-      }
-      isDragging = true;
-      const rect = panel.getBoundingClientRect();
-      startX = event.clientX;
-      startY = event.clientY;
-      originX = rect.left;
-      originY = rect.top;
-      panel.style.right = 'auto';
-      panel.style.bottom = 'auto';
-      handle.classList.add('is-dragging');
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
-
-    window.addEventListener('resize', () => {
-      if (!isDragging) {
-        clampPosition();
-      }
-    });
-  }
-
-  function initDevLogPanel() {
-    if (!isLocalhost() || logPanel || !document.body) {
-      return;
-    }
-
-    logPanel = document.createElement('section');
-    logPanel.className = 'dev-log-panel';
-    logPanel.setAttribute('aria-live', 'polite');
-
-    const header = document.createElement('div');
-    header.className = 'dev-log-panel__header';
-
-    const title = document.createElement('span');
-    title.textContent = 'API log';
-    header.appendChild(title);
-
-    const actions = document.createElement('div');
-    actions.className = 'dev-log-panel__actions';
-
-    const clearButton = document.createElement('button');
-    clearButton.type = 'button';
-    clearButton.className = 'dev-log-panel__clear';
-    clearButton.textContent = 'Clear';
-    clearButton.addEventListener('click', () => {
-      if (logEntries) {
-        logEntries.innerHTML = '';
-      }
-    });
-    actions.appendChild(clearButton);
-
-    logToggle = document.createElement('button');
-    logToggle.type = 'button';
-    logToggle.className = 'dev-log-panel__toggle';
-    logToggle.textContent = 'Minimize';
-    logToggle.setAttribute('aria-pressed', 'false');
-    logToggle.addEventListener('click', () => {
-      if (!logPanel) {
-        return;
-      }
-      const minimized = logPanel.classList.toggle('dev-log-panel--minimized');
-      logToggle.textContent = minimized ? 'Open' : 'Minimize';
-      logToggle.setAttribute('aria-pressed', minimized ? 'true' : 'false');
-    });
-    actions.appendChild(logToggle);
-
-    header.appendChild(actions);
-
-    logEntries = document.createElement('div');
-    logEntries.className = 'dev-log-panel__entries';
-
-    logPanel.appendChild(header);
-    logPanel.appendChild(logEntries);
-    document.body.appendChild(logPanel);
-    applySavedLogPosition(logPanel);
-    initDrag(logPanel, header);
-
-    while (logQueue.length) {
-      const entry = logQueue.shift();
-      appendLogEntry(entry.message, entry.type);
-    }
-  }
-
-  function appendLogEntry(message, type) {
-    if (!logEntries || !message) {
-      return;
-    }
-
-    const entry = document.createElement('div');
-    entry.className = `dev-log-panel__entry dev-log-panel__entry--${type}`;
-    entry.classList.add('dev-log-panel__entry--new');
-    const timestamp = new Date().toLocaleTimeString();
-    entry.textContent = `[${timestamp}] ${message}`;
-    logEntries.prepend(entry);
-
-    while (logEntries.children.length > LOG_LIMIT) {
-      logEntries.removeChild(logEntries.lastChild);
-    }
-
-    window.setTimeout(() => {
-      entry.classList.remove('dev-log-panel__entry--new');
-    }, 8000);
-  }
-
-  function logApiEvent(message, type = 'info') {
-    if (!isLocalhost()) {
-      return;
-    }
-
-    if (!logPanel) {
-      logQueue.push({ message, type });
-      if (document.readyState !== 'loading') {
-        initDevLogPanel();
-      }
-      return;
-    }
-
-    appendLogEntry(message, type);
-  }
-
   window.formatDuration = formatDuration;
   window.formatDate = formatDate;
   window.timeAgo = timeAgo;
@@ -543,8 +345,4 @@
   window.showModal = showModal;
   window.loadingSpinner = loadingSpinner;
   window.sanitizeHTML = sanitizeHTML;
-  window.initDevLogPanel = initDevLogPanel;
-  window.logApiEvent = logApiEvent;
-
-  document.addEventListener('DOMContentLoaded', initDevLogPanel);
 })();

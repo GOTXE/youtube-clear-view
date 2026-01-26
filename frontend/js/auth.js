@@ -24,6 +24,12 @@
     modal: null
   };
 
+  const t = (key, vars) => (
+    window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+      ? window.ytcvI18n.t(key, vars)
+      : key
+  );
+
   function getApiClient() {
     if (!window.APIClient || !window.APP_CONFIG) {
       return null;
@@ -56,7 +62,7 @@
   }
 
   function applyThemePreference(themePreference) {
-    const theme = themePreference === 'dark' ? 'dark' : 'light';
+    const theme = themePreference === 'light' ? 'light' : 'dark';
     if (ui.appRoot) {
       ui.appRoot.setAttribute('data-theme', theme);
     }
@@ -130,7 +136,7 @@
     }
 
     if (isGoogleMode()) {
-      setStatusMessage('Google sign-in failed. Please try again.', 'error');
+      setStatusMessage(t('googleSignInFailed'), 'error');
     }
 
     params.delete('auth_error');
@@ -147,7 +153,7 @@
     const loginPath = googleLoginUrl || '/api/auth/google';
     const resolved = resolveLoginUrl(loginPath);
     if (!resolved) {
-      setStatusMessage('Google login not available.', 'error');
+      setStatusMessage(t('googleLoginUnavailable'), 'error');
       return;
     }
 
@@ -164,7 +170,7 @@
       button.type = 'button';
       button.id = 'new-user-button';
       button.className = 'button button--ghost';
-      button.textContent = 'New user';
+      button.textContent = t('newUser');
       button.addEventListener('click', () => {
         openCreateUserModal();
       });
@@ -177,7 +183,7 @@
       button.type = 'button';
       button.id = 'switch-user-button';
       button.className = 'button button--ghost';
-      button.textContent = 'Switch user';
+      button.textContent = t('switchUser');
       button.addEventListener('click', async () => {
         await switchUser();
       });
@@ -213,7 +219,7 @@
       return;
     }
 
-    ui.switchUserButton.textContent = isGoogleMode() ? 'Sign out' : 'Switch user';
+    ui.switchUserButton.textContent = isGoogleMode() ? t('signOut') : t('switchUser');
   }
 
   function ensureUserSelectorListener() {
@@ -237,7 +243,7 @@
     currentUser = user;
     if (ui.currentUserLabel) {
       const displayName = user.display_name || user.username;
-      ui.currentUserLabel.textContent = `Signed in as ${displayName}`;
+      ui.currentUserLabel.textContent = t('signedInAs', { name: displayName });
     }
 
     if (ui.userSelector) {
@@ -270,7 +276,7 @@
   function setUnauthenticated() {
     currentUser = null;
     if (ui.currentUserLabel) {
-      ui.currentUserLabel.textContent = 'Not signed in';
+      ui.currentUserLabel.textContent = t('notSignedIn');
     }
 
     if (ui.userSelector) {
@@ -295,7 +301,7 @@
       ui.googleLoginButton.hidden = !googleMode;
     }
 
-    setStatusMessage(googleMode ? 'Sign in with Google to continue.' : 'Select a user to continue.');
+    setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: null } }));
   }
 
@@ -310,7 +316,7 @@
 
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = users.length ? 'Select user' : 'No users yet';
+    placeholder.textContent = users.length ? t('selectUser') : t('noUsersYet');
     ui.userSelector.appendChild(placeholder);
 
     users.forEach(user => {
@@ -328,13 +334,13 @@
 
     const api = getApiClient();
     if (!api) {
-      setStatusMessage('API client not ready.', 'error');
+      setStatusMessage(t('apiClientNotReady'), 'error');
       return;
     }
 
     const response = await api.getUsers();
     if (!response.ok) {
-      setStatusMessage('Unable to load users.', 'error');
+      setStatusMessage(t('unableToLoadUsers'), 'error');
       return;
     }
 
@@ -345,11 +351,11 @@
   function validateUsername(raw) {
     const cleaned = (raw || '').trim();
     if (!cleaned) {
-      return { ok: false, message: 'Username is required.' };
+      return { ok: false, message: t('usernameRequired') };
     }
 
     if (!/^[a-z0-9]+$/i.test(cleaned)) {
-      return { ok: false, message: 'Use only letters and numbers.' };
+      return { ok: false, message: t('usernameInvalid') };
     }
 
     return { ok: true, value: cleaned };
@@ -371,11 +377,11 @@
 
     const title = document.createElement('h2');
     title.className = 'heading-2';
-    title.textContent = 'Create user';
+    title.textContent = t('createUserTitle');
 
     const description = document.createElement('p');
     description.className = 'body';
-    description.textContent = 'Choose a username to start your session.';
+    description.textContent = t('createUserDescription');
 
     const form = document.createElement('form');
     form.className = 'field';
@@ -385,7 +391,7 @@
 
     const labelText = document.createElement('span');
     labelText.className = 'field__label';
-    labelText.textContent = 'Username';
+    labelText.textContent = t('usernameLabel');
 
     const input = document.createElement('input');
     input.className = 'field__input';
@@ -410,12 +416,12 @@
     const cancelButton = document.createElement('button');
     cancelButton.type = 'button';
     cancelButton.className = 'button button--ghost';
-    cancelButton.textContent = 'Cancel';
+    cancelButton.textContent = t('cancel');
 
     const submitButton = document.createElement('button');
     submitButton.type = 'submit';
     submitButton.className = 'button';
-    submitButton.textContent = 'Create and sign in';
+    submitButton.textContent = t('createAndSignIn');
 
     actions.appendChild(cancelButton);
     actions.appendChild(submitButton);
@@ -459,7 +465,7 @@
       if (result) {
         closeCreateUserModal();
       } else {
-        errorText.textContent = 'Unable to create user.';
+        errorText.textContent = t('unableCreateUser');
       }
     });
 
@@ -495,14 +501,14 @@
 
     const api = getApiClient();
     if (!api) {
-      setStatusMessage('API client not ready.', 'error');
+      setStatusMessage(t('apiClientNotReady'), 'error');
       return false;
     }
 
-    setStatusMessage('Signing in...');
+    setStatusMessage(t('signingIn'));
     const response = await api.login(username);
     if (!response.ok) {
-      setStatusMessage('Sign-in failed.', 'error');
+      setStatusMessage(t('signInFailed'), 'error');
       return false;
     }
 
@@ -530,7 +536,7 @@
 
     const api = getApiClient();
     if (!api) {
-      setStatusMessage('API client not ready.', 'error');
+      setStatusMessage(t('apiClientNotReady'), 'error');
       setUnauthenticated();
       return null;
     }
@@ -542,7 +548,7 @@
     }
 
     if (!response.ok) {
-      setStatusMessage('Unable to verify session.', 'error');
+    setStatusMessage(t('unableVerifySession'), 'error');
     }
 
     setUnauthenticated();

@@ -4,6 +4,11 @@ class Carousel {
   constructor(containerId, fetchFunction, options = {}) {
     this.containerId = containerId;
     this.fetchFunction = fetchFunction;
+    this.t = (key, vars) => (
+      window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+        ? window.ytcvI18n.t(key, vars)
+        : key
+    );
     this.options = {
       gap: 20,
       showControls: true,
@@ -63,7 +68,7 @@ class Carousel {
       this.leftControl.type = 'button';
       this.leftControl.className = 'carousel-control';
       this.leftControl.textContent = '◀';
-      this.leftControl.setAttribute('aria-label', 'Scroll left');
+      this.leftControl.setAttribute('aria-label', this.t('scrollLeft'));
       this.leftControl.addEventListener('click', this.onLeftClick);
       carousel.appendChild(this.leftControl);
     }
@@ -71,7 +76,7 @@ class Carousel {
     this.track = document.createElement('div');
     this.track.className = 'carousel-track';
     this.track.tabIndex = 0;
-    this.track.setAttribute('aria-label', 'Video carousel');
+    this.track.setAttribute('aria-label', this.t('videoCarousel'));
     this.track.addEventListener('keydown', this.onTrackKeydown);
 
     const gapToken = this.options.gap === 20
@@ -90,7 +95,7 @@ class Carousel {
       this.rightControl.type = 'button';
       this.rightControl.className = 'carousel-control';
       this.rightControl.textContent = '▶';
-      this.rightControl.setAttribute('aria-label', 'Scroll right');
+      this.rightControl.setAttribute('aria-label', this.t('scrollRight'));
       this.rightControl.addEventListener('click', this.onRightClick);
       carousel.appendChild(this.rightControl);
     }
@@ -241,7 +246,7 @@ class Carousel {
 
     const message = document.createElement('p');
     message.className = 'caption';
-    message.textContent = 'No videos to display yet.';
+    message.textContent = this.t('noVideosToDisplay');
     this.track.insertBefore(message, this.loadingIndicator);
   }
 

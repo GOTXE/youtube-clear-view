@@ -24,6 +24,12 @@
     deviceLabel: document.getElementById('device-type')
   };
 
+  const t = (key, vars) => (
+    window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+      ? window.ytcvI18n.t(key, vars)
+      : key
+  );
+
   function getApiClient() {
     if (!window.APIClient || !window.APP_CONFIG) {
       return null;
@@ -78,13 +84,28 @@
     }
   }
 
+  function getDeviceLabel(type) {
+    if (!type) {
+      return '--';
+    }
+
+    const map = {
+      [DEVICE_TYPES.TV]: t('deviceTypeTv'),
+      [DEVICE_TYPES.TABLET]: t('deviceTypeTablet'),
+      [DEVICE_TYPES.MOBILE]: t('deviceTypeMobile'),
+      [DEVICE_TYPES.DESKTOP]: t('deviceTypeDesktop')
+    };
+
+    return (map[type] || type).toUpperCase();
+  }
+
   function updateDeviceLabel(type) {
     if (!ui.deviceLabel) {
       return;
     }
 
-    const label = type ? type.toUpperCase() : '--';
-    ui.deviceLabel.textContent = `Device: ${label}`;
+    const label = getDeviceLabel(type);
+    ui.deviceLabel.textContent = t('deviceLabel', { device: label });
   }
 
   function applyDeviceClass(type) {
@@ -172,18 +193,18 @@
 
     const title = document.createElement('h2');
     title.className = 'heading-2';
-    title.textContent = 'Confirm your device';
+    title.textContent = t('confirmDeviceTitle');
 
     const message = document.createElement('p');
     message.className = 'body';
-    message.textContent = `We detected you're using a ${suggestedType}. Is this correct?`;
+    message.textContent = t('confirmDeviceMessage', { device: getDeviceLabel(suggestedType) });
 
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'field';
 
     const legend = document.createElement('span');
     legend.className = 'field__label';
-    legend.textContent = 'Choose device type';
+    legend.textContent = t('confirmDeviceLegend');
 
     fieldset.appendChild(legend);
 
@@ -201,7 +222,7 @@
       }
 
       const text = document.createElement('span');
-      text.textContent = type.toUpperCase();
+      text.textContent = getDeviceLabel(type);
 
       label.appendChild(input);
       label.appendChild(text);
@@ -214,12 +235,12 @@
     const cancelButton = document.createElement('button');
     cancelButton.type = 'button';
     cancelButton.className = 'button button--ghost';
-    cancelButton.textContent = 'Cancel';
+    cancelButton.textContent = t('cancel');
 
     const confirmButton = document.createElement('button');
     confirmButton.type = 'button';
     confirmButton.className = 'button';
-    confirmButton.textContent = 'Confirm';
+    confirmButton.textContent = t('confirm');
 
     actions.appendChild(cancelButton);
     actions.appendChild(confirmButton);

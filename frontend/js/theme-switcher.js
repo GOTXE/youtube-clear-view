@@ -3,13 +3,20 @@
 (() => {
   const STORAGE_KEY = 'ytcv_theme';
   const THEMES = ['light', 'dark'];
+  const DEFAULT_THEME = 'dark';
 
-  let currentTheme = 'light';
+  let currentTheme = DEFAULT_THEME;
 
   const ui = {
     toggleButton: document.getElementById('theme-toggle'),
     appRoot: document.getElementById('app')
   };
+
+  const t = (key, vars) => (
+    window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+      ? window.ytcvI18n.t(key, vars)
+      : key
+  );
 
   function getApiClient() {
     if (!window.APIClient || !window.APP_CONFIG) {
@@ -43,7 +50,7 @@
   }
 
   function applyTheme(theme) {
-    const safeTheme = THEMES.includes(theme) ? theme : 'light';
+    const safeTheme = THEMES.includes(theme) ? theme : DEFAULT_THEME;
     currentTheme = safeTheme;
 
     document.documentElement.setAttribute('data-theme', safeTheme);
@@ -52,11 +59,12 @@
     }
 
     if (ui.toggleButton) {
-      const label = safeTheme === 'dark' ? 'Dark' : 'Light';
       const icon = safeTheme === 'dark' ? '🌙' : '☀️';
+      const modeKey = safeTheme === 'dark' ? 'themeDark' : 'themeLight';
+      const label = t(modeKey);
       ui.toggleButton.setAttribute('aria-pressed', safeTheme === 'dark');
       const labelSpan = ui.toggleButton.querySelector('.button__label');
-      const text = `Theme: ${label} ${icon}`;
+      const text = t('themeLabel', { mode: label, icon });
       if (labelSpan) {
         labelSpan.textContent = text;
       } else {
@@ -91,7 +99,7 @@
   }
 
   function initTheme() {
-    let theme = 'light';
+    let theme = DEFAULT_THEME;
 
     if (typeof window.getCurrentUser === 'function') {
       const user = window.getCurrentUser();
@@ -102,7 +110,7 @@
 
     if (!THEMES.includes(theme)) {
       const stored = readStoredTheme();
-      theme = THEMES.includes(stored) ? stored : 'light';
+      theme = THEMES.includes(stored) ? stored : DEFAULT_THEME;
     }
 
     applyTheme(theme);

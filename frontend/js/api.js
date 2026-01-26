@@ -11,9 +11,6 @@ class APIClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
     const url = `${this.baseURL}${endpoint}`;
-    const start = performance.now();
-    const logEvent = typeof window.logApiEvent === 'function' ? window.logApiEvent : null;
-
     const options = {
       method,
       credentials: 'include',
@@ -26,10 +23,6 @@ class APIClient {
     if (body !== null) {
       options.headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
-    }
-
-    if (logEvent) {
-      logEvent(`→ ${method} ${endpoint}`, 'info');
     }
 
     try {
@@ -53,10 +46,6 @@ class APIClient {
       }
 
       if (!response.ok) {
-        if (logEvent) {
-          const duration = Math.round(performance.now() - start);
-          logEvent(`← ${method} ${endpoint} ${response.status} (${duration}ms)`, 'error');
-        }
         return {
           ok: false,
           status: response.status,
@@ -65,20 +54,12 @@ class APIClient {
         };
       }
 
-      if (logEvent) {
-        const duration = Math.round(performance.now() - start);
-        logEvent(`← ${method} ${endpoint} ${response.status} (${duration}ms)`, 'success');
-      }
       return { ok: true, status: response.status, data };
     } catch (error) {
       clearTimeout(timer);
       const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
       if (isDev) {
         console.error('API request failed', error);
-      }
-      if (logEvent) {
-        const duration = Math.round(performance.now() - start);
-        logEvent(`× ${method} ${endpoint} network error (${duration}ms)`, 'error');
       }
       return { ok: false, status: 0, error: 'Network error', tracking_id: null };
     }

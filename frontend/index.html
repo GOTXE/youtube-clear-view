@@ -4,14 +4,19 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <style>
+      html:not(.i18n-ready) body {
+        visibility: hidden;
+      }
+    </style>
     <script>
       (function () {
         try {
           var storedTheme = localStorage.getItem('ytcv_theme');
-          var theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'light';
+          var theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'dark';
           document.documentElement.setAttribute('data-theme', theme);
         } catch (error) {
-          document.documentElement.setAttribute('data-theme', 'light');
+          document.documentElement.setAttribute('data-theme', 'dark');
         }
       })();
     </script>
@@ -24,13 +29,16 @@
     <link rel="stylesheet" href="css/mobile.css" media="screen and (max-width: 767px)">
   </head>
   <body>
-    <div id="app" class="app" data-theme="light">
+    <div id="app" class="app" data-theme="dark">
       <header class="app-header" role="banner">
         <div class="brand">
           <span class="brand__mark" aria-hidden="true"></span>
           <div class="brand__text">
             <h1 id="app-title" class="heading-1">YT Clear View</h1>
             <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+            <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
+              No Algorithm, just your favorite channels.
+            </p>
           </div>
         </div>
       </header>
@@ -39,7 +47,7 @@
         <div class="app-layout">
           <aside class="channel-sidebar" aria-label="Subscribed channels">
             <div class="channel-sidebar__header">
-              <h2 class="heading-2">Subscriptions</h2>
+                <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
               <span id="channel-count" class="caption">0</span>
             </div>
             <div id="channel-list" class="channel-list" role="list"></div>
@@ -84,11 +92,11 @@
                     <div class="filters__options" role="group" aria-label="Video filters">
                       <label class="filter-chip">
                         <input id="filter-unwatched" type="checkbox">
-                        <span>Unwatched</span>
+                        <span id="filter-unwatched-label">Unwatched</span>
                       </label>
                       <label class="filter-chip">
                         <input id="filter-month" type="checkbox">
-                        <span>Last month</span>
+                        <span id="filter-month-label">Last month</span>
                       </label>
                     </div>
                   </div>
@@ -138,12 +146,13 @@
           <svg class="footer-icon" viewBox="0 0 16 16" aria-hidden="true">
             <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38C13.71 14.53 16 11.54 16 8c0-4.42-3.58-8-8-8z"/>
           </svg>
-          <span class="sr-only">View project on GitHub</span>
+          <span id="github-label" class="sr-only">View project on GitHub</span>
         </a>
       </footer>
     </div>
 
     <script src="config.js"></script>
+    <script src="js/i18n.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>

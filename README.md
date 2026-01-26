@@ -41,6 +41,33 @@ The script starts:
 - Frontend at `http://localhost:8080`
 - Log viewer at `http://localhost:5551/logs` (default `admin/admin` if not set in `.env`)
 
+## Google Cloud setup (required)
+
+You need a Google Cloud project with YouTube Data API v3 enabled and OAuth credentials for login.
+
+Steps (short and simple):
+1. Go to the Google Cloud Console: `https://console.cloud.google.com`
+2. Create or select a project.
+3. Enable **YouTube Data API v3**.
+4. Configure the OAuth consent screen (app name + support email).
+5. Create OAuth client credentials (type: **Web application**).
+6. Set **Authorized JavaScript origins** and **Authorized redirect URIs** to match your local or server URLs.
+
+In `backend/.env` (see `backend/.env.example`) set:
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+
+## Local URLs and config
+
+If you run locally, these must match your environment:
+- `backend/.env` contains the backend URL and OAuth redirect.
+- `frontend/config.js` defines where the frontend calls the API and log viewer.
+
+If you change ports or hostnames, update both files so:
+- The frontend points to the right backend/log viewer.
+- The Google OAuth redirect URL matches the backend redirect you set.
+
 ## Documentation
 
 - API reference: `docs/api-reference.md`

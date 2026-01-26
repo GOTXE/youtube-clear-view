@@ -2,7 +2,7 @@
 
 ## Estado Actual
 
-**Versión actual**: `v0.9.0-beta.3`
+**Versión actual**: `v0.10.0`
 **Branch**: `la que esté usando el usuario`
 **Fase**: Pre-release (0.x.x) - Desarrollo activo
 
@@ -150,7 +150,7 @@ git push origin desarrollo_paso_31
 
 ### Ejemplo Práctico: Tu Caso Actual
 
-**Estado actual**: `v0.9.0-beta.3`
+**Estado actual**: `v0.10.0`
 
 #### Si encuentras bugs ahora (durante beta):
 

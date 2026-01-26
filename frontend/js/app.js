@@ -28,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedChannelYtId: null,
     filters: {
       unwatched: false,
-      week: false,
       month: false
     },
     carousels: [],
@@ -61,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput: document.getElementById('search-input'),
     searchButton: null,
     filterUnwatched: document.getElementById('filter-unwatched'),
-    filterWeek: document.getElementById('filter-week'),
     filterMonth: document.getElementById('filter-month')
   };
 
@@ -130,12 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const published = item.video && item.video.published_at ? new Date(item.video.published_at) : null;
       if (published && !Number.isNaN(published.getTime())) {
         const days = Math.floor((Date.now() - published.getTime()) / (1000 * 60 * 60 * 24));
-        if (state.filters.week && days > 7) {
-          return false;
-        }
-        if (!state.filters.week && state.filters.month && days > 30) {
-          return false;
-        }
+      if (state.filters.month && days > 30) {
+        return false;
+      }
       }
 
       return true;
@@ -278,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      const weekFilter = state.filters.week;
       const monthFilter = state.filters.month;
       const unwatchedFilter = state.filters.unwatched;
 
@@ -288,9 +282,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const recent30Unwatched = Number(channel.recent_unwatched_30 || 0);
       const totalUnwatched = Number(channel.unwatched_total || 0);
 
-      if (weekFilter) {
-        return unwatchedFilter ? recent7Unwatched > 0 : recent7 > 0;
-      }
       if (monthFilter) {
         return unwatchedFilter ? recent30Unwatched > 0 : recent30 > 0;
       }
@@ -542,7 +533,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupFilters() {
     const handleFilters = () => {
       state.filters.unwatched = Boolean(ui.filterUnwatched && ui.filterUnwatched.checked);
-      state.filters.week = Boolean(ui.filterWeek && ui.filterWeek.checked);
       state.filters.month = Boolean(ui.filterMonth && ui.filterMonth.checked);
 
       renderChannelList(state.channels);
@@ -555,9 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (ui.filterUnwatched) {
       ui.filterUnwatched.addEventListener('change', handleFilters);
-    }
-    if (ui.filterWeek) {
-      ui.filterWeek.addEventListener('change', handleFilters);
     }
     if (ui.filterMonth) {
       ui.filterMonth.addEventListener('change', handleFilters);

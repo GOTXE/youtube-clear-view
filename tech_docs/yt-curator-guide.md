@@ -31,7 +31,7 @@ Web application for curating YT content, allowing users to watch only videos fro
 **Access URLs (via reverse proxy, HTTPS only):**
 - Backend API: `https://apiyt.mi-nas.me/api`
 - Log Viewer: `https://apiyt.mi-nas.me/logs` (or separate subdomain)
-- Frontend Web: `https://ytcv.mi-nas.me/`
+- Frontend Web: `https://ytcv.example.com/`
 
 ```
 yt-clear-view/
@@ -486,7 +486,7 @@ IMPORTANT:
 - Errors must NEVER be shown to the end user in the web interface
 - All errors must be caught, logged with tracking number, and return a clean JSON response
 - The reverse proxy URL is https://apiyt.mi-nas.me (no port exposed to internet)
-- CORS_ORIGINS should include the frontend URL: https://ytcv.mi-nas.me
+- CORS_ORIGINS should include the frontend URL: https://ytcv.example.com
 - All code and comments in English
 ```
 
@@ -530,7 +530,7 @@ Legend: [ ] not started, [~] partial, [x] done
 - [x] step tests run (pytest passes; /api/health OK)
 
 Notes:
-- Tests executed with env: FLASK_SECRET_KEY=dev, YT_API_KEY=dev, CORS_ORIGINS=https://ytcv.mi-nas.me.
+- Tests executed with env: FLASK_SECRET_KEY=dev, YT_API_KEY=dev, CORS_ORIGINS=https://ytcv.example.com.
 - 2026-01-25: Added AUTH_MODE + Google OAuth config validation.
 
 ---
@@ -2191,7 +2191,7 @@ Prepare the application for deployment on Synology NAS:
 - NO ports are exposed directly to internet
 - All traffic goes through reverse proxy with HTTPS
 - The API URL is https://apiyt.mi-nas.me (proxied to localhost:5550)
-- The frontend URL is https://ytcv.mi-nas.me (served from /volume1/web/)
+- The frontend URL is https://ytcv.example.com (served from /volume1/web/)
 - HTTP is NOT accepted (force redirect to HTTPS)
 - All code and comments in English
 ```
@@ -2315,7 +2315,7 @@ YT_API_KEY=your-google-cloud-console-api-key
 
 # CORS - IMPORTANT: Frontend is served via reverse proxy
 # All connections are HTTPS
-CORS_ORIGINS=https://ytcv.mi-nas.me,https://apiyt.mi-nas.me
+CORS_ORIGINS=https://ytcv.example.com,https://apiyt.example.com
 
 # Gunicorn
 GUNICORN_WORKERS=2

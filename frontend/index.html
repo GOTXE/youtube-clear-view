@@ -31,14 +31,51 @@
   <body>
     <div id="app" class="app" data-theme="dark">
       <header class="app-header" role="banner">
-        <div class="brand">
-          <span class="brand__mark" aria-hidden="true"></span>
-          <div class="brand__text">
-            <h1 id="app-title" class="heading-1">YT Clear View</h1>
-            <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
-            <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
-              No Algorithm, just your favorite channels.
-            </p>
+        <div class="header-row">
+          <div class="brand">
+            <span class="brand__mark" aria-hidden="true"></span>
+            <div class="brand__text">
+              <h1 id="app-title" class="heading-1">YT Clear View</h1>
+              <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+              <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
+                No Algorithm, just your favorite channels.
+              </p>
+              <p class="caption session-info">
+                <span id="current-user" class="session-info__label">Not signed in</span>
+                <span id="current-user-name" class="session-info__name"></span>
+              </p>
+            </div>
+          </div>
+          <div class="menu-wrapper">
+            <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-panel">
+              <span class="sr-only">Open menu</span>
+              <span class="menu-toggle__icon" aria-hidden="true">☰</span>
+            </button>
+            <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
+              <div class="menu-panel__section">
+                <button id="menu-filters" class="menu-item" type="button">Filters</button>
+                <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
+                  <span class="button__label">Toggle theme</span>
+                </button>
+              </div>
+              <div class="menu-panel__section header-actions">
+                <button id="google-login-button" class="menu-item" type="button" hidden>
+                  Sign in with Google
+                </button>
+                <button id="import-subscriptions-button" class="menu-item" type="button" hidden>
+                  Import subscriptions
+                </button>
+                <button id="refresh-videos" class="menu-item" type="button">Refresh</button>
+                <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
+                <div class="user-summary" aria-live="polite"></div>
+              </div>
+              <div class="menu-panel__section">
+                <div class="menu-language" aria-label="Language selector">
+                  <button class="menu-language__button" type="button" data-lang="es">🇪🇸 ES</button>
+                  <button class="menu-language__button" type="button" data-lang="en">🇺🇸 EN</button>
+                </div>
+              </div>
+            </nav>
           </div>
         </div>
       </header>
@@ -54,58 +91,6 @@
           </aside>
 
           <div class="app-content">
-            <div class="top-panels">
-              <section class="header-panel">
-                <div class="header-panel__bar">
-                  <div class="header-panel__controls header-actions" aria-label="Header controls">
-                    <button id="theme-toggle" class="button button--ghost" type="button" aria-pressed="false">
-                      <span class="button__label">Toggle theme</span>
-                    </button>
-                    <button id="google-login-button" class="button button--ghost" type="button" hidden>
-                      Sign in with Google
-                    </button>
-                    <button id="import-subscriptions-button" class="button button--ghost" type="button" hidden>
-                      Import subscriptions
-                    </button>
-                    <div class="user-summary" aria-live="polite">
-                      <span id="current-user" class="caption">Not signed in</span>
-                      <span id="device-type" class="caption">Device: --</span>
-                    </div>
-                  </div>
-                  <button id="header-toggle" class="button button--ghost button--tiny" type="button" aria-pressed="false">
-                    Hide
-                  </button>
-                </div>
-              </section>
-
-              <section class="filters" aria-labelledby="filters-title">
-                <div class="filters__bar">
-                  <h2 id="filters-title" class="heading-2">Filters</h2>
-                  <div class="filters__controls">
-                    <div class="filters__search">
-                      <label class="field field--inline" for="search-input">
-                        <div class="field__group">
-                          <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
-                        </div>
-                      </label>
-                    </div>
-                    <div class="filters__options" role="group" aria-label="Video filters">
-                      <label class="filter-chip">
-                        <input id="filter-unwatched" type="checkbox">
-                        <span id="filter-unwatched-label">Unwatched</span>
-                      </label>
-                      <label class="filter-chip">
-                        <input id="filter-month" type="checkbox">
-                        <span id="filter-month-label">Last month</span>
-                      </label>
-                    </div>
-                  </div>
-                  <button id="filters-toggle" class="button button--ghost button--tiny" type="button" aria-pressed="false">
-                    Hide
-                  </button>
-                </div>
-              </section>
-            </div>
 
             <section class="carousel-section" aria-labelledby="latest-title">
               <div class="section-header">
@@ -113,7 +98,6 @@
                   <span id="videos-label">Videos</span>
                   <span id="videos-count" class="count-pill">0</span>
                 </h2>
-                <button id="refresh-videos" class="button button--ghost" type="button">Refresh</button>
               </div>
               <p id="last-updated" class="caption"></p>
               <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
@@ -139,6 +123,28 @@
           </div>
         </div>
       </main>
+
+      <section id="filter-panel" class="filter-panel" hidden>
+        <div class="filter-panel__header">
+          <h2 id="filters-title" class="heading-2">Filters</h2>
+          <button id="filters-close" class="filter-panel__close" type="button">✕</button>
+        </div>
+        <div class="filter-panel__body">
+          <label class="field" for="search-input">
+            <span id="filters-search-label" class="field__label">Search</span>
+            <div class="field__group">
+              <input id="search-input" class="field__input" type="search" placeholder="Search videos" aria-label="Search videos">
+            </div>
+          </label>
+          <div class="filter-panel__actions">
+            <button id="filter-unwatched" class="filter-pill" type="button" aria-pressed="false">Unwatched</button>
+            <button id="filter-month" class="filter-pill" type="button" aria-pressed="false">Last month</button>
+          </div>
+          <div class="filter-panel__footer">
+            <button id="filters-clear" class="button button--ghost" type="button">Clear</button>
+          </div>
+        </div>
+      </section>
 
       <footer class="app-footer" role="contentinfo">
         <p class="caption">GOTXE + ❤️ + IA 🤖</p>

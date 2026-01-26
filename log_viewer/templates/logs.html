@@ -98,6 +98,8 @@
       const limit = 200;
       let hasMore = false;
       let refreshInterval = null;
+      const seenEntryKeys = new Set();
+      let initialLoadDone = false;
 
       function setTheme(theme) {
         const nextTheme = theme === 'dark' ? 'dark' : 'light';
@@ -223,10 +225,25 @@
           const level = getEntryLevel(entry);
           const div = document.createElement('div');
           div.className = `log-entry${level ? ` log-entry--${level.toLowerCase()}` : ''}`;
-          div.dataset.entryKey = entryKey(entry);
+          const key = entryKey(entry);
+          div.dataset.entryKey = key;
+          if (level) {
+            div.dataset.level = level;
+          }
           addTrackingNodes(div, sanitize(entry));
           entriesContainer.appendChild(div);
+
+          if (!seenEntryKeys.has(key)) {
+            seenEntryKeys.add(key);
+            if (initialLoadDone) {
+              div.classList.add('log-entry--flash');
+              setTimeout(() => div.classList.remove('log-entry--flash'), 5000);
+            }
+          }
         });
+        if (!initialLoadDone && entries.length) {
+          initialLoadDone = true;
+        }
       }
 
       function renderRecentErrors(entries) {
@@ -394,6 +411,10 @@
       document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
 
       initThemeToggle();
+      const initialSeconds = Number(autoRefreshSelect.value || 0);
+      if (initialSeconds > 0) {
+        refreshInterval = setInterval(() => refreshAll(true), initialSeconds * 1000);
+      }
       refreshAll(true);
     </script>
   </body>

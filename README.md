@@ -2,6 +2,10 @@
 
 Curated YT viewing without the recommendation algorithm.
 
+## Screenshots
+
+![YT Clear View](screenshots/YT_Clear_View.jpg)
+
 ## Features
 
 - Flask REST API with SQLite persistence

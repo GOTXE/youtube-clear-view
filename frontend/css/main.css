@@ -734,7 +734,7 @@ select {
 .video-card__channel {
   font-size: var(--font-body);
   font-weight: 600;
-  color: var(--text);
+  color: var(--channel-title);
 }
 
 .video-card__details {

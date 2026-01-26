@@ -295,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return unwatchedFilter ? recent30Unwatched > 0 : recent30 > 0;
       }
       if (unwatchedFilter) {
-        return totalUnwatched > 0;
+        return recent7Unwatched > 0;
       }
       return true;
     };

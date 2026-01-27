@@ -48,7 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     carousels: [],
     searchActive: false,
     searchQuery: '',
-    autoImportAttempted: false
+    autoImportAttempted: false,
+    categoryManager: null
   };
 
   const ui = {
@@ -88,7 +89,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterMonth: document.getElementById('filter-month'),
     githubLabel: document.getElementById('github-label'),
     sessionInfo: document.querySelector('.session-info'),
-    currentUserName: document.getElementById('current-user-name')
+    currentUserName: document.getElementById('current-user-name'),
+    categoriesSection: document.getElementById('categories-section'),
+    categoryCarousels: document.getElementById('category-carousels'),
+    categoriesLabel: document.getElementById('categories-label'),
+    categoriesDescription: document.getElementById('categories-description'),
+    reclassifyBtn: document.getElementById('reclassify-btn')
   };
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
@@ -279,6 +285,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
+    }
+    if (state.categoryManager) {
+      state.categoryManager.destroy();
     }
   }
 
@@ -682,18 +691,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
+
+    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+      await state.categoryManager.init();
+      if (ui.categoriesSection) {
+        ui.categoriesSection.hidden = false;
+      }
     }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
-    }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
+
     if (ui.shortsSection) {
       ui.shortsSection.hidden = false;
     }
@@ -709,6 +715,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
+
+    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+      await state.categoryManager.init();
+    }
   }
 
   function setupFilters() {
@@ -1138,6 +1149,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function setupReclassifyButton() {
+    if (!ui.reclassifyBtn) {
+      return;
+    }
+
+    ui.reclassifyBtn.addEventListener('click', async () => {
+      ui.reclassifyBtn.disabled = true;
+      ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
+
+      const response = await api.reclassifyAllChannels();
+      if (response.ok) {
+        showNotification(t('reclassifySuccess') || 'Canales reclasificados correctamente', 'success');
+        if (state.categoryManager) {
+          await state.categoryManager.init();
+        }
+      } else {
+        showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
+      }
+
+      ui.reclassifyBtn.disabled = false;
+      ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
+    });
+  }
+
   function setupDebug() {
     const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     if (!isDev) {
@@ -1175,6 +1210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();
+    setupReclassifyButton();
     setupDebug();
 
     if (state.currentUser) {

@@ -7,7 +7,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Category, Channel, ChannelCategory, UserChannel, Video
+from app.models import Category, Channel, ChannelCategory, UserChannel, Video, WatchedVideo
 from app.services import ClassificationService
 
 categories_bp = Blueprint("categories", __name__)
@@ -191,18 +191,26 @@ def get_category_videos(category_id):
     has_more = len(items) > limit
     videos = items[:limit]
 
+    # Get watched video IDs for this user
+    video_ids = [video.id for video in videos]
+    watched_ids = set()
+    if video_ids:
+        watched_entries = (
+            WatchedVideo.query.filter_by(user_id=user.id)
+            .filter(WatchedVideo.video_id.in_(video_ids))
+            .all()
+        )
+        watched_ids = {entry.video_id for entry in watched_entries}
+
+    # Serialize videos in the same format as /api/videos/latest
     results = []
     for video in videos:
-        data = video.to_dict()
-        # Include channel info
-        channel = Channel.query.filter_by(id=video.channel_id).first()
-        if channel:
-            data["channel"] = {
-                "id": channel.id,
-                "title": channel.title,
-                "thumbnail_url": channel.thumbnail_url,
-            }
-        results.append(data)
+        channel = video.channel
+        results.append({
+            "video": video.to_dict(),
+            "channel": channel.to_dict() if channel else None,
+            "watched": video.id in watched_ids,
+        })
 
     next_offset = offset + limit if has_more else None
     return jsonify({"videos": results, "has_more": has_more, "next_offset": next_offset})

@@ -1,3 +1,7 @@
+# W.I.P.
+
+[Read this in Spanish →](README_ES.md)
+
 # YT Clear View
 
 Curated YT viewing without the recommendation algorithm.

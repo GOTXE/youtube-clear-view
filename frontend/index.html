@@ -54,6 +54,7 @@
             <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
               <div class="menu-panel__section">
                 <button id="menu-filters" class="menu-item" type="button">Filters</button>
+                <button id="menu-category-guide" class="menu-item" type="button">Category guide</button>
                 <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
                   <span class="button__label">Toggle theme</span>
                 </button>
@@ -155,6 +156,21 @@
           </div>
           <div class="filter-panel__footer">
             <button id="filters-clear" class="button button--ghost" type="button">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="category-guide" class="guide-modal-overlay" hidden>
+        <div class="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+          <header class="guide-modal__header">
+            <h2 id="guide-title" class="heading-2">How categories work</h2>
+            <button id="guide-close" class="guide-modal__close" type="button" aria-label="Close">✕</button>
+          </header>
+          <div class="guide-modal__body">
+            <p id="guide-intro" class="body">
+              We automatically organize channels into themes so you can browse faster.
+            </p>
+            <ul id="guide-steps" class="guide-list"></ul>
           </div>
         </div>
       </section>

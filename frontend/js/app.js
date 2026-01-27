@@ -65,11 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
     menuFilters: document.getElementById('menu-filters'),
+    menuCategoryGuide: document.getElementById('menu-category-guide'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
     filterPanel: document.getElementById('filter-panel'),
     filterPanelClose: document.getElementById('filters-close'),
     filterPanelClear: document.getElementById('filters-clear'),
+    guidePanel: document.getElementById('category-guide'),
+    guideClose: document.getElementById('guide-close'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -133,6 +136,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuFilters) {
       ui.menuFilters.textContent = t('filters');
     }
+    if (ui.menuCategoryGuide) {
+      ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
+    }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
     }
@@ -151,6 +157,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.filterPanelClose) {
       ui.filterPanelClose.setAttribute('aria-label', t('close'));
+    }
+    if (ui.guideClose) {
+      ui.guideClose.setAttribute('aria-label', t('close'));
     }
     if (ui.themeToggle) {
       const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
@@ -193,6 +202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuPanel) {
       ui.menuPanel.setAttribute('aria-label', t('menuLabel'));
     }
+
+    const guideTitle = document.getElementById('guide-title');
+    if (guideTitle) {
+      guideTitle.textContent = t('categoryGuideTitle');
+    }
+    const guideIntro = document.getElementById('guide-intro');
+    if (guideIntro) {
+      guideIntro.textContent = t('categoryGuideIntro');
+    }
+    const guideSteps = document.getElementById('guide-steps');
+    if (guideSteps) {
+      const steps = [
+        t('categoryGuideStep1'),
+        t('categoryGuideStep2'),
+        t('categoryGuideStep3'),
+        t('categoryGuideStep4')
+      ];
+      guideSteps.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+    }
   }
 
   applyLocalizedCopy();
@@ -206,6 +234,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Fallback for environments without toast utilities.
     alert(message);
+  }
+
+  function openGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+    ui.guidePanel.hidden = false;
+    if (ui.guideClose) {
+      ui.guideClose.focus();
+    }
+  }
+
+  function closeGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+    ui.guidePanel.hidden = true;
+  }
+
+  function setupGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+
+    const onClose = () => closeGuide();
+
+    if (ui.guideClose) {
+      ui.guideClose.addEventListener('click', onClose);
+    }
+
+    ui.guidePanel.addEventListener('click', event => {
+      if (event.target === ui.guidePanel) {
+        onClose();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !ui.guidePanel.hidden) {
+        onClose();
+      }
+    });
   }
 
   function setLoading(show, containerId) {
@@ -907,6 +976,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    if (ui.menuCategoryGuide) {
+      ui.menuCategoryGuide.addEventListener('click', () => {
+        setMenuOpen(false);
+        openGuide();
+      });
+    }
+
     const updateMenuAuth = user => {
       if (ui.logoutButton) {
         ui.logoutButton.hidden = !user;
@@ -1292,6 +1368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupSearch();
     setupMenu();
     setupFilterPanel();
+    setupGuide();
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();

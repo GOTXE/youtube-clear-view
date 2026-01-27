@@ -104,5 +104,12 @@
   "close": "Cerrar",
   "openMenu": "Abrir menu",
   "menuLabel": "Menu de la app",
-  "reportIssue": "Reportar problema"
+  "reportIssue": "Reportar problema",
+  "categoryGuideLabel": "Guia de categorias",
+  "categoryGuideTitle": "Como funciona la clasificacion",
+  "categoryGuideIntro": "Organizamos tus canales por tematica para que navegar sea mas facil.",
+  "categoryGuideStep1": "Automatico: leemos datos de temas de YouTube y la descripcion del canal.",
+  "categoryGuideStep2": "Manual: haz clic en el icono junto al canal para cambiar la tematica.",
+  "categoryGuideStep3": "Tu eleccion manda: los cambios manuales se conservan.",
+  "categoryGuideStep4": "Usa \"Reclasificar canales\" si quieres que el sistema pruebe otra vez."
 }

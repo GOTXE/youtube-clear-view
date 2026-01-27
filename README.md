@@ -18,6 +18,20 @@ Curated YT viewing without the recommendation algorithm.
 - YT Data API v3 integration
 - HTTPS-only deployment behind reverse proxy
 
+### Automatic Channel Categorization (NEW)
+
+- **14+ Categories**: Gaming, Technology, Education, Music, Food, Fitness, Travel, Fashion, News, Entertainment, Vlogs, Sports, Art, Science
+- **Multi-Method Classification**: 4 methods in cascade (YT Topics, TF-IDF, Hybrid Semantic, Ollama LLM)
+- **Manual Override**: Reassign any channel to a different category
+- **Category Carousels**: Browse videos organized by content type
+- **Color-Coded Categories**: Each category has its own distinctive color
+
+### Channel Rating System (NEW)
+
+- **5-Star Rating**: Rate your subscribed channels from 1 to 5 stars
+- **Filter by Rating**: Find your favorite channels quickly
+- **Personal Ratings**: Each user maintains their own channel ratings
+
 ## Quick Start (Development)
 
 ```bash

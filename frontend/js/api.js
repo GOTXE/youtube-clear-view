@@ -277,6 +277,15 @@ class APIClient {
   removeChannelRating(channelId) {
     return this.delete(`/api/channels/${channelId}/rating`);
   }
+
+  // Channel enrichment (fetch topic_ids from YouTube API)
+  enrichChannels(channelId = null, limit = 50) {
+    const payload = { limit };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/enrich', payload);
+  }
 }
 
 window.APIClient = APIClient;

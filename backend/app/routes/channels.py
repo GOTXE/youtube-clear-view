@@ -322,11 +322,19 @@ def subscribe_channel():
         info = service.get_channel_info(yt_channel_id)
         if not info:
             return _not_found("Channel info not found.")
+
+        # Serialize topic_ids to JSON string
+        import json
+        topic_ids_json = json.dumps(info.get("topic_ids")) if info.get("topic_ids") else None
+
         channel = Channel(
             yt_channel_id=yt_channel_id,
             title=info.get("title"),
             description=info.get("description"),
             thumbnail_url=info.get("thumbnail"),
+            topic_ids=topic_ids_json,
+            keywords=info.get("keywords"),
+            country=info.get("country"),
         )
         db.session.add(channel)
         db.session.flush()
@@ -736,4 +744,79 @@ def delete_channel_rating(channel_id):
         "channel_id": channel_id,
         "rating": None,
         "message": "Rating removed successfully.",
+    })
+
+
+@channels_bp.post("/api/channels/enrich")
+@handle_route_errors
+@require_auth
+def enrich_channels():
+    """
+    Enrich channels with topic_ids, keywords, and country from YouTube API.
+
+    This fetches additional metadata for channels that don't have topic_ids,
+    which is needed for accurate automatic classification.
+    """
+    import json
+
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    channel_id = payload.get("channel_id")
+    limit = min(int(payload.get("limit", 50)), 100)
+
+    # Get channels to enrich
+    if channel_id:
+        # Enrich specific channel
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        if not subscription:
+            return _not_found("Subscription not found.")
+        channels = [subscription.channel]
+    else:
+        # Enrich channels without topic_ids
+        subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
+        channels = [
+            sub.channel for sub in subscriptions
+            if not sub.channel.topic_ids
+        ][:limit]
+
+    if not channels:
+        return jsonify({
+            "enriched": 0,
+            "message": "No channels need enrichment.",
+        })
+
+    service = _get_service()
+    enriched = 0
+    errors = 0
+
+    for channel in channels:
+        try:
+            info = service.get_channel_info(channel.yt_channel_id)
+            if info:
+                if info.get("topic_ids"):
+                    channel.topic_ids = json.dumps(info["topic_ids"])
+                if info.get("keywords") and not channel.keywords:
+                    channel.keywords = info["keywords"]
+                if info.get("country") and not channel.country:
+                    channel.country = info["country"]
+                enriched += 1
+        except Exception as e:
+            logger.warning(
+                f"Failed to enrich channel {channel.yt_channel_id}: {e}",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            errors += 1
+
+    db.session.commit()
+
+    # Calculate remaining channels without topic_ids
+    remaining = UserChannel.query.filter_by(user_id=user.id).join(Channel).filter(
+        (Channel.topic_ids.is_(None)) | (Channel.topic_ids == "")
+    ).count()
+
+    return jsonify({
+        "enriched": enriched,
+        "errors": errors,
+        "remaining": remaining,
+        "message": f"Enriched {enriched} channels with topic data.",
     })

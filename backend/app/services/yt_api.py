@@ -106,7 +106,7 @@ class YTService:
         return videos
 
     def get_channel_info(self, channel_id):
-        """Fetch channel information by channel ID."""
+        """Fetch channel information by channel ID including topic IDs and keywords."""
         if not self.client:
             return None
 
@@ -118,13 +118,18 @@ class YTService:
         try:
             response = (
                 self.client.channels()
-                .list(part="snippet", id=channel_id)
+                .list(part="snippet,topicDetails,brandingSettings", id=channel_id)
                 .execute()
             )
             items = response.get("items", [])
             if not items:
                 return None
-            snippet = items[0].get("snippet", {})
+
+            item = items[0]
+            snippet = item.get("snippet", {})
+            topic_details = item.get("topicDetails", {})
+            branding = item.get("brandingSettings", {})
+
             thumbnails = snippet.get("thumbnails", {})
             thumbnail_url = None
             if "high" in thumbnails:
@@ -133,11 +138,25 @@ class YTService:
                 thumbnail_url = thumbnails["medium"].get("url")
             elif "default" in thumbnails:
                 thumbnail_url = thumbnails["default"].get("url")
+
+            # Extract topic IDs for classification
+            topic_ids = topic_details.get("topicIds", [])
+
+            # Extract keywords from branding settings
+            keywords_str = branding.get("channel", {}).get("keywords", "")
+            keywords = keywords_str if keywords_str else None
+
+            # Extract country
+            country = snippet.get("country")
+
             channel_info = {
                 "channel_id": channel_id,
                 "title": snippet.get("title"),
                 "description": snippet.get("description"),
                 "thumbnail": thumbnail_url,
+                "topic_ids": topic_ids,
+                "keywords": keywords,
+                "country": country,
             }
             self.cache.set(cache_key, channel_info, self.cache_ttl)
             return channel_info

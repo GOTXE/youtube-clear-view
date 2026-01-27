@@ -575,7 +575,10 @@ select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-3);
-  box-shadow: 0 16px 32px var(--shadow);
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.25),
+    0 0 22px rgba(110, 231, 183, 0.2),
+    0 16px 32px var(--shadow);
   padding: var(--space-3);
   z-index: 30;
 }

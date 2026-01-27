@@ -30,12 +30,6 @@ Curated YT viewing without the recommendation algorithm.
 - **Category Carousels**: Browse videos organized by content type
 - **Color-Coded Categories**: Each category has its own distinctive color
 
-### Channel Rating System (NEW)
-
-- **5-Star Rating**: Rate your subscribed channels from 1 to 5 stars
-- **Filter by Rating**: Find your favorite channels quickly
-- **Personal Ratings**: Each user maintains their own channel ratings
-
 ## Quick Start (Development)
 
 ```bash

@@ -30,12 +30,6 @@ Vista curada de YT sin el algoritmo de recomendacion.
 - **Carousels por categoria**: videos organizados por tipo de contenido
 - **Colores por categoria**: cada categoria tiene su color propio
 
-### Sistema de rating de canales (NEW)
-
-- **Rating 1-5 estrellas**: califica canales suscritos
-- **Filtro por rating**: encuentra tus favoritos rapido
-- **Ratings personales**: cada usuario mantiene sus ratings
-
 ## Inicio rapido (Development)
 
 ```bash

@@ -4,7 +4,7 @@ Curated YT viewing without the recommendation algorithm.
 
 ## Screenshots
 
-![YT Clear View](screenshots/YT_Clear_View.jpg)
+![YT Clear View](screenshots/YT-Clear-View.jpg)
 
 ## Features
 

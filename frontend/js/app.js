@@ -504,6 +504,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       name.textContent = channel.title || channel.yt_channel_id || t('unknownChannel');
       item.appendChild(name);
 
+      const meta = document.createElement('div');
+      meta.className = 'channel-item__meta';
+
       if (typeof window.createCategoryBadge === 'function' && state.categorySelector) {
         const categoryData = channel.category && channel.category.category
           ? channel.category.category
@@ -516,7 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
         });
         badge.classList.add('channel-item__category');
-        item.appendChild(badge);
+        meta.appendChild(badge);
       }
 
       const status = document.createElement('span');
@@ -525,7 +528,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         status.classList.add('is-active');
       }
       status.setAttribute('aria-hidden', 'true');
-      item.appendChild(status);
+      meta.appendChild(status);
+
+      item.appendChild(meta);
 
       ui.channelList.appendChild(item);
     });

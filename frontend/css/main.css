@@ -440,6 +440,13 @@ select {
   cursor: default;
 }
 
+.channel-item__meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .channel-item:hover {
   background: var(--bg-secondary);
 }
@@ -493,7 +500,7 @@ select {
   border-radius: 999px;
   background: transparent;
   border: 1px solid var(--border);
-  margin-left: auto;
+  margin-left: 4px;
   flex-shrink: 0;
 }
 
@@ -1190,6 +1197,5 @@ select {
 .category-badge.category-color-business { background: var(--muted); color: white; border-color: var(--muted); }
 
 .channel-item__category {
-  margin-left: auto;
-  margin-right: var(--space-1);
+  margin: 0;
 }

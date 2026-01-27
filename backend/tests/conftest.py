@@ -119,7 +119,11 @@ def sample_subscription(app, sample_user, sample_channel):
         )
         db.session.add(subscription)
         db.session.commit()
-        return {"id": subscription.id}
+        return {
+            "id": subscription.id,
+            "user_id": subscription.user_id,
+            "channel_id": subscription.channel_id,
+        }
 
 
 @pytest.fixture()
@@ -193,8 +197,21 @@ def sample_category(app):
 
 
 @pytest.fixture()
-def sample_channel_category(app, sample_channel, sample_category):
+def sample_channel_category(app, sample_user, sample_channel, sample_category):
     with app.app_context():
+        # Create user subscription for this channel
+        subscription = UserChannel.query.filter_by(
+            user_id=sample_user["id"],
+            channel_id=sample_channel["id"],
+        ).first()
+        if not subscription:
+            subscription = UserChannel(
+                user_id=sample_user["id"],
+                channel_id=sample_channel["id"],
+            )
+            db.session.add(subscription)
+            db.session.flush()
+
         channel_category = ChannelCategory(
             channel_id=sample_channel["id"],
             category_id=sample_category["id"],
@@ -208,4 +225,5 @@ def sample_channel_category(app, sample_channel, sample_category):
             "id": channel_category.id,
             "channel_id": channel_category.channel_id,
             "category_id": channel_category.category_id,
+            "subscription_id": subscription.id,
         }

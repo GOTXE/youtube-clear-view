@@ -49,7 +49,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchActive: false,
     searchQuery: '',
     autoImportAttempted: false,
-    categoryManager: null
+    categoryManager: null,
+    categorySelector: null,
+    categoriesLoaded: false
   };
 
   const ui = {
@@ -501,6 +503,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       name.className = 'channel-item__name';
       name.textContent = channel.title || channel.yt_channel_id || t('unknownChannel');
       item.appendChild(name);
+
+      if (typeof window.createCategoryBadge === 'function' && state.categorySelector) {
+        const categoryData = channel.category && channel.category.category
+          ? channel.category.category
+          : null;
+        const badge = window.createCategoryBadge(categoryData, () => {
+          state.categorySelector.open(
+            channel.id,
+            channel.title,
+            categoryData ? categoryData.id : null
+          );
+        });
+        badge.classList.add('channel-item__category');
+        item.appendChild(badge);
+      }
 
       const status = document.createElement('span');
       status.className = 'channel-item__status';
@@ -1161,6 +1178,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const response = await api.reclassifyAllChannels();
       if (response.ok) {
         showNotification(t('reclassifySuccess') || 'Canales reclasificados correctamente', 'success');
+
+        const channelsResponse = await api.getChannels();
+        if (channelsResponse.ok) {
+          state.channels = channelsResponse.data || [];
+          renderChannelList(state.channels);
+        }
+
         if (state.categoryManager) {
           await state.categoryManager.init();
         }
@@ -1187,10 +1211,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  async function initCategorySelector() {
+    if (typeof window.CategorySelector !== 'function') {
+      return;
+    }
+
+    state.categorySelector = new window.CategorySelector(api, async (channelId, category) => {
+      const channel = state.channels.find(ch => ch.id === channelId);
+      if (channel) {
+        if (category) {
+          channel.category = { category: category };
+        } else {
+          channel.category = null;
+        }
+      }
+      renderChannelList(state.channels);
+      if (state.categoryManager) {
+        await state.categoryManager.init();
+      }
+    });
+
+    await state.categorySelector.loadCategories();
+    state.categoriesLoaded = true;
+
+    if (ui.reclassifyBtn) {
+      ui.reclassifyBtn.hidden = false;
+    }
+  }
+
   async function bootstrapAuthenticated() {
     if (typeof window.initDevice === 'function') {
       state.currentDevice = await window.initDevice();
     }
+    await initCategorySelector();
     await loadApp();
   }
 

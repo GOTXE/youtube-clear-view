@@ -104,5 +104,12 @@
   "close": "Close",
   "openMenu": "Open menu",
   "menuLabel": "App menu",
-  "reportIssue": "Report issue"
+  "reportIssue": "Report issue",
+  "categoryGuideLabel": "Category guide",
+  "categoryGuideTitle": "How categories work",
+  "categoryGuideIntro": "We automatically organize channels into themes so you can browse faster.",
+  "categoryGuideStep1": "Auto: we read YouTube topic data and the channel description.",
+  "categoryGuideStep2": "Manual: click the small icon next to a channel to change its theme.",
+  "categoryGuideStep3": "Your choice wins: manual changes are kept.",
+  "categoryGuideStep4": "Use \"Reclassify channels\" if you want the system to try again."
 }

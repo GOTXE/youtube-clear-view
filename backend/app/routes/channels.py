@@ -13,7 +13,8 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Channel, UserChannel, Video, WatchedVideo
+from app.models import Category, Channel, ChannelCategory, UserChannel, Video, WatchedVideo
+from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
@@ -260,7 +261,7 @@ def list_channels():
     results = []
     for subscription in subscriptions:
         channel = subscription.channel
-        data = channel.to_dict()
+        data = channel.to_dict(include_category=True)
         data["thumbnail_local_url"] = f"/api/channels/{channel.id}/thumbnail"
         data["latest_video_at"] = (
             latest_video_map.get(channel.id).isoformat()
@@ -279,6 +280,11 @@ def list_channels():
             subscription.last_refreshed_at.isoformat()
             if subscription.last_refreshed_at
             else None
+        )
+        # Include rating information
+        data["rating"] = subscription.rating
+        data["rated_at"] = (
+            subscription.rated_at.isoformat() if subscription.rated_at else None
         )
         results.append(data)
     return jsonify(results)
@@ -316,11 +322,19 @@ def subscribe_channel():
         info = service.get_channel_info(yt_channel_id)
         if not info:
             return _not_found("Channel info not found.")
+
+        # Serialize topic_ids to JSON string
+        import json
+        topic_ids_json = json.dumps(info.get("topic_ids")) if info.get("topic_ids") else None
+
         channel = Channel(
             yt_channel_id=yt_channel_id,
             title=info.get("title"),
             description=info.get("description"),
             thumbnail_url=info.get("thumbnail"),
+            topic_ids=topic_ids_json,
+            keywords=info.get("keywords"),
+            country=info.get("country"),
         )
         db.session.add(channel)
         db.session.flush()
@@ -332,7 +346,18 @@ def subscribe_channel():
 
     db.session.commit()
 
-    data = channel.to_dict()
+    # Auto-classify the channel if not already classified
+    if not ChannelCategory.query.filter_by(channel_id=channel.id).first():
+        try:
+            service = ClassificationService()
+            service.classify_channel(channel)
+        except Exception as e:
+            logger.warning(
+                f"Failed to auto-classify channel {channel.yt_channel_id}: {e}",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+
+    data = channel.to_dict(include_category=True)
     data["subscribed_at"] = subscription.subscribed_at.isoformat() if subscription.subscribed_at else None
     return jsonify(data), 201
 
@@ -462,6 +487,7 @@ def import_subscriptions():
     imported = 0
     new_channels = 0
     new_subscriptions = 0
+    channels_to_classify = []
 
     for item in items:
         snippet = item.get("snippet", {})
@@ -482,6 +508,7 @@ def import_subscriptions():
             db.session.add(channel)
             db.session.flush()
             new_channels += 1
+            channels_to_classify.append(channel)
         else:
             if not channel.title and snippet.get("title"):
                 channel.title = snippet.get("title")
@@ -506,6 +533,19 @@ def import_subscriptions():
 
     db.session.commit()
 
+    # Auto-classify new channels
+    classified = 0
+    if channels_to_classify:
+        try:
+            service = ClassificationService()
+            results = service.classify_channels(channels_to_classify)
+            classified = len([r for r in results if r])
+        except Exception as e:
+            logger.warning(
+                f"Failed to auto-classify {len(channels_to_classify)} channels: {e}",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+
     next_token = page_info.get("next_page_token") if page_info else None
     total_results = page_info.get("total_results") if page_info else None
     return jsonify(
@@ -513,6 +553,7 @@ def import_subscriptions():
             "imported": imported,
             "new_channels": new_channels,
             "new_subscriptions": new_subscriptions,
+            "classified": classified,
             "next_page_token": next_token,
             "total_results": total_results,
             "finished": next_token is None,
@@ -559,3 +600,223 @@ def get_channel_videos(channel_id):
     ]
     next_offset = offset + limit if has_more else None
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
+
+
+@channels_bp.get("/api/channels/<int:channel_id>/category")
+@handle_route_errors
+@require_auth
+def get_channel_category(channel_id):
+    """Return the category for a specific channel."""
+    user = g.current_user
+    subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+    if not subscription:
+        return _not_found("Subscription not found.")
+
+    channel = subscription.channel
+    channel_category = ChannelCategory.query.filter_by(channel_id=channel_id).first()
+
+    if not channel_category:
+        return jsonify({"category": None, "message": "Channel not classified."})
+
+    category = Category.query.filter_by(id=channel_category.category_id).first()
+    return jsonify({
+        "category": category.to_dict() if category else None,
+        "classification": channel_category.to_dict(),
+    })
+
+
+@channels_bp.put("/api/channels/<int:channel_id>/category")
+@handle_route_errors
+@require_auth
+def update_channel_category(channel_id):
+    """Manually assign a category to a channel."""
+    user = g.current_user
+    subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+    if not subscription:
+        return _not_found("Subscription not found.")
+
+    payload = request.get_json(silent=True) or {}
+    category_name = payload.get("category_name")
+    category_id = payload.get("category_id")
+
+    if not category_name and not category_id:
+        return _bad_request("Missing category_name or category_id.")
+
+    if category_id:
+        category = Category.query.filter_by(id=category_id).first()
+    else:
+        category = Category.query.filter_by(name=category_name).first()
+
+    if not category:
+        return _not_found("Category not found.")
+
+    service = ClassificationService()
+    result = service.manually_classify(subscription.channel, category.name)
+
+    if not result:
+        return _bad_request("Failed to classify channel.")
+
+    return jsonify({
+        "category": category.to_dict(),
+        "classification": result.to_dict(),
+        "message": "Category updated successfully.",
+    })
+
+
+@channels_bp.delete("/api/channels/<int:channel_id>/category")
+@handle_route_errors
+@require_auth
+def delete_channel_category(channel_id):
+    """Remove manual override and auto-classify channel."""
+    user = g.current_user
+    subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+    if not subscription:
+        return _not_found("Subscription not found.")
+
+    service = ClassificationService()
+    result = service.reclassify_channel(subscription.channel)
+
+    if not result:
+        return jsonify({
+            "category": None,
+            "message": "Could not auto-classify channel.",
+        })
+
+    category = Category.query.filter_by(id=result.category_id).first()
+    return jsonify({
+        "category": category.to_dict() if category else None,
+        "classification": result.to_dict(),
+        "message": "Channel reclassified successfully.",
+    })
+
+
+@channels_bp.put("/api/channels/<int:channel_id>/rating")
+@handle_route_errors
+@require_auth
+def rate_channel(channel_id):
+    """Rate a channel (1-5 stars)."""
+    user = g.current_user
+    subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+    if not subscription:
+        return _not_found("Subscription not found.")
+
+    payload = request.get_json(silent=True) or {}
+    rating = payload.get("rating")
+
+    if rating is None:
+        return _bad_request("Missing rating.")
+
+    try:
+        rating = int(rating)
+    except (TypeError, ValueError):
+        return _bad_request("Invalid rating value.")
+
+    if rating < 1 or rating > 5:
+        return _bad_request("Rating must be between 1 and 5.")
+
+    subscription.rating = rating
+    subscription.rated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "channel_id": channel_id,
+        "rating": rating,
+        "rated_at": subscription.rated_at.isoformat(),
+        "message": "Rating updated successfully.",
+    })
+
+
+@channels_bp.delete("/api/channels/<int:channel_id>/rating")
+@handle_route_errors
+@require_auth
+def delete_channel_rating(channel_id):
+    """Remove rating from a channel."""
+    user = g.current_user
+    subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+    if not subscription:
+        return _not_found("Subscription not found.")
+
+    subscription.rating = None
+    subscription.rated_at = None
+    db.session.commit()
+
+    return jsonify({
+        "channel_id": channel_id,
+        "rating": None,
+        "message": "Rating removed successfully.",
+    })
+
+
+@channels_bp.post("/api/channels/enrich")
+@handle_route_errors
+@require_auth
+def enrich_channels():
+    """
+    Enrich channels with topic_ids, keywords, and country from YouTube API.
+
+    This fetches additional metadata for channels that don't have topic_ids,
+    which is needed for accurate automatic classification.
+    """
+    import json
+
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    channel_id = payload.get("channel_id")
+    limit = min(int(payload.get("limit", 50)), 100)
+
+    # Get channels to enrich
+    if channel_id:
+        # Enrich specific channel
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        if not subscription:
+            return _not_found("Subscription not found.")
+        channels = [subscription.channel]
+    else:
+        # Enrich channels without topic_ids
+        subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
+        channels = [
+            sub.channel for sub in subscriptions
+            if not sub.channel.topic_ids
+        ][:limit]
+
+    if not channels:
+        return jsonify({
+            "enriched": 0,
+            "message": "No channels need enrichment.",
+        })
+
+    service = _get_service()
+    enriched = 0
+    errors = 0
+
+    for channel in channels:
+        try:
+            info = service.get_channel_info(channel.yt_channel_id)
+            if info:
+                if info.get("topic_ids"):
+                    channel.topic_ids = json.dumps(info["topic_ids"])
+                if info.get("keywords") and not channel.keywords:
+                    channel.keywords = info["keywords"]
+                if info.get("country") and not channel.country:
+                    channel.country = info["country"]
+                enriched += 1
+        except Exception as e:
+            logger.warning(
+                f"Failed to enrich channel {channel.yt_channel_id}: {e}",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            errors += 1
+
+    db.session.commit()
+
+    # Calculate remaining channels without topic_ids
+    remaining = UserChannel.query.filter_by(user_id=user.id).join(Channel).filter(
+        (Channel.topic_ids.is_(None)) | (Channel.topic_ids == "")
+    ).count()
+
+    return jsonify({
+        "enriched": enriched,
+        "errors": errors,
+        "remaining": remaining,
+        "message": f"Enriched {enriched} channels with topic data.",
+    })

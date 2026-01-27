@@ -231,6 +231,61 @@ class APIClient {
       screen_height: screenHeight
     });
   }
+
+  // Category endpoints
+  getCategories() {
+    return this.get('/api/categories');
+  }
+
+  getCategoryDetails(categoryId) {
+    return this.get(`/api/categories/${categoryId}`);
+  }
+
+  getCategoryChannels(categoryId, limit = 20, offset = 0) {
+    return this.get(`/api/categories/${categoryId}/channels`, { limit, offset });
+  }
+
+  getCategoryVideos(categoryId, limit = 20, offset = 0) {
+    return this.get(`/api/categories/${categoryId}/videos`, { limit, offset });
+  }
+
+  getChannelCategory(channelId) {
+    return this.get(`/api/channels/${channelId}/category`);
+  }
+
+  setChannelCategory(channelId, categoryName) {
+    return this.put(`/api/channels/${channelId}/category`, { category_name: categoryName });
+  }
+
+  resetChannelCategory(channelId) {
+    return this.delete(`/api/channels/${channelId}/category`);
+  }
+
+  reclassifyAllChannels() {
+    return this.post('/api/categories/reclassify-all');
+  }
+
+  getClassifierStatus() {
+    return this.get('/api/categories/status');
+  }
+
+  // Rating endpoints
+  rateChannel(channelId, rating) {
+    return this.put(`/api/channels/${channelId}/rating`, { rating });
+  }
+
+  removeChannelRating(channelId) {
+    return this.delete(`/api/channels/${channelId}/rating`);
+  }
+
+  // Channel enrichment (fetch topic_ids from YouTube API)
+  enrichChannels(channelId = null, limit = 50) {
+    const payload = { limit };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/enrich', payload);
+  }
 }
 
 window.APIClient = APIClient;

@@ -48,7 +48,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     carousels: [],
     searchActive: false,
     searchQuery: '',
-    autoImportAttempted: false
+    autoImportAttempted: false,
+    categoryManager: null,
+    categorySelector: null,
+    categoriesLoaded: false
   };
 
   const ui = {
@@ -62,11 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
     menuFilters: document.getElementById('menu-filters'),
+    menuCategoryGuide: document.getElementById('menu-category-guide'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
     filterPanel: document.getElementById('filter-panel'),
     filterPanelClose: document.getElementById('filters-close'),
     filterPanelClear: document.getElementById('filters-clear'),
+    guidePanel: document.getElementById('category-guide'),
+    guideClose: document.getElementById('guide-close'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -88,7 +94,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterMonth: document.getElementById('filter-month'),
     githubLabel: document.getElementById('github-label'),
     sessionInfo: document.querySelector('.session-info'),
-    currentUserName: document.getElementById('current-user-name')
+    currentUserName: document.getElementById('current-user-name'),
+    categoriesSection: document.getElementById('categories-section'),
+    categoryCarousels: document.getElementById('category-carousels'),
+    categoriesLabel: document.getElementById('categories-label'),
+    categoriesDescription: document.getElementById('categories-description'),
+    reclassifyBtn: document.getElementById('reclassify-btn')
   };
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
@@ -125,6 +136,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuFilters) {
       ui.menuFilters.textContent = t('filters');
     }
+    if (ui.menuCategoryGuide) {
+      ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
+    }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
     }
@@ -143,6 +157,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.filterPanelClose) {
       ui.filterPanelClose.setAttribute('aria-label', t('close'));
+    }
+    if (ui.guideClose) {
+      ui.guideClose.setAttribute('aria-label', t('close'));
     }
     if (ui.themeToggle) {
       const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
@@ -185,6 +202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuPanel) {
       ui.menuPanel.setAttribute('aria-label', t('menuLabel'));
     }
+
+    const guideTitle = document.getElementById('guide-title');
+    if (guideTitle) {
+      guideTitle.textContent = t('categoryGuideTitle');
+    }
+    const guideIntro = document.getElementById('guide-intro');
+    if (guideIntro) {
+      guideIntro.textContent = t('categoryGuideIntro');
+    }
+    const guideSteps = document.getElementById('guide-steps');
+    if (guideSteps) {
+      const steps = [
+        t('categoryGuideStep1'),
+        t('categoryGuideStep2'),
+        t('categoryGuideStep3'),
+        t('categoryGuideStep4')
+      ];
+      guideSteps.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+    }
   }
 
   applyLocalizedCopy();
@@ -198,6 +234,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Fallback for environments without toast utilities.
     alert(message);
+  }
+
+  function openGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+    ui.guidePanel.hidden = false;
+    if (ui.guideClose) {
+      ui.guideClose.focus();
+    }
+  }
+
+  function closeGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+    ui.guidePanel.hidden = true;
+  }
+
+  function setupGuide() {
+    if (!ui.guidePanel) {
+      return;
+    }
+
+    const onClose = () => closeGuide();
+
+    if (ui.guideClose) {
+      ui.guideClose.addEventListener('click', onClose);
+    }
+
+    ui.guidePanel.addEventListener('click', event => {
+      if (event.target === ui.guidePanel) {
+        onClose();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !ui.guidePanel.hidden) {
+        onClose();
+      }
+    });
   }
 
   function setLoading(show, containerId) {
@@ -279,6 +356,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
+    }
+    if (state.categoryManager) {
+      state.categoryManager.destroy();
     }
   }
 
@@ -493,13 +573,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       name.textContent = channel.title || channel.yt_channel_id || t('unknownChannel');
       item.appendChild(name);
 
+      const meta = document.createElement('div');
+      meta.className = 'channel-item__meta';
+
+      if (typeof window.createCategoryBadge === 'function' && state.categorySelector) {
+        const categoryData = channel.category && channel.category.category
+          ? channel.category.category
+          : null;
+        const badge = window.createCategoryBadge(categoryData, () => {
+          state.categorySelector.open(
+            channel.id,
+            channel.title,
+            categoryData ? categoryData.id : null
+          );
+        });
+        badge.classList.add('channel-item__category');
+        meta.appendChild(badge);
+      }
+
       const status = document.createElement('span');
       status.className = 'channel-item__status';
       if (Number(channel.recent_total_7 || 0) > 0) {
         status.classList.add('is-active');
       }
       status.setAttribute('aria-hidden', 'true');
-      item.appendChild(status);
+      meta.appendChild(status);
+
+      item.appendChild(meta);
 
       ui.channelList.appendChild(item);
     });
@@ -682,18 +782,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
+
+    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+      await state.categoryManager.init();
+      if (ui.categoriesSection) {
+        ui.categoriesSection.hidden = false;
+      }
     }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
-    }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
+
     if (ui.shortsSection) {
       ui.shortsSection.hidden = false;
     }
@@ -709,6 +806,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
+
+    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+      await state.categoryManager.init();
+    }
   }
 
   function setupFilters() {
@@ -871,6 +973,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.menuFilters.addEventListener('click', () => {
         setMenuOpen(false);
         openFilterPanel();
+      });
+    }
+
+    if (ui.menuCategoryGuide) {
+      ui.menuCategoryGuide.addEventListener('click', () => {
+        setMenuOpen(false);
+        openGuide();
       });
     }
 
@@ -1138,6 +1247,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function setupReclassifyButton() {
+    if (!ui.reclassifyBtn) {
+      return;
+    }
+
+    ui.reclassifyBtn.addEventListener('click', async () => {
+      ui.reclassifyBtn.disabled = true;
+
+      // Step 1: Enrich channels with topic_ids from YouTube API
+      ui.reclassifyBtn.textContent = 'Obteniendo datos de YouTube...';
+      let totalEnriched = 0;
+      let remaining = 999;
+
+      while (remaining > 0) {
+        const enrichResponse = await api.enrichChannels(null, 50);
+        if (!enrichResponse.ok) {
+          break;
+        }
+        totalEnriched += enrichResponse.data.enriched || 0;
+        remaining = enrichResponse.data.remaining || 0;
+        ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEnriched} canales)`;
+
+        if (enrichResponse.data.enriched === 0) {
+          break;
+        }
+      }
+
+      if (totalEnriched > 0) {
+        showNotification(`${totalEnriched} canales enriquecidos con datos de YouTube`, 'success');
+      }
+
+      // Step 2: Reclassify all channels
+      ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
+
+      const response = await api.reclassifyAllChannels();
+      if (response.ok) {
+        const stats = response.data || {};
+        const classified = stats.classified || 0;
+        showNotification(`${classified} canales clasificados correctamente`, 'success');
+
+        const channelsResponse = await api.getChannels();
+        if (channelsResponse.ok) {
+          state.channels = channelsResponse.data || [];
+          renderChannelList(state.channels);
+        }
+
+        if (state.categoryManager) {
+          await state.categoryManager.init();
+        }
+      } else {
+        showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
+      }
+
+      ui.reclassifyBtn.disabled = false;
+      ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
+    });
+  }
+
   function setupDebug() {
     const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     if (!isDev) {
@@ -1152,10 +1319,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  async function initCategorySelector() {
+    if (typeof window.CategorySelector !== 'function') {
+      return;
+    }
+
+    state.categorySelector = new window.CategorySelector(api, async (channelId, category) => {
+      const channel = state.channels.find(ch => ch.id === channelId);
+      if (channel) {
+        if (category) {
+          channel.category = { category: category };
+        } else {
+          channel.category = null;
+        }
+      }
+      renderChannelList(state.channels);
+      if (state.categoryManager) {
+        await state.categoryManager.init();
+      }
+    });
+
+    await state.categorySelector.loadCategories();
+    state.categoriesLoaded = true;
+
+    if (ui.reclassifyBtn) {
+      ui.reclassifyBtn.hidden = false;
+    }
+  }
+
   async function bootstrapAuthenticated() {
     if (typeof window.initDevice === 'function') {
       state.currentDevice = await window.initDevice();
     }
+    await initCategorySelector();
     await loadApp();
   }
 
@@ -1172,9 +1368,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupSearch();
     setupMenu();
     setupFilterPanel();
+    setupGuide();
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();
+    setupReclassifyButton();
     setupDebug();
 
     if (state.currentUser) {

@@ -1101,7 +1101,10 @@ select {
   width: 100%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 16px 48px var(--shadow);
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.25),
+    0 0 22px rgba(110, 231, 183, 0.2),
+    0 16px 48px var(--shadow);
 }
 
 .category-modal__header {

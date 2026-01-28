@@ -51,7 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoImportAttempted: false,
     categoryManager: null,
     categorySelector: null,
-    categoriesLoaded: false
+    categoriesLoaded: false,
+    settings: null,
+    presets: null
   };
 
   const ui = {
@@ -66,6 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuPanel: document.getElementById('menu-panel'),
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
+    menuSettings: document.getElementById('menu-settings'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
     filterPanel: document.getElementById('filter-panel'),
@@ -73,6 +76,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterPanelClear: document.getElementById('filters-clear'),
     guidePanel: document.getElementById('category-guide'),
     guideClose: document.getElementById('guide-close'),
+    settingsModal: document.getElementById('settings-modal'),
+    settingsClose: document.getElementById('settings-close'),
+    settingsCancel: document.getElementById('settings-cancel'),
+    settingsSave: document.getElementById('settings-save'),
+    presetRadios: document.querySelectorAll('input[name="preset"]'),
+    scheduleSelects: [
+      document.getElementById('schedule-1'),
+      document.getElementById('schedule-2'),
+      document.getElementById('schedule-3'),
+      document.getElementById('schedule-4')
+    ],
+    scheduleLabels: [
+      document.getElementById('schedule-label-1'),
+      document.getElementById('schedule-label-2'),
+      document.getElementById('schedule-label-3'),
+      document.getElementById('schedule-label-4')
+    ],
+    presetTitle: document.getElementById('preset-title'),
+    scheduleTitle: document.getElementById('schedule-title'),
+    quotaTitle: document.getElementById('quota-title'),
+    scheduleHint: document.getElementById('schedule-hint'),
+    quotaStatus: document.getElementById('quota-status'),
+    quotaHint: document.getElementById('quota-hint'),
+    backfillStatus: document.getElementById('backfill-status'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -139,6 +166,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuCategoryGuide) {
       ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
     }
+    if (ui.menuSettings) {
+      ui.menuSettings.textContent = t('autoUpdatesLabel');
+    }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
     }
@@ -161,6 +191,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.guideClose) {
       ui.guideClose.setAttribute('aria-label', t('close'));
     }
+    if (ui.settingsClose) {
+      ui.settingsClose.setAttribute('aria-label', t('close'));
+    }
+    if (ui.settingsCancel) {
+      ui.settingsCancel.textContent = t('cancel');
+    }
+    if (ui.settingsSave) {
+      ui.settingsSave.textContent = t('save');
+    }
+    const settingsTitle = document.getElementById('settings-title');
+    if (settingsTitle) {
+      settingsTitle.textContent = t('autoUpdatesLabel');
+    }
+    if (ui.presetTitle) {
+      ui.presetTitle.textContent = t('presetTitle');
+    }
+    if (ui.scheduleTitle) {
+      ui.scheduleTitle.textContent = t('scheduleTitle');
+    }
+    if (ui.quotaTitle) {
+      ui.quotaTitle.textContent = t('quotaTitle');
+    }
+    if (ui.scheduleHint) {
+      ui.scheduleHint.textContent = t('scheduleHint');
+    }
+    if (ui.quotaHint) {
+      ui.quotaHint.textContent = t('quotaHint');
+    }
+    if (ui.scheduleLabels && ui.scheduleLabels.length) {
+      ui.scheduleLabels.forEach((label, index) => {
+        if (label) {
+          label.textContent = t('scheduleSlot', { index: index + 1 });
+        }
+      });
+    }
+    const presetLabels = document.querySelectorAll('[data-preset-label]');
+    presetLabels.forEach(node => {
+      const key = node.dataset.presetLabel;
+      node.textContent = t(`presetLabel${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+    });
+    const presetDescs = document.querySelectorAll('[data-preset-desc]');
+    presetDescs.forEach(node => {
+      const key = node.dataset.presetDesc;
+      node.textContent = t(`presetDesc${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+    });
     if (ui.themeToggle) {
       const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
         ? 'light'
@@ -273,6 +348,183 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !ui.guidePanel.hidden) {
         onClose();
+      }
+    });
+  }
+
+  function getTimezone() {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return tz || 'UTC';
+    } catch (error) {
+      return 'UTC';
+    }
+  }
+
+  function buildScheduleOptions(select) {
+    if (!select) {
+      return;
+    }
+    select.innerHTML = '';
+    const offOption = document.createElement('option');
+    offOption.value = 'off';
+    offOption.textContent = t('off');
+    select.appendChild(offOption);
+    for (let hour = 0; hour < 24; hour += 1) {
+      const option = document.createElement('option');
+      option.value = String(hour);
+      option.textContent = `${String(hour).padStart(2, '0')}:00`;
+      select.appendChild(option);
+    }
+  }
+
+  function openSettingsModal() {
+    if (!ui.settingsModal) {
+      return;
+    }
+    if (state.currentUser) {
+      loadSettings();
+    }
+    ui.settingsModal.hidden = false;
+  }
+
+  function closeSettingsModal() {
+    if (!ui.settingsModal) {
+      return;
+    }
+    ui.settingsModal.hidden = true;
+  }
+
+  function populateSettingsForm() {
+    if (!state.settings) {
+      return;
+    }
+    ui.presetRadios.forEach(radio => {
+      const isActive = radio.value === state.settings.preset;
+      radio.checked = isActive;
+      const option = radio.closest('.preset-option');
+      if (option) {
+        option.classList.toggle('is-selected', isActive);
+      }
+    });
+    const schedule = state.settings.schedule_hours || [];
+    ui.scheduleSelects.forEach((select, idx) => {
+      if (!select) {
+        return;
+      }
+      const value = schedule[idx];
+      select.value = value === null || typeof value === 'undefined' ? 'off' : String(value);
+    });
+    if (ui.quotaStatus && state.settings.quota) {
+      const quota = state.settings.quota;
+      ui.quotaStatus.textContent = t('quotaStatus', {
+        used: quota.used,
+        cap: quota.cap
+      });
+    }
+    if (ui.backfillStatus) {
+      ui.backfillStatus.textContent = state.settings.backfill_active
+        ? t('backfillRunning')
+        : '';
+    }
+  }
+
+  async function loadSettings() {
+    if (!state.currentUser || !api.getSettings) {
+      return;
+    }
+    const response = await api.getSettings();
+    if (!response.ok) {
+      return;
+    }
+    state.settings = response.data;
+    state.presets = response.data.presets || {};
+    populateSettingsForm();
+  }
+
+  async function saveSettings() {
+    if (!state.settings || !api.updateSettings) {
+      return;
+    }
+
+    const selectedPreset = Array.from(ui.presetRadios).find(radio => radio.checked);
+    const nextPreset = selectedPreset ? selectedPreset.value : state.settings.preset;
+    const schedule = ui.scheduleSelects.map(select => {
+      if (!select) {
+        return null;
+      }
+      const value = select.value;
+      return value === 'off' ? null : Number(value);
+    });
+
+    const changed = nextPreset !== state.settings.preset
+      || JSON.stringify(schedule) !== JSON.stringify(state.settings.schedule_hours || []);
+
+    if (!changed) {
+      closeSettingsModal();
+      return;
+    }
+
+    if (!confirm(t('settingsConfirm1'))) {
+      return;
+    }
+    if (!confirm(t('settingsConfirm2'))) {
+      return;
+    }
+
+    const payload = {
+      preset: nextPreset,
+      schedule_hours: schedule,
+      timezone: getTimezone(),
+      start_backfill: nextPreset !== state.settings.preset
+    };
+
+    const response = await api.updateSettings(payload);
+    if (!response.ok) {
+      showNotification(response.error || t('settingsSaveFailed'), 'error');
+      return;
+    }
+    await loadSettings();
+    closeSettingsModal();
+    showNotification(t('settingsSaved'), 'success');
+  }
+
+  function setupSettingsModal() {
+    if (!ui.settingsModal) {
+      return;
+    }
+
+    ui.scheduleSelects.forEach(select => buildScheduleOptions(select));
+    ui.presetRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        ui.presetRadios.forEach(node => {
+          const option = node.closest('.preset-option');
+          if (option) {
+            option.classList.toggle('is-selected', node.checked);
+          }
+        });
+      });
+    });
+
+    if (ui.settingsClose) {
+      ui.settingsClose.addEventListener('click', closeSettingsModal);
+    }
+    if (ui.settingsCancel) {
+      ui.settingsCancel.addEventListener('click', closeSettingsModal);
+    }
+    if (ui.settingsSave) {
+      ui.settingsSave.addEventListener('click', saveSettings);
+    }
+
+    ui.settingsModal.addEventListener('click', event => {
+      if (event.target === ui.settingsModal) {
+        closeSettingsModal();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && ui.settingsModal && !ui.settingsModal.hidden) {
+        closeSettingsModal();
       }
     });
   }
@@ -426,6 +678,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const carousel = new window.Carousel('older-carousel', async (offset, limit) => {
       const params = {
         older_than_days: 7,
+        since_days: 30,
+        randomize: true,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
       if (state.selectedChannelId !== null) {
@@ -983,12 +1237,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    if (ui.menuSettings) {
+      ui.menuSettings.addEventListener('click', () => {
+        setMenuOpen(false);
+        openSettingsModal();
+      });
+    }
+
     const updateMenuAuth = user => {
       if (ui.logoutButton) {
         ui.logoutButton.hidden = !user;
       }
       if (ui.refreshButton) {
         ui.refreshButton.hidden = !user;
+      }
+      if (ui.menuSettings) {
+        ui.menuSettings.hidden = !user;
       }
     };
 
@@ -1363,12 +1627,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.initAuth === 'function') {
       state.currentUser = await window.initAuth();
     }
+    if (state.currentUser) {
+      await loadSettings();
+    }
 
     setupFilters();
     setupSearch();
     setupMenu();
     setupFilterPanel();
     setupGuide();
+    setupSettingsModal();
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();
@@ -1385,6 +1653,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentUser = user;
 
     if (user) {
+      await loadSettings();
       await bootstrapAuthenticated();
     } else {
       clearCarousels();

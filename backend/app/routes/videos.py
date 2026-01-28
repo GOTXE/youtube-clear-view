@@ -1,5 +1,6 @@
 """Video management routes."""
 
+import random
 from datetime import datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
@@ -37,6 +38,32 @@ def _paginate_videos(query, user_id, limit, offset):
     items = query.offset(offset).limit(limit + 1).all()
     has_more = len(items) > limit
     videos = items[:limit]
+
+    video_ids = [video.id for video in videos]
+    watched_ids = set()
+    if video_ids:
+        watched_entries = (
+            WatchedVideo.query.filter_by(user_id=user_id)
+            .filter(WatchedVideo.video_id.in_(video_ids))
+            .all()
+        )
+        watched_ids = {entry.video_id for entry in watched_entries}
+
+    payload = []
+    for video in videos:
+        payload.append(_serialize_video(video, video.channel, video.id in watched_ids))
+
+    next_offset = offset + limit if has_more else None
+    return payload, has_more, next_offset
+
+
+def _paginate_videos_random(query, user_id, limit, offset, seed):
+    """Return randomized videos with watched flags, stable per seed."""
+    items = query.all()
+    rng = random.Random(seed)
+    rng.shuffle(items)
+    has_more = len(items) > offset + limit
+    videos = items[offset:offset + limit]
 
     video_ids = [video.id for video in videos]
     watched_ids = set()
@@ -144,6 +171,7 @@ def latest_videos():
         return _bad_request(str(error))
 
     only_unwatched = _parse_bool(request.args.get("only_unwatched"))
+    randomize = _parse_bool(request.args.get("randomize"))
 
     channel_ids = [
         sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
@@ -167,7 +195,13 @@ def latest_videos():
         older_than_days,
         only_unwatched,
     )
-    payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
+    if randomize:
+        seed = int(datetime.utcnow().strftime("%Y%j"))
+        payload, has_more, next_offset = _paginate_videos_random(
+            query, user.id, limit, offset, seed
+        )
+    else:
+        payload, has_more, next_offset = _paginate_videos(query, user.id, limit, offset)
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 
 

@@ -16,6 +16,9 @@ from app.middleware.error_handler import handle_route_errors
 from app.models import Category, Channel, ChannelCategory, UserChannel, Video, WatchedVideo
 from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
+from app.models import UserSettings
+from app.services.presets import DEFAULT_PRESET
+from app.services.video_ingest import refresh_user_channels
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
 
@@ -384,59 +387,33 @@ def refresh_channels():
     user = g.current_user
     payload = request.get_json(silent=True) or {}
     channel_id = payload.get("channel_id")
+    backfill = bool(payload.get("backfill"))
 
     if channel_id:
         subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
         if not subscription:
             return _not_found("Subscription not found.")
-        subscriptions = [subscription]
     else:
-        subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
+        subscription = None
+
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=user.id, preset=DEFAULT_PRESET)
+        db.session.add(settings)
+        db.session.commit()
 
     service = _get_service()
-    new_videos = 0
     refreshed_at = datetime.utcnow()
-    for subscription in subscriptions:
-        channel = subscription.channel
-        response = service.get_channel_videos(channel.yt_channel_id)
-        if not response.get("success", True):
-            logger.warning(
-                "Channel refresh failed.",
-                extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
-            )
-            continue
+    result = refresh_user_channels(
+        user,
+        settings,
+        service,
+        channel_id=channel_id,
+        ignore_last_refreshed=backfill,
+        now=refreshed_at,
+    )
 
-        latest_seen = subscription.last_refreshed_at
-        for item in response.get("videos", []):
-            video_id = item.get("video_id")
-            if not video_id:
-                continue
-            published_at = _parse_datetime(item.get("published_at"))
-            if subscription.last_refreshed_at and published_at:
-                if published_at <= subscription.last_refreshed_at:
-                    continue
-            exists = Video.query.filter_by(yt_video_id=video_id).first()
-            if exists:
-                continue
-            video = Video(
-                yt_video_id=video_id,
-                channel_id=channel.id,
-                title=item.get("title"),
-                description=item.get("description"),
-                thumbnail_url=item.get("thumbnail"),
-                published_at=published_at,
-                duration=item.get("duration"),
-            )
-            db.session.add(video)
-            new_videos += 1
-            if published_at and (latest_seen is None or published_at > latest_seen):
-                latest_seen = published_at
-
-        if latest_seen:
-            subscription.last_refreshed_at = latest_seen
-
-    db.session.commit()
-    return jsonify({"new_videos": new_videos, "refreshed_at": refreshed_at.isoformat()})
+    return jsonify({"new_videos": result.get("new_videos", 0), "refreshed_at": refreshed_at.isoformat()})
 
 
 @channels_bp.post("/api/channels/import")

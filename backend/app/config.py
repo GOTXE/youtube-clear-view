@@ -39,6 +39,14 @@ class Config:
 
     GUNICORN_WORKERS = int(os.getenv("GUNICORN_WORKERS", "2"))
 
+    YT_DAILY_QUOTA = int(os.getenv("YT_DAILY_QUOTA", "10000"))
+    YT_QUOTA_CAP_RATIO = float(os.getenv("YT_QUOTA_CAP_RATIO", "0.8"))
+    YT_REFRESH_COST = int(os.getenv("YT_REFRESH_COST", "2"))
+    SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "false").lower() == "true"
+    SCHEDULER_INTERVAL_SECONDS = int(os.getenv("SCHEDULER_INTERVAL_SECONDS", "60"))
+    BACKFILL_INTERVAL_MINUTES = int(os.getenv("BACKFILL_INTERVAL_MINUTES", "15"))
+    BACKFILL_MAX_CHANNELS = int(os.getenv("BACKFILL_MAX_CHANNELS", "50"))
+
     AUTH_MODE = os.getenv("AUTH_MODE", "local")
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -86,3 +94,8 @@ class Config:
                 missing.append("FRONTEND_URL")
             if missing:
                 raise ValueError(f"Missing Google OAuth config: {', '.join(missing)}")
+
+        if Config.YT_DAILY_QUOTA <= 0:
+            raise ValueError("YT_DAILY_QUOTA must be positive.")
+        if not 0 < Config.YT_QUOTA_CAP_RATIO <= 1:
+            raise ValueError("YT_QUOTA_CAP_RATIO must be between 0 and 1.")

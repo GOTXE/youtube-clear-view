@@ -5,10 +5,12 @@ from .channel import Channel, UserChannel
 from .device import UserDevice
 from .theme import Theme, ThemeChannel
 from .user import User
+from .user_settings import UserSettings
 from .video import Video, WatchedVideo
 
 __all__ = [
     "User",
+    "UserSettings",
     "Channel",
     "UserChannel",
     "Category",

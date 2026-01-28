@@ -32,6 +32,12 @@ class User(db.Model):
     user_channels = db.relationship("UserChannel", back_populates="user", cascade="all, delete-orphan")
     watched_videos = db.relationship("WatchedVideo", back_populates="user", cascade="all, delete-orphan")
     devices = db.relationship("UserDevice", back_populates="user", cascade="all, delete-orphan")
+    settings = db.relationship(
+        "UserSettings",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     def to_dict(self):
         """Serialize the user for JSON responses."""

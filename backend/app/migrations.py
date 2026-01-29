@@ -69,6 +69,8 @@ def ensure_user_channel_schema():
             columns = {row[1] for row in result}
             if "last_refreshed_at" not in columns:
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_refreshed_at DATETIME"))
+            if "last_checked_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_checked_at DATETIME"))
     except Exception as error:
         logger.warning(
             "User channel schema migration skipped: %s",

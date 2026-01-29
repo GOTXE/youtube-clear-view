@@ -14,6 +14,7 @@ from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET, PRESETS
 from app.services.quota import reset_quota_if_needed
 from app.services.scheduler import run_backfill_step
+from app.services.video_ingest import refresh_user_channels
 from app.services.yt_api import YTService
 
 settings_bp = Blueprint("settings", __name__)
@@ -87,6 +88,7 @@ def update_settings():
         return _bad_request("Invalid preset.")
 
     schedule_hours = payload.get("schedule_hours")
+    schedule_changed = False
     if schedule_hours is not None:
         if not isinstance(schedule_hours, list):
             return _bad_request("Invalid schedule_hours.")
@@ -95,6 +97,7 @@ def update_settings():
         cleaned = _sanitize_schedule(schedule_hours)
         if not [hour for hour in cleaned if hour is not None]:
             return _bad_request("At least one update time is required.")
+        schedule_changed = cleaned != settings.get_schedule_hours()
         settings.set_schedule_hours(cleaned)
 
     timezone = payload.get("timezone")
@@ -102,7 +105,8 @@ def update_settings():
         settings.timezone = timezone
 
     start_backfill = bool(payload.get("start_backfill"))
-    if preset and preset != settings.preset:
+    preset_changed = bool(preset and preset != settings.preset)
+    if preset_changed:
         settings.preset = preset
         if start_backfill:
             settings.backfill_active = True
@@ -112,6 +116,12 @@ def update_settings():
 
             service = YTService(Config.YT_API_KEY)
             run_backfill_step(user, settings, service)
+
+    run_now = bool(payload.get("run_now"))
+    if run_now and (schedule_changed or preset_changed):
+        service = YTService(Config.YT_API_KEY)
+        refresh_user_channels(user, settings, service, now=datetime.utcnow())
+        settings.last_schedule_run_at = datetime.utcnow()
 
     reset_quota_if_needed(settings)
     db.session.commit()

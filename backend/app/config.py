@@ -59,6 +59,13 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    if DATABASE_URI.startswith("sqlite"):
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": 30,
+            }
+        }
 
     @staticmethod
     def validate():

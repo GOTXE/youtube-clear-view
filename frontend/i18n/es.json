@@ -41,6 +41,7 @@
   "createAndSignIn": "Crear e iniciar sesion",
   "cancel": "Cancelar",
   "confirm": "Confirmar",
+  "confirmTitle": "Confirma la accion",
   "confirmDeviceTitle": "Confirma tu dispositivo",
   "confirmDeviceMessage": "Hemos detectado que usas un {device}. Es correcto?",
   "confirmDeviceLegend": "Elige el tipo de dispositivo",

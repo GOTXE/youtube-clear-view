@@ -284,6 +284,11 @@ def list_channels():
             if subscription.last_refreshed_at
             else None
         )
+        data["last_checked_at"] = (
+            subscription.last_checked_at.isoformat()
+            if subscription.last_checked_at
+            else None
+        )
         # Include rating information
         data["rating"] = subscription.rating
         data["rated_at"] = (

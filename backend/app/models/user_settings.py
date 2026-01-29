@@ -74,6 +74,9 @@ class UserSettings(db.Model):
             "timezone": self.timezone,
             "backfill_active": self.backfill_active,
             "backfill_cursor": self.backfill_cursor,
+            "last_schedule_run_at": (
+                self.last_schedule_run_at.isoformat() if self.last_schedule_run_at else None
+            ),
             "quota_date": self.quota_date,
             "quota_used": self.quota_used,
             "quota_cap": self.quota_cap,

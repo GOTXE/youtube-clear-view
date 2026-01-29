@@ -41,6 +41,7 @@
   "createAndSignIn": "Create and sign in",
   "cancel": "Cancel",
   "confirm": "Confirm",
+  "confirmTitle": "Please confirm",
   "confirmDeviceTitle": "Confirm your device",
   "confirmDeviceMessage": "We detected you're using a {device}. Is this correct?",
   "confirmDeviceLegend": "Choose device type",

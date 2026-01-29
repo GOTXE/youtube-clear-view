@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchActive: false,
     searchQuery: '',
     autoImportAttempted: false,
+    autoRefreshAttempted: false,
     categoryManager: null,
     categorySelector: null,
     categoriesLoaded: false,
@@ -80,6 +81,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     settingsClose: document.getElementById('settings-close'),
     settingsCancel: document.getElementById('settings-cancel'),
     settingsSave: document.getElementById('settings-save'),
+    confirmModal: document.getElementById('confirm-modal'),
+    confirmTitle: document.getElementById('confirm-title'),
+    confirmMessage: document.getElementById('confirm-message'),
+    confirmAccept: document.getElementById('confirm-accept'),
+    confirmCancel: document.getElementById('confirm-cancel'),
+    confirmClose: document.getElementById('confirm-close'),
     presetRadios: document.querySelectorAll('input[name="preset"]'),
     scheduleSelects: [
       document.getElementById('schedule-1'),
@@ -128,6 +135,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoriesDescription: document.getElementById('categories-description'),
     reclassifyBtn: document.getElementById('reclassify-btn')
   };
+
+  const AUTO_REFRESH_STALE_HOURS = 6;
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
       ui.appSubtitle.textContent = t('subtitlePrimary');
@@ -194,11 +203,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.settingsClose) {
       ui.settingsClose.setAttribute('aria-label', t('close'));
     }
+    if (ui.confirmClose) {
+      ui.confirmClose.setAttribute('aria-label', t('close'));
+    }
     if (ui.settingsCancel) {
       ui.settingsCancel.textContent = t('cancel');
     }
     if (ui.settingsSave) {
       ui.settingsSave.textContent = t('save');
+    }
+    if (ui.confirmTitle) {
+      ui.confirmTitle.textContent = t('confirmTitle');
+    }
+    if (ui.confirmCancel) {
+      ui.confirmCancel.textContent = t('cancel');
+    }
+    if (ui.confirmAccept) {
+      ui.confirmAccept.textContent = t('confirm');
     }
     const settingsTitle = document.getElementById('settings-title');
     if (settingsTitle) {
@@ -378,6 +399,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  let confirmResolver = null;
+
+  function closeConfirmModal(result) {
+    if (!ui.confirmModal) {
+      return;
+    }
+    ui.confirmModal.hidden = true;
+    const resolver = confirmResolver;
+    confirmResolver = null;
+    if (resolver) {
+      resolver(Boolean(result));
+    }
+  }
+
+  function openConfirmModal(message) {
+    if (!ui.confirmModal || !ui.confirmMessage) {
+      return Promise.resolve(false);
+    }
+    ui.confirmMessage.textContent = message;
+    ui.confirmModal.hidden = false;
+    if (ui.confirmAccept) {
+      ui.confirmAccept.focus();
+    }
+    return new Promise(resolve => {
+      confirmResolver = resolve;
+    });
+  }
+
   function openSettingsModal() {
     if (!ui.settingsModal) {
       return;
@@ -457,18 +506,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       return value === 'off' ? null : Number(value);
     });
 
-    const changed = nextPreset !== state.settings.preset
-      || JSON.stringify(schedule) !== JSON.stringify(state.settings.schedule_hours || []);
+    const presetChanged = nextPreset !== state.settings.preset;
+    const scheduleChanged = JSON.stringify(schedule) !== JSON.stringify(state.settings.schedule_hours || []);
+    const changed = presetChanged || scheduleChanged;
 
     if (!changed) {
       closeSettingsModal();
       return;
     }
 
-    if (!confirm(t('settingsConfirm1'))) {
+    if (!(await openConfirmModal(t('settingsConfirm1')))) {
       return;
     }
-    if (!confirm(t('settingsConfirm2'))) {
+    if (!(await openConfirmModal(t('settingsConfirm2')))) {
       return;
     }
 
@@ -476,7 +526,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       preset: nextPreset,
       schedule_hours: schedule,
       timezone: getTimezone(),
-      start_backfill: nextPreset !== state.settings.preset
+      start_backfill: presetChanged,
+      run_now: scheduleChanged
     };
 
     const response = await api.updateSettings(payload);
@@ -485,6 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     await loadSettings();
+    await loadApp();
     closeSettingsModal();
     showNotification(t('settingsSaved'), 'success');
   }
@@ -525,6 +577,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && ui.settingsModal && !ui.settingsModal.hidden) {
         closeSettingsModal();
+      }
+    });
+  }
+
+  function setupConfirmModal() {
+    if (!ui.confirmModal) {
+      return;
+    }
+
+    if (ui.confirmAccept) {
+      ui.confirmAccept.addEventListener('click', () => closeConfirmModal(true));
+    }
+    if (ui.confirmCancel) {
+      ui.confirmCancel.addEventListener('click', () => closeConfirmModal(false));
+    }
+    if (ui.confirmClose) {
+      ui.confirmClose.addEventListener('click', () => closeConfirmModal(false));
+    }
+
+    ui.confirmModal.addEventListener('click', event => {
+      if (event.target === ui.confirmModal) {
+        closeConfirmModal(false);
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && ui.confirmModal && !ui.confirmModal.hidden) {
+        closeConfirmModal(false);
       }
     });
   }
@@ -983,10 +1063,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const timestamps = (channels || [])
-      .map(channel => channel.last_refreshed_at)
+      .map(channel => channel.last_checked_at || channel.last_refreshed_at)
       .filter(Boolean)
       .map(value => new Date(value))
       .filter(date => !Number.isNaN(date.getTime()));
+
+    if (state.settings && state.settings.last_schedule_run_at) {
+      const scheduleDate = new Date(state.settings.last_schedule_run_at);
+      if (!Number.isNaN(scheduleDate.getTime())) {
+        timestamps.push(scheduleDate);
+      }
+    }
 
     if (!timestamps.length) {
       ui.lastUpdatedLabel.textContent = t('lastUpdatedNone');
@@ -999,6 +1086,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     ui.lastUpdatedLabel.textContent = relative
       ? t('lastUpdatedRelative', { relative })
       : t('lastUpdatedAbsolute', { date: latest.toLocaleString() });
+  }
+
+  function getLatestCheckedAt(channels) {
+    const timestamps = (channels || [])
+      .map(channel => channel.last_checked_at || channel.last_refreshed_at)
+      .filter(Boolean)
+      .map(value => new Date(value))
+      .filter(date => !Number.isNaN(date.getTime()));
+
+    if (state.settings && state.settings.last_schedule_run_at) {
+      const scheduleDate = new Date(state.settings.last_schedule_run_at);
+      if (!Number.isNaN(scheduleDate.getTime())) {
+        timestamps.push(scheduleDate);
+      }
+    }
+
+    if (!timestamps.length) {
+      return null;
+    }
+
+    timestamps.sort((a, b) => b.getTime() - a.getTime());
+    return timestamps[0];
   }
 
   async function loadApp() {
@@ -1023,6 +1132,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       const refreshedChannels = await api.getChannels();
       if (refreshedChannels.ok) {
         state.channels = refreshedChannels.data || [];
+      }
+    }
+
+    const latestCheckedAt = getLatestCheckedAt(state.channels);
+    if (!state.autoRefreshAttempted && latestCheckedAt) {
+      const ageMs = Date.now() - latestCheckedAt.getTime();
+      if (ageMs > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000) {
+        state.autoRefreshAttempted = true;
+        showNotification(t('refreshInProgress'), 'info');
+        const refreshResponse = await api.refreshChannels();
+        if (refreshResponse.ok) {
+          const refreshedChannels = await api.getChannels();
+          if (refreshedChannels.ok) {
+            state.channels = refreshedChannels.data || [];
+          }
+        }
       }
     }
 
@@ -1637,6 +1762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFilterPanel();
     setupGuide();
     setupSettingsModal();
+    setupConfirmModal();
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();

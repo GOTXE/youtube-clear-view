@@ -41,7 +41,7 @@
                 No Algorithm, just your favorite channels.
               </p>
               <p class="caption session-info">
-                <span id="current-user" class="session-info__label">Not signed in</span>
+                <a id="current-user" class="session-info__label" href="#">Not signed in</a>
                 <span id="current-user-name" class="session-info__name"></span>
               </p>
             </div>
@@ -95,14 +95,18 @@
           <div class="app-content">
 
             <section class="carousel-section" aria-labelledby="latest-title">
-              <div class="section-header">
-                <h2 id="latest-title" class="heading-2">
-                  <span id="videos-label">Videos</span>
-                  <span id="videos-count" class="count-pill">0</span>
-                </h2>
+              <div class="carousel-shell carousel-shell--with-header">
+                <div class="carousel-shell__header">
+                  <div class="section-header">
+                    <h2 id="latest-title" class="heading-2">
+                      <span id="videos-label">Videos</span>
+                      <span id="videos-count" class="count-pill">0</span>
+                    </h2>
+                  </div>
+                  <p id="last-updated" class="caption"></p>
+                </div>
+                <div id="latest-carousel" class="carousel-shell__body" aria-live="polite"></div>
               </div>
-              <p id="last-updated" class="caption"></p>
-              <div id="latest-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
             <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
@@ -241,6 +245,22 @@
           <footer class="settings-modal__footer">
             <button id="settings-cancel" class="button button--ghost" type="button">Cancel</button>
             <button id="settings-save" class="button" type="button">Save</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="confirm-modal" class="confirm-modal-overlay" hidden>
+        <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+          <header class="confirm-modal__header">
+            <h2 id="confirm-title" class="heading-3">Confirm</h2>
+            <button id="confirm-close" class="confirm-modal__close" type="button" aria-label="Close">✕</button>
+          </header>
+          <div class="confirm-modal__body">
+            <p id="confirm-message" class="body"></p>
+          </div>
+          <footer class="confirm-modal__footer">
+            <button id="confirm-cancel" class="button button--ghost" type="button">Cancel</button>
+            <button id="confirm-accept" class="button" type="button">Confirm</button>
           </footer>
         </div>
       </section>

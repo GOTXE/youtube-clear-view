@@ -186,6 +186,7 @@ def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_
 
         if latest_seen:
             subscription.last_refreshed_at = latest_seen
+        subscription.last_checked_at = now
 
         _delete_older_than(channel.id, older_max_cutoff)
         _prune_range(channel.id, recent_cutoff, None, False, preset["recent_video_cap"])

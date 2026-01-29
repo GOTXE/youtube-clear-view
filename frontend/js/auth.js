@@ -114,6 +114,29 @@
     }
 
     updateSwitchUserLabel();
+    updateLoginLink();
+  }
+
+  function updateLoginLink() {
+    if (!ui.currentUserLabel) {
+      return;
+    }
+
+    if (currentUser || !googleLoginUrl || !isGoogleMode()) {
+      if (!currentUser) {
+        ui.currentUserLabel.textContent = t('notSignedIn');
+      }
+      ui.currentUserLabel.removeAttribute('href');
+      ui.currentUserLabel.classList.remove('session-info__link');
+      return;
+    }
+
+    const resolved = resolveLoginUrl(googleLoginUrl);
+    if (resolved) {
+      ui.currentUserLabel.textContent = t('signInWithGoogle');
+      ui.currentUserLabel.setAttribute('href', resolved);
+      ui.currentUserLabel.classList.add('session-info__link');
+    }
   }
 
   async function loadAuthProvider() {
@@ -279,6 +302,7 @@
     }
 
     updateSwitchUserLabel();
+    updateLoginLink();
     setStatusMessage('');
     applyThemePreference(user.theme_preference);
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
@@ -319,6 +343,7 @@
     }
 
     setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
+    updateLoginLink();
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: null } }));
   }
 

@@ -9,6 +9,7 @@ from app.routes.channels import channels_bp
 from app.routes.videos import videos_bp
 from app.routes.themes import themes_bp
 from app.routes.devices import devices_bp
+from app.routes.settings import settings_bp
 
 health_bp = Blueprint("health", __name__)
 
@@ -29,3 +30,4 @@ def register_routes(app):
     app.register_blueprint(videos_bp)
     app.register_blueprint(themes_bp)
     app.register_blueprint(devices_bp)
+    app.register_blueprint(settings_bp)

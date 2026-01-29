@@ -14,10 +14,12 @@ from .migrations import (
     ensure_channel_schema,
     ensure_user_channel_rating_columns,
     ensure_user_channel_schema,
+    ensure_user_settings_schema,
     ensure_user_schema,
     ensure_video_schema,
 )
 from .routes import register_routes
+from .services.scheduler import start_scheduler
 
 
 def create_app(config_class=Config):
@@ -47,6 +49,7 @@ def create_app(config_class=Config):
     with app.app_context():
         db.create_all()
         ensure_user_schema()
+        ensure_user_settings_schema()
         ensure_user_channel_schema()
         ensure_channel_schema()
         ensure_video_schema()
@@ -59,5 +62,7 @@ def create_app(config_class=Config):
 
     logger = get_logger(__name__)
     logger.info("Application initialized.", extra={"tracking_id": "SYSTEM"})
+
+    start_scheduler(app)
 
     return app

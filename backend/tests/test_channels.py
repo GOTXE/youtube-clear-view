@@ -1,5 +1,7 @@
 """Channel route tests with mocked YT service."""
 
+from datetime import datetime, timedelta
+
 import pytest
 
 from app import create_app
@@ -45,6 +47,7 @@ class FakeYTService:
         }
 
     def get_channel_videos(self, channel_id, max_results=50, page_token=None):
+        published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return {
             "videos": [
                 {
@@ -52,7 +55,7 @@ class FakeYTService:
                     "title": "Test Video",
                     "description": "Desc",
                     "thumbnail": "http://thumb",
-                    "published_at": "2024-01-01T00:00:00Z",
+                    "published_at": published_at,
                     "duration": 62,
                 }
             ],

@@ -286,6 +286,15 @@ class APIClient {
     }
     return this.post('/api/channels/enrich', payload);
   }
+
+  // Settings endpoints
+  getSettings() {
+    return this.get('/api/settings');
+  }
+
+  updateSettings(data) {
+    return this.put('/api/settings', data);
+  }
 }
 
 window.APIClient = APIClient;

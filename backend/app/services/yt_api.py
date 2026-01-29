@@ -216,7 +216,12 @@ class YTService:
             return result
         except HttpError as error:
             if self._handle_http_error(error):
-                return {"videos": [], "next_page_token": None, "success": False}
+                return {
+                    "videos": [],
+                    "next_page_token": None,
+                    "success": False,
+                    "rate_limited": True,
+                }
             self._log_api_error("Failed to fetch channel videos: %s", error)
             return {"videos": [], "next_page_token": None, "success": False}
         except Exception as error:

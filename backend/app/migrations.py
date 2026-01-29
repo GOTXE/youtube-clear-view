@@ -69,6 +69,8 @@ def ensure_user_channel_schema():
             columns = {row[1] for row in result}
             if "last_refreshed_at" not in columns:
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_refreshed_at DATETIME"))
+            if "last_checked_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_checked_at DATETIME"))
     except Exception as error:
         logger.warning(
             "User channel schema migration skipped: %s",
@@ -152,6 +154,51 @@ def ensure_video_schema():
     except Exception as error:
         logger.warning(
             "Video schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_user_settings_schema():
+    """Ensure user_settings table exists for presets/scheduling."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_settings)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_settings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL UNIQUE,
+                        preset VARCHAR(20) NOT NULL DEFAULT 'standard',
+                        schedule_hours TEXT NOT NULL DEFAULT '[7, 12, 17, 21]',
+                        timezone VARCHAR(64) NOT NULL DEFAULT 'UTC',
+                        backfill_active BOOLEAN DEFAULT 0,
+                        backfill_cursor INTEGER,
+                        backfill_started_at DATETIME,
+                        backfill_last_run_at DATETIME,
+                        last_schedule_run_at DATETIME,
+                        quota_date VARCHAR(10),
+                        quota_used INTEGER DEFAULT 0,
+                        quota_cap INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(user_id) REFERENCES users(id)
+                    )
+                    """
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User settings schema migration skipped: %s",
             error,
             extra={"tracking_id": generate_tracking_id()},
         )

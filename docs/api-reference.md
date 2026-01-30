@@ -1,36 +1,58 @@
 # API Reference
 
+All endpoints listed below are served by the backend service.
+
 ## Base URL
 
-All API endpoints are served under the `/api` prefix via the reverse proxy.
+In production, the backend is typically exposed behind an HTTPS reverse proxy.
+
+Recommended (same-origin) setup:
 
 ```
-https://apiyt.mi-nas.me/api
+https://<your-host>/api
+```
+
+Local development example:
+
+```
+http://localhost:5550/api
 ```
 
 ## Authentication
 
-Authentication uses httpOnly cookies. The frontend never stores or reads tokens.
+Authentication uses httpOnly cookies. The frontend never stores or reads access tokens.
 
-- Cookie name: `ytcv_session`
-- Set by `POST /api/auth/login` (local mode) or `GET /api/auth/google` (OAuth mode)
-- Cleared by `POST /api/auth/logout`
+- Session cookie name: `ytcv_session`
+- OAuth state cookie name: `ytcv_oauth_state`
 
-If the cookie is missing or invalid, `/api/auth/current` responds with `{ "authenticated": false }`.
+Notes:
+- Cookies are scoped to the `/api` path.
+- `AUTH_MODE` controls which login methods are available (`local` or `google`).
 
-Authentication mode is controlled with `AUTH_MODE=local|google`. When `AUTH_MODE=google`, the OAuth endpoints are used for login and the local login endpoints return `403`.
+### Auth modes
 
-## Error Response Format
+`GET /api/auth/provider` returns:
+
+```json
+{
+  "auth_mode": "google",
+  "google_login_url": "/api/auth/google"
+}
+```
+
+When `AUTH_MODE=google`, local-only endpoints such as `POST /api/auth/login` return `403`.
+
+## Error response format
 
 ```json
 {
   "error": "Bad request.",
-  "tracking_id": "ERR-20240101-ABC123",
+  "tracking_id": "ERR-YYYYMMDD-ABC123",
   "status": 400
 }
 ```
 
-## Pagination Format
+## Pagination format (videos)
 
 Endpoints that return lists of videos respond with:
 
@@ -48,10 +70,6 @@ Endpoints that return lists of videos respond with:
 }
 ```
 
-## Rate Limiting
-
-The API does not enforce explicit rate limits, but reverse proxies or upstream services may return `429` responses. Clients should retry with exponential backoff.
-
 ---
 
 ## Health
@@ -63,32 +81,16 @@ Returns a basic health status for monitoring.
 Response:
 
 ```json
-{
-  "status": "ok"
-}
+{ "status": "ok" }
 ```
 
 ---
 
 ## Authentication
 
-### GET /api/auth/provider
-
-Returns the active authentication mode.
-
-Response:
-
-```json
-{
-  "auth_mode": "google",
-  "google_login_url": "/api/auth/google"
-}
-```
-
 ### POST /api/auth/login
 
-Logs in or creates a user and sets a secure cookie.
-Only available when `AUTH_MODE=local`.
+Local login (only when `AUTH_MODE=local`).
 
 Request:
 
@@ -122,8 +124,7 @@ Response:
 
 ### GET /api/auth/users
 
-Returns all users for the login selector.
-Only available when `AUTH_MODE=local`.
+Returns all users for the local login selector (only when `AUTH_MODE=local`).
 
 Response:
 
@@ -137,7 +138,7 @@ Response:
 
 Returns the authenticated user's profile, or `authenticated: false` if no session exists.
 
-Response:
+Response (authenticated):
 
 ```json
 {
@@ -152,7 +153,7 @@ Response:
 }
 ```
 
-If no session exists:
+Response (no session):
 
 ```json
 { "authenticated": false }
@@ -181,11 +182,65 @@ Response:
 
 ### GET /api/auth/google
 
-Redirects the browser to Google's OAuth consent screen. Used when `AUTH_MODE=google`.
+Starts the Google OAuth flow (only when `AUTH_MODE=google`).
+This endpoint redirects the browser to the consent screen.
 
 ### GET /api/auth/google/callback
 
-OAuth callback endpoint. Google redirects here after user consent to establish a session.
+OAuth callback endpoint. Google redirects here after user consent.
+On success, the backend sets a session cookie and redirects the browser to `FRONTEND_URL`.
+
+If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
+
+---
+
+## Settings (presets, schedule, quota)
+
+### GET /api/settings
+
+Returns the current user's refresh settings, preset definitions, and quota status.
+
+Response (example):
+
+```json
+{
+  "preset": "standard",
+  "schedule_hours": [7, 12, 17, 21],
+  "timezone": "Europe/Madrid",
+  "backfill_active": false,
+  "backfill_cursor": null,
+  "last_schedule_run_at": "2026-01-28T18:06:56.357000",
+  "quota_date": "2026-01-28",
+  "quota_used": 0,
+  "quota_cap": 8000,
+  "presets": {
+    "minimal": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
+    "standard": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
+    "rich": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 }
+  },
+  "quota": {
+    "daily_limit": 10000,
+    "cap_ratio": 0.8,
+    "cap": 8000,
+    "used": 0,
+    "remaining": 8000
+  }
+}
+```
+
+### PUT /api/settings
+
+Updates preset and schedule settings.
+
+Request fields:
+- `preset` (optional): `minimal|standard|rich`
+- `schedule_hours` (optional): list of up to 4 values (`0..23` or `null`/`"off"`)
+- `timezone` (optional): IANA timezone (e.g., `Europe/Madrid`)
+- `start_backfill` (optional, boolean): start a controlled backfill when preset changes
+- `run_now` (optional, boolean): run a refresh immediately when schedule/preset changes
+
+Response:
+- Returns the updated settings object (same shape as `settings.to_dict()`).
 
 ---
 
@@ -193,23 +248,42 @@ OAuth callback endpoint. Google redirects here after user consent to establish a
 
 ### GET /api/channels
 
-Returns subscribed channels for the current user.
+Returns subscribed channels for the current user, enriched with UI-ready metadata.
 
-Response:
+Response (example item):
 
 ```json
 [
   {
     "id": 1,
-    "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-    "title": "Google Developers",
+    "yt_channel_id": "UCxxxxxxxxxxxxxxxx",
+    "title": "Example Channel",
     "thumbnail_url": "https://...",
+    "thumbnail_local_url": "/api/channels/1/thumbnail",
     "description": "...",
-    "subscribed_at": "2024-01-01T00:00:00",
-    "last_refreshed_at": "2024-01-01T12:00:00"
+    "subscribed_at": "2026-01-01T00:00:00",
+    "last_refreshed_at": "2026-01-28T18:06:29",
+    "last_checked_at": "2026-01-28T18:06:29",
+    "latest_video_at": "2026-01-28T12:00:00",
+    "recent_total_7": 3,
+    "recent_unwatched_7": 2,
+    "recent_total_30": 10,
+    "recent_unwatched_30": 7,
+    "unwatched_total": 50,
+    "rating": 4,
+    "rated_at": "2026-01-10T10:00:00",
+    "category": null
   }
 ]
 ```
+
+### GET /api/channels/<channel_id>/thumbnail
+
+Returns the cached channel thumbnail (shared across users).
+If not cached yet, the server may redirect to the original `thumbnail_url`.
+
+Response:
+- `200` image payload, or `302` redirect, or `404` if missing.
 
 ### POST /api/channels/subscribe
 
@@ -218,18 +292,11 @@ Subscribes the user to a YT channel.
 Request:
 
 ```json
-{ "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw" }
+{ "yt_channel_id": "UCxxxxxxxxxxxxxxxx" }
 ```
 
 Response:
-
-```json
-{
-  "id": 1,
-  "yt_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-  "title": "Google Developers"
-}
-```
+- `201` with the created subscription/channel payload.
 
 ### DELETE /api/channels/<channel_id>/unsubscribe
 
@@ -255,6 +322,7 @@ Response:
   "imported": 12,
   "new_channels": 10,
   "new_subscriptions": 12,
+  "classified": 8,
   "next_page_token": "NEXT",
   "total_results": 120,
   "finished": false
@@ -268,18 +336,21 @@ Refreshes videos for one channel or all channels.
 Request (optional):
 
 ```json
-{ "channel_id": 1 }
+{ "channel_id": 1, "backfill": false }
 ```
+
+Notes:
+- `backfill=true` forces a refresh that ignores `last_refreshed_at` and re-scans within the preset window.
 
 Response:
 
 ```json
-{ "new_videos": 5, "refreshed_at": "2024-01-01T12:00:00" }
+{ "new_videos": 5, "refreshed_at": "2026-01-28T18:06:56.357000" }
 ```
 
 ### GET /api/channels/<channel_id>/videos
 
-Returns videos for a channel.
+Returns videos for a channel (paginated).
 
 Query params:
 - `limit`
@@ -289,12 +360,62 @@ Response:
 
 ```json
 {
-  "videos": [
-    { "video": { "id": 1 }, "watched": false }
-  ],
+  "videos": [{ "video": { "id": 1 }, "watched": false }],
   "has_more": false,
   "next_offset": null
 }
+```
+
+### GET /api/channels/<channel_id>/category
+
+Returns the category assigned to a channel (if any) plus classification metadata.
+
+### PUT /api/channels/<channel_id>/category
+
+Manually assigns a category to a channel.
+
+Request:
+- `category_id` (preferred) or `category_name`
+
+### DELETE /api/channels/<channel_id>/category
+
+Removes manual override and triggers auto-classification.
+
+### PUT /api/channels/<channel_id>/rating
+
+Sets a per-user rating for a channel.
+
+Request:
+
+```json
+{ "rating": 1 }
+```
+
+Response:
+
+```json
+{ "channel_id": 1, "rating": 1, "rated_at": "2026-01-28T18:06:56.357000" }
+```
+
+### DELETE /api/channels/<channel_id>/rating
+
+Removes a channel rating for the current user.
+
+### POST /api/channels/enrich
+
+Fetches additional channel metadata from the YT API (topic IDs, keywords, country),
+used by automatic classification.
+
+Request (optional):
+
+```json
+{ "channel_id": 1, "limit": 50 }
+```
+
+Response:
+
+```json
+{ "enriched": 10, "errors": 0, "remaining": 200, "message": "Enriched 10 channels with topic data." }
 ```
 
 ---
@@ -303,31 +424,24 @@ Response:
 
 ### GET /api/videos/latest
 
-Returns latest videos from subscribed channels.
+Returns videos from subscribed channels (paginated).
 
 Query params:
 - `limit`
 - `offset`
+- `channel_id` (optional)
+- `yt_channel_id` (optional; must match `channel_id` if both are provided)
 - `content_type` (optional: `video` or `short`)
 - `since_days` (optional: integer)
 - `older_than_days` (optional: integer)
 - `only_unwatched` (optional: boolean)
+- `randomize` (optional: boolean; stable per-day shuffle)
 
-Response:
-
-```json
-{
-  "videos": [
-    { "video": { "id": 1, "title": "Video" }, "channel": { "title": "Channel" }, "watched": false }
-  ],
-  "has_more": true,
-  "next_offset": 20
-}
-```
+Response: see Pagination format.
 
 ### GET /api/videos/by-theme/<theme_id>
 
-Returns videos for channels in a theme.
+Returns videos for channels associated with a theme (paginated).
 
 Query params:
 - `limit`
@@ -343,14 +457,14 @@ Returns counts of unwatched videos and shorts in the last N days.
 
 Query params:
 - `days` (optional, default 7)
+- `channel_id` (optional)
+- `yt_channel_id` (optional)
 
 Response:
 
 ```json
 { "videos": 45, "shorts": 81, "days": 7 }
 ```
-
-Response: Same format as latest videos.
 
 ### POST /api/videos/<video_id>/watch
 
@@ -381,72 +495,65 @@ Query params:
 - `channel_id` (optional)
 - `theme_id` (optional)
 
-Response: Same format as latest videos.
+Response: same shape as `GET /api/videos/latest`.
+
+---
+
+## Categories
+
+### GET /api/categories
+
+Returns the category catalog, including how many of the current user's channels are in each category.
+
+### GET /api/categories/<category_id>
+
+Returns a single category (with `channel_count` for the current user).
+
+### GET /api/categories/<category_id>/channels
+
+Returns channels in a category for the current user (paginated).
+
+### GET /api/categories/<category_id>/videos
+
+Returns videos from channels in a category (paginated).
+
+### POST /api/categories/reclassify-all
+
+Triggers a reclassification attempt for all channels of the current user.
+
+### GET /api/categories/status
+
+Returns the status of all classification methods.
 
 ---
 
 ## Themes
 
+Themes are user-owned and separate from categories.
+
 ### GET /api/themes
 
 Returns themes with associated channels.
-
-Response:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Education",
-    "color": "var(--primary)",
-    "channels": [
-      { "id": 1, "title": "Channel" }
-    ]
-  }
-]
-```
 
 ### POST /api/themes
 
 Creates a theme.
 
-Request:
-
-```json
-{ "name": "Education", "color": "var(--primary)" }
-```
-
 ### PUT /api/themes/<theme_id>
 
 Updates a theme.
-
-Request:
-
-```json
-{ "name": "Education", "color": "var(--secondary)" }
-```
 
 ### DELETE /api/themes/<theme_id>
 
 Deletes a theme.
 
-Response: `204 No Content`
-
 ### POST /api/themes/<theme_id>/channels
 
 Adds a channel to a theme.
 
-Request:
-
-```json
-{ "channel_id": 1 }
-```
-
 ### DELETE /api/themes/<theme_id>/channels/<channel_id>
 
 Removes a channel from a theme.
-
-Response: `204 No Content`
 
 ---
 
@@ -456,65 +563,19 @@ Response: `204 No Content`
 
 Registers a device for the current user and updates `last_used_at`.
 
-Request:
-
-```json
-{ "device_identifier": "dev-abc", "user_agent": "Mozilla/5.0" }
-```
-
-Response:
-
-```json
-{ "id": 1, "device_type": "desktop" }
-```
-
 ### GET /api/devices
 
 Lists registered devices.
-
-Response:
-
-```json
-[
-  {
-    "id": 1,
-    "device_identifier": "dev-abc",
-    "device_type": "desktop",
-    "user_agent": "Mozilla/5.0",
-    "last_used_at": "2024-01-01T00:00:00",
-    "created_at": "2024-01-01T00:00:00"
-  }
-]
-```
-
-### POST /api/devices/detect
-
-Suggests a device type based on screen size.
-
-Request:
-
-```json
-{ "screen_width": 1920, "screen_height": 1080 }
-```
-
-Response:
-
-```json
-{ "suggested_type": "tv", "confidence": 0.9 }
-```
 
 ### PUT /api/devices/<device_id>/type
 
 Updates device type.
 
-Request:
-
-```json
-{ "device_type": "tv" }
-```
-
 ### DELETE /api/devices/<device_id>
 
 Deletes a device.
 
-Response: `204 No Content`
+### POST /api/devices/detect
+
+Suggests a device type based on screen size.
+

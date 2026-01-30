@@ -2,7 +2,7 @@
 
 ## Overview
 
-YT Clear View is a small self-hosted stack for browsing subscribed channels with less noise.
+YT Clear View (YTCV) is a small self-hosted stack for browsing subscribed channels with less noise.
 It is designed to run on a PC/NAS as a server, and be consumed from multiple clients (PC, mobile, TV)
 over LAN or via an HTTPS reverse proxy.
 

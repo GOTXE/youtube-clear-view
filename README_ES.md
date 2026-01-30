@@ -2,106 +2,122 @@
 
 [Read this in English →](README.md)
 
-# YT Clear View
+# YT Clear View (YTCV)
 
-Vista curada de YT sin el algoritmo de recomendacion.
+**Una vista limpia y cronologica de tus suscripciones de YouTube.  
+Sin recomendaciones. Sin ruido. Solo los canales que sigues.**
 
 ## Capturas
 
 ![YT Clear View](screenshots/YT-Clear-View.jpg)
 
-## Caracteristicas
+---
 
-- API REST con Flask y SQLite
-- Microservicio separado para logs
-- Frontend vanilla HTML/CSS/JS
-- Deteccion de dispositivo y layout responsive
-- Tema oscuro por defecto con persistencia
-- Carrusel infinito para videos
-- Localizacion UI (EN/ES) con JSON externo
-- Integracion YT Data API v3
-- Despliegue HTTPS detras de reverse proxy
+## El problema
 
-### Categorizacion automatica de canales (NEW)
+Hoy, el feed de Inicio de YouTube suele estar dominado por:
+- Videos de canales que no sigues
+- Recomendaciones del algoritmo
+- Ranking guiado por engagement (CTR, tiempo de visualizacion, tendencias)
 
-- **14+ categorias**: Gaming, Technology, Education, Music, Food, Fitness, Travel, Fashion, News, Entertainment, Vlogs, Sports, Art, Science
-- **Clasificacion multi-metodo**: 4 metodos en cascada (YT Topics, TF-IDF, Hybrid Semantic, Ollama LLM)
-- **Override manual**: reasigna cualquier canal a otra categoria
-- **Carousels por categoria**: videos organizados por tipo de contenido
-- **Colores por categoria**: cada categoria tiene su color propio
+Como resultado, **el contenido de tus propias suscripciones queda enterrado**.
 
-## Inicio rapido (Development)
+---
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-```
+## La solucion
 
-Crea `backend/.env` desde `backend/.env.example`, luego ejecuta:
+YTCV te da una **linea temporal controlada** construida solo con:
+- Los canales a los que estas suscrito
+- Un orden cronologico real
+- Tus propias reglas de filtrado y categorizacion
 
-```bash
-cd backend
-python -m flask --app app run --port 5550
-```
+Nada mas.
 
-O usa el script:
+---
 
-```bash
-./scripts/run_local.sh
-```
+## Que hace esta app
 
-El script inicia:
-- Backend en `http://localhost:5550`
-- Frontend en `http://localhost:8080`
-- Log viewer en `http://localhost:5551/logs` (default `admin/admin` si no esta en `.env`)
+- Se conecta a **tu cuenta de YouTube** usando la API oficial (OAuth)
+- Descarga videos (y Shorts de tus suscripciones) **solo de tus canales suscritos**
+- Los muestra en una **linea temporal limpia y sin distracciones**
+- Permite filtrar y categorizar
 
-## Produccion (simple)
+Sigues usando YouTube, pero dejas de consumir lo que empuja el algoritmo.
 
-Usa un script separado para produccion:
+---
 
-```bash
-./scripts/run_prod.sh
-```
+## Que NO hace esta app
 
-Notas:
-- Usa un servidor real (nginx) para servir `frontend/`.
-- Asegura que `backend/.env` tenga tus URLs de produccion y valores OAuth.
+- No muestra el feed de Inicio de YouTube
+- No muestra "Recomendado para ti"
+- No muestra tendencias ni contenido sugerido
+- No fuerza sugerencias basadas en autoplay
 
-## Google Cloud setup (required)
+Esta app **no reemplaza YouTube**. Reemplaza la **capa de recomendaciones**.
 
-Necesitas un proyecto en Google Cloud con YouTube Data API v3 habilitada y credenciales OAuth.
+---
 
-Pasos (cortos y simples):
-1. Ve a Google Cloud Console: `https://console.cloud.google.com`
-2. Crea o selecciona un proyecto.
-3. Habilita **YouTube Data API v3**.
-4. Configura la pantalla de consentimiento OAuth (nombre app + email).
-5. Crea credenciales OAuth (tipo: **Web application**).
-6. Define **Authorized JavaScript origins** y **Authorized redirect URIs** segun tus URLs.
+## Sobre el algoritmo (importante)
 
-En `backend/.env` (ver `backend/.env.example`) configura:
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI`
+YouTube usa multiples algoritmos. Este proyecto elimina intencionadamente solo uno:
 
-## URLs locales y config
+| Capa | Se usa |
+|---|---|
+| Motor de recomendaciones (Inicio / Siguiente) | No |
+| Tendencias / contenido sugerido | No |
+| Timeline de suscripciones | Si (controlado por la app) |
+| Metadatos oficiales | Si (via API) |
 
-Si ejecutas en local, deben coincidir:
-- `backend/.env` contiene la URL del backend y el redirect OAuth.
-- `frontend/config.js` define donde apunta la app y el log viewer.
+---
 
-Si cambias puertos o hostnames, actualiza ambos para:
-- que el frontend apunte al backend/log viewer correcto.
-- que el redirect OAuth coincida con el backend.
+## Por que la API oficial de YouTube (OAuth)
+
+Este proyecto usa YouTube Data API v3 con autenticacion OAuth:
+- Acceso estable a tus suscripciones reales
+- Metadatos precisos
+- Mantenibilidad a largo plazo
+- Cumplimiento de los terminos de YouTube
+
+Esto **no** es una herramienta basada en scraping.
+
+---
+
+## Requisitos (alto nivel)
+
+- Una cuenta de Google
+- Un proyecto en Google Cloud con YouTube Data API v3 habilitada
+- Credenciales OAuth (Client ID / Secret)
+
+La instalacion y el despliegue estan en [`docs/`](docs/).
+
+---
+
+## Para quien es
+
+- Usuarios cansados de feeds guiados por recomendaciones
+- Personas que quieren ver solo lo que han elegido
+- Cualquiera que quiera YouTube sin ruido
+
+---
+
+## Stack (breve)
+
+- Backend: Python (Flask)
+- Frontend: HTML / CSS / Vanilla JS
+- Auth: YouTube Data API v3 (OAuth)
+- Almacenamiento: SQLite
+
+---
 
 ## Documentacion
 
-- API reference: `docs/api-reference.md`
-- Architecture: `docs/architecture.md`
-- Deployment: `docs/deployment.md`
-- Development: `docs/development.md`
+- API reference: [docs/api-reference.md](docs/api-reference.md)
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Deployment: [docs/deployment.md](docs/deployment.md)
+- Development: [docs/development.md](docs/development.md)
+
+---
 
 ## Licencia
 
-MIT. Ver `LICENSE`.
+MIT. Ver [LICENSE](LICENSE) o la referencia oficial en [choosealicense.com](https://choosealicense.com/licenses/mit/).

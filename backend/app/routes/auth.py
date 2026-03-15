@@ -3,7 +3,7 @@
 import secrets
 from datetime import datetime
 
-from flask import Blueprint, current_app, g, jsonify, redirect, request
+from flask import Blueprint, current_app, g, jsonify, redirect, request, session
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -23,6 +23,7 @@ auth_bp = Blueprint("auth", __name__)
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 STATE_COOKIE_NAME = "ytcv_oauth_state"
 STATE_COOKIE_MAX_AGE = 10 * 60
+KNOWN_GOOGLE_USERS_KEY = "known_google_user_ids"
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -115,6 +116,50 @@ def _redirect_to_frontend(error_code=None):
     return redirect(f"{base_url}{separator}auth_error={error_code}")
 
 
+def _get_known_google_user_ids():
+    """Return the browser-known Google user ids stored in the signed session."""
+    raw_ids = session.get(KNOWN_GOOGLE_USERS_KEY, [])
+    if not isinstance(raw_ids, list):
+        return []
+
+    user_ids = []
+    for value in raw_ids:
+        try:
+            user_ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return user_ids
+
+
+def _remember_google_user(user_id):
+    """Remember a Google account in the browser session for fast switching."""
+    user_ids = [known_id for known_id in _get_known_google_user_ids() if known_id != user_id]
+    user_ids.insert(0, int(user_id))
+    session[KNOWN_GOOGLE_USERS_KEY] = user_ids[:10]
+    session.modified = True
+
+
+def _serialize_switchable_user(user, current_user_id=None):
+    """Serialize a switchable Google account for the frontend."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "google_avatar_url": user.google_avatar_url,
+        "is_current": bool(current_user_id and user.id == current_user_id),
+    }
+
+
+def _issue_session_for_user(user):
+    """Create and persist a fresh server-side session token for a user."""
+    session_token = secrets.token_urlsafe(32)
+    user.session_token = session_token
+    user.session_created_at = datetime.utcnow()
+    return session_token
+
+
 @auth_bp.post("/api/auth/login")
 @handle_route_errors
 def login():
@@ -140,9 +185,7 @@ def login():
         user = User(username=username, display_name=username)
         db.session.add(user)
 
-    session_token = secrets.token_urlsafe(32)
-    user.session_token = session_token
-    user.session_created_at = datetime.utcnow()
+    session_token = _issue_session_for_user(user)
     db.session.commit()
 
     response = jsonify(
@@ -174,6 +217,89 @@ def logout():
 
     response = jsonify({"message": "Logged out"})
     _clear_session_cookie(response)
+    return response
+
+
+@auth_bp.get("/api/auth/accounts")
+@handle_route_errors
+def list_switchable_accounts():
+    """Return Google accounts already known in this browser session."""
+    if _auth_mode() != "google":
+        return _forbidden("Google account switching not enabled.")
+
+    known_ids = _get_known_google_user_ids()
+    if not known_ids:
+        return jsonify({"accounts": [], "current_user_id": None})
+
+    token = request.cookies.get(COOKIE_NAME)
+    current_user = User.query.filter_by(session_token=token).first() if token else None
+    users = (
+        User.query.filter(User.id.in_(known_ids), User.auth_provider == "google")
+        .order_by(User.display_name.asc(), User.username.asc())
+        .all()
+    )
+
+    order = {user_id: index for index, user_id in enumerate(known_ids)}
+    users.sort(key=lambda user: order.get(user.id, len(order)))
+    current_user_id = current_user.id if current_user else None
+
+    return jsonify(
+        {
+            "accounts": [
+                _serialize_switchable_user(user, current_user_id=current_user_id) for user in users
+            ],
+            "current_user_id": current_user_id,
+        }
+    )
+
+
+@auth_bp.post("/api/auth/switch")
+@handle_route_errors
+def switch_account():
+    """Switch the active session to another known Google account."""
+    if _auth_mode() != "google":
+        return _forbidden("Google account switching not enabled.")
+
+    data = request.get_json(silent=True) or {}
+    target_user_id = data.get("user_id")
+    try:
+        target_user_id = int(target_user_id)
+    except (TypeError, ValueError):
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    known_ids = _get_known_google_user_ids()
+    if target_user_id not in known_ids:
+        return _forbidden("Account not available for switching in this browser.")
+
+    user = User.query.filter_by(id=target_user_id, auth_provider="google").first()
+    if not user:
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}),
+            404,
+        )
+
+    session_token = _issue_session_for_user(user)
+    _remember_google_user(user.id)
+    db.session.commit()
+
+    response = jsonify(
+        {
+            "authenticated": True,
+            "user_id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "email": user.email,
+            "auth_provider": user.auth_provider,
+            "google_avatar_url": user.google_avatar_url,
+            "theme_preference": user.theme_preference,
+        }
+    )
+    _set_session_cookie(response, session_token)
     return response
 
 
@@ -270,6 +396,7 @@ def google_callback():
             username = f"google_{google_user_id}"
         user = User(username=username, display_name=display_name)
         db.session.add(user)
+        db.session.flush()
 
     user.auth_provider = "google"
     user.google_user_id = google_user_id
@@ -281,9 +408,8 @@ def google_callback():
 
     apply_token_response(user, token_data)
 
-    session_token = secrets.token_urlsafe(32)
-    user.session_token = session_token
-    user.session_created_at = datetime.utcnow()
+    session_token = _issue_session_for_user(user)
+    _remember_google_user(user.id)
     db.session.commit()
 
     response = _redirect_to_frontend()

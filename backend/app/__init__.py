@@ -26,6 +26,7 @@ def create_app(config_class=Config):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    app.config["SECRET_KEY"] = app.config.get("SECRET_KEY") or app.config.get("FLASK_SECRET_KEY")
 
     # Validate configuration early.
     config_class.validate()

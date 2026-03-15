@@ -27,6 +27,16 @@ Google OAuth local development must use:
 - `GOOGLE_REDIRECT_URI=http://localhost:5550/api/auth/google/callback`
 - `FRONTEND_URL=http://localhost:8080`
 
+## Google Account Switching
+
+When `AUTH_MODE=google`, the app can switch between Google users already authenticated in the same browser.
+
+- The backend keeps the active API session in the `ytcv_session` httpOnly cookie.
+- The browser also keeps a signed list of known Google accounts via the Flask session cookie.
+- The hamburger menu opens a switch-account modal that lists those known accounts.
+- Selecting an existing account switches the backend session and reloads channels, videos, watched state, and settings for that user.
+- Choosing a new account starts the normal Google OAuth flow and adds that account to the browser-known list after callback.
+
 ## Run Tests
 
 ```bash

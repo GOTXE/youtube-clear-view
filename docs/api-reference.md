@@ -28,6 +28,7 @@ Authentication uses httpOnly cookies. The frontend never stores or reads access 
 Notes:
 - Cookies are scoped to the `/api` path.
 - `AUTH_MODE` controls which login methods are available (`local` or `google`).
+- In Google mode, the backend also remembers browser-known Google accounts in the signed Flask session so the UI can switch accounts without a manual logout.
 
 ### Auth modes
 
@@ -159,6 +160,65 @@ Response (no session):
 { "authenticated": false }
 ```
 
+### GET /api/auth/accounts
+
+Returns the Google accounts already authenticated in this browser session.
+Only available when `AUTH_MODE=google`.
+
+Response:
+
+```json
+{
+  "current_user_id": 1,
+  "accounts": [
+    {
+      "id": 1,
+      "username": "alice@gmail.com",
+      "display_name": "Alice",
+      "email": "alice@gmail.com",
+      "auth_provider": "google",
+      "google_avatar_url": "https://...",
+      "is_current": true
+    },
+    {
+      "id": 2,
+      "username": "bob@gmail.com",
+      "display_name": "Bob",
+      "email": "bob@gmail.com",
+      "auth_provider": "google",
+      "google_avatar_url": "https://...",
+      "is_current": false
+    }
+  ]
+}
+```
+
+### POST /api/auth/switch
+
+Switches the active backend session to another Google account already known in this browser.
+Only available when `AUTH_MODE=google`.
+
+Request:
+
+```json
+{ "user_id": 2 }
+```
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 2,
+  "username": "bob@gmail.com",
+  "display_name": "Bob",
+  "email": "bob@gmail.com",
+  "auth_provider": "google",
+  "google_avatar_url": null,
+  "theme_preference": "dark"
+}
+```
+
 ### PUT /api/auth/profile
 
 Updates display name and theme preference.
@@ -188,7 +248,7 @@ This endpoint redirects the browser to the consent screen.
 ### GET /api/auth/google/callback
 
 OAuth callback endpoint. Google redirects here after user consent.
-On success, the backend sets a session cookie and redirects the browser to `FRONTEND_URL`.
+On success, the backend sets a session cookie, remembers that Google account for this browser, and redirects the browser to `FRONTEND_URL`.
 
 If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
 

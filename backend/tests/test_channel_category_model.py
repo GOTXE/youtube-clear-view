@@ -63,7 +63,7 @@ def test_channel_category_unique_constraint(app):
 
 def test_classification_methods_valid(app):
     """Test valid classification methods."""
-    valid_methods = ["youtube_topics", "tfidf", "hybrid", "ollama", "manual"]
+    valid_methods = ["youtube_topics", "tfidf", "manual"]
     with app.app_context():
         category = Category.query.first()
         for i, method in enumerate(valid_methods):

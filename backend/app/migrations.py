@@ -151,6 +151,13 @@ def ensure_video_schema():
                 conn.execute(
                     text("CREATE INDEX IF NOT EXISTS ix_videos_youtube_video_id ON videos (youtube_video_id)")
                 )
+            if "video_category_id" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN video_category_id VARCHAR(20)"))
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_videos_video_category_id ON videos (video_category_id)")
+                )
+            if "tags" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN tags TEXT"))
     except Exception as error:
         logger.warning(
             "Video schema migration skipped: %s",
@@ -241,6 +248,8 @@ def ensure_category_schema():
 
     logger = get_logger(__name__)
     try:
+        from app.models import PREDEFINED_CATEGORIES
+
         with engine.begin() as conn:
             # Check if categories table exists
             result = conn.execute(
@@ -263,34 +272,30 @@ def ensure_category_schema():
                 conn.execute(text("CREATE INDEX ix_categories_name ON categories (name)"))
                 logger.info("Categories table created")
 
-            # Always try to seed categories if they don't exist
-            count = conn.execute(text("SELECT COUNT(*) FROM categories")).scalar()
-            if count == 0:
-                categories = [
-                    ("Gaming", "Gaming", "#9c27b0", "🎮"),
-                    ("Technology", "Tecnología", "#2196f3", "💻"),
-                    ("Education", "Educación", "#795548", "📚"),
-                    ("Music", "Música", "#e91e63", "🎵"),
-                    ("Food", "Cocina", "#ff6f00", "🍳"),
-                    ("Fitness", "Fitness", "#8bc34a", "💪"),
-                    ("Travel", "Viajes", "#00bcd4", "✈️"),
-                    ("Fashion", "Moda", "#e91e63", "💄"),
-                    ("News", "Noticias", "#f44336", "📰"),
-                    ("Entertainment", "Entretenimiento", "#ff9800", "🎭"),
-                    ("Vlogs", "Vlogs", "#4caf50", "📹"),
-                    ("Sports", "Deportes", "#ff5722", "⚽"),
-                    ("Art", "Arte", "#9c27b0", "🎨"),
-                    ("Science", "Ciencia", "#3f51b5", "🔬"),
-                ]
-                for name, display_es, color, icon in categories:
-                    conn.execute(
-                        text(
-                            "INSERT INTO categories (name, display_name_es, color, icon, created_at) "
-                            "VALUES (:name, :display_es, :color, :icon, CURRENT_TIMESTAMP)"
-                        ),
-                        {"name": name, "display_es": display_es, "color": color, "icon": icon},
-                    )
-                logger.info("Seeded 14 predefined categories")
+            existing_names = {
+                row[0]
+                for row in conn.execute(text("SELECT name FROM categories")).fetchall()
+            }
+            inserted = 0
+            for category in PREDEFINED_CATEGORIES:
+                if category["name"] in existing_names:
+                    continue
+                conn.execute(
+                    text(
+                        "INSERT INTO categories (name, display_name_es, color, icon, created_at) "
+                        "VALUES (:name, :display_es, :color, :icon, CURRENT_TIMESTAMP)"
+                    ),
+                    {
+                        "name": category["name"],
+                        "display_es": category["display_name_es"],
+                        "color": category["color"],
+                        "icon": category["icon"],
+                    },
+                )
+                inserted += 1
+
+            if inserted:
+                logger.info("Seeded %s missing predefined categories", inserted)
     except Exception as error:
         logger.warning(
             "Category schema migration skipped: %s",
@@ -325,7 +330,7 @@ def ensure_channel_category_schema():
                         last_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (channel_id) REFERENCES channels (id),
                         FOREIGN KEY (category_id) REFERENCES categories (id),
-                        CHECK (classification_method IN ('youtube_topics', 'tfidf', 'hybrid', 'ollama', 'manual')),
+                        CHECK (classification_method IN ('youtube_topics', 'tfidf', 'manual')),
                         CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0)
                     )
                 """))

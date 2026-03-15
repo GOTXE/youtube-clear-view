@@ -295,6 +295,14 @@ class APIClient {
     return this.post('/api/channels/enrich', payload);
   }
 
+  enrichChannelVideoEvidence(channelId = null, limit = 25, maxResults = 12, onlyUnclassified = true) {
+    const payload = { limit, max_results: maxResults, only_unclassified: onlyUnclassified };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/enrich-video-evidence', payload);
+  }
+
   // Settings endpoints
   getSettings() {
     return this.get('/api/settings');

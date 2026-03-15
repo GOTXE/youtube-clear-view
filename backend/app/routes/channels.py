@@ -19,7 +19,11 @@ from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
-from app.services.video_ingest import iter_refresh_user_channels, refresh_user_channels
+from app.services.video_ingest import (
+    iter_refresh_user_channels,
+    refresh_user_channels,
+    upsert_channel_video_evidence,
+)
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
 
@@ -522,8 +526,6 @@ def import_subscriptions():
     imported = 0
     new_channels = 0
     new_subscriptions = 0
-    channels_to_classify = []
-
     for item in items:
         snippet = item.get("snippet", {})
         resource = snippet.get("resourceId", {})
@@ -543,7 +545,6 @@ def import_subscriptions():
             db.session.add(channel)
             db.session.flush()
             new_channels += 1
-            channels_to_classify.append(channel)
         else:
             if not channel.title and snippet.get("title"):
                 channel.title = snippet.get("title")
@@ -568,18 +569,8 @@ def import_subscriptions():
 
     db.session.commit()
 
-    # Auto-classify new channels
+    # Classification is deferred until enrichment or enough local video evidence exists.
     classified = 0
-    if channels_to_classify:
-        try:
-            service = ClassificationService()
-            results = service.classify_channels(channels_to_classify)
-            classified = len([r for r in results if r])
-        except Exception as e:
-            logger.warning(
-                f"Failed to auto-classify {len(channels_to_classify)} channels: {e}",
-                extra={"tracking_id": generate_tracking_id()},
-            )
 
     next_token = page_info.get("next_page_token") if page_info else None
     total_results = page_info.get("total_results") if page_info else None
@@ -822,7 +813,9 @@ def enrich_channels():
 
     service = _get_service()
     enriched = 0
+    classified = 0
     errors = 0
+    enriched_channels = []
 
     for channel in channels:
         try:
@@ -835,6 +828,7 @@ def enrich_channels():
                 if info.get("country") and not channel.country:
                     channel.country = info["country"]
                 enriched += 1
+                enriched_channels.append(channel)
         except Exception as e:
             logger.warning(
                 f"Failed to enrich channel {channel.yt_channel_id}: {e}",
@@ -844,6 +838,17 @@ def enrich_channels():
 
     db.session.commit()
 
+    classifier = ClassificationService()
+    for channel in enriched_channels:
+        try:
+            if classifier.classify_channel(channel):
+                classified += 1
+        except Exception as e:
+            logger.warning(
+                f"Failed to classify enriched channel {channel.yt_channel_id}: {e}",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+
     # Calculate remaining channels without topic_ids
     remaining = UserChannel.query.filter_by(user_id=user.id).join(Channel).filter(
         (Channel.topic_ids.is_(None)) | (Channel.topic_ids == "")
@@ -851,7 +856,106 @@ def enrich_channels():
 
     return jsonify({
         "enriched": enriched,
+        "classified": classified,
         "errors": errors,
         "remaining": remaining,
         "message": f"Enriched {enriched} channels with topic data.",
+    })
+
+
+@channels_bp.post("/api/channels/enrich-video-evidence")
+@handle_route_errors
+@require_auth
+def enrich_channel_video_evidence():
+    """Fetch recent video metadata for channels and classify using that evidence."""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    channel_id = payload.get("channel_id")
+    limit = min(int(payload.get("limit", 25)), 100)
+    max_results = min(int(payload.get("max_results", 12)), 25)
+    only_unclassified = bool(payload.get("only_unclassified", True))
+
+    if channel_id:
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        if not subscription:
+            return _not_found("Subscription not found.")
+        subscriptions = [subscription]
+    else:
+        query = UserChannel.query.filter_by(user_id=user.id)
+        subscriptions = query.all()
+        if only_unclassified:
+            subscriptions = [
+                subscription
+                for subscription in subscriptions
+                if not ChannelCategory.query.filter_by(channel_id=subscription.channel_id).first()
+            ]
+        subscriptions = subscriptions[:limit]
+
+    if not subscriptions:
+        remaining = (
+            UserChannel.query.filter_by(user_id=user.id)
+            .outerjoin(ChannelCategory, ChannelCategory.channel_id == UserChannel.channel_id)
+            .filter(ChannelCategory.id.is_(None))
+            .count()
+        )
+        return jsonify({
+            "channels_processed": 0,
+            "videos_created": 0,
+            "videos_updated": 0,
+            "classified": 0,
+            "remaining_unclassified": remaining,
+            "message": "No channels need video evidence enrichment.",
+        })
+
+    service = _get_service()
+    classifier = ClassificationService()
+    channels_processed = 0
+    videos_created = 0
+    videos_updated = 0
+    classified = 0
+    errors = 0
+
+    for subscription in subscriptions:
+        channel = subscription.channel
+        try:
+            response = service.get_channel_videos(channel.yt_channel_id, max_results=max_results)
+            if not response.get("success", True):
+                errors += 1
+                continue
+
+            created, updated = upsert_channel_video_evidence(channel, response.get("videos", []))
+            videos_created += created
+            videos_updated += updated
+            channels_processed += 1
+
+            if not ChannelCategory.query.filter_by(channel_id=channel.id).first():
+                if classifier.classify_channel(channel):
+                    classified += 1
+        except Exception as error:
+            logger.warning(
+                "Failed to enrich video evidence for channel %s: %s",
+                channel.yt_channel_id,
+                error,
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            db.session.rollback()
+            errors += 1
+
+    db.session.commit()
+
+    remaining = (
+        UserChannel.query.filter_by(user_id=user.id)
+        .outerjoin(ChannelCategory, ChannelCategory.channel_id == UserChannel.channel_id)
+        .filter(ChannelCategory.id.is_(None))
+        .count()
+    )
+
+    return jsonify({
+        "channels_processed": channels_processed,
+        "videos_created": videos_created,
+        "videos_updated": videos_updated,
+        "classified": classified,
+        "errors": errors,
+        "remaining_unclassified": remaining,
+        "message": f"Processed {channels_processed} channels with recent video evidence.",
     })

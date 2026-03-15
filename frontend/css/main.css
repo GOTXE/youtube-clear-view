@@ -1125,6 +1125,7 @@ select {
 .category-color-technology { color: var(--primary); }
 .category-color-education { color: var(--category-education); }
 .category-color-music { color: var(--category-music); }
+.category-color-automotive { color: #546e7a; }
 .category-color-food { color: var(--category-food); }
 .category-color-health { color: var(--category-health); }
 .category-color-travel { color: var(--info); }
@@ -1134,6 +1135,7 @@ select {
 .category-color-vlogs { color: var(--category-vlogs); }
 .category-color-sports { color: var(--category-sports); }
 .category-color-art { color: var(--category-art); }
+.category-color-animals { color: #689f38; }
 .category-color-science { color: var(--category-science); }
 .category-color-lifestyle { color: var(--success); }
 .category-color-business { color: var(--muted); }
@@ -1624,6 +1626,7 @@ select {
 .category-badge.category-color-technology { background: var(--primary); color: white; border-color: var(--primary); }
 .category-badge.category-color-education { background: var(--category-education); color: white; border-color: var(--category-education); }
 .category-badge.category-color-music { background: var(--category-music); color: white; border-color: var(--category-music); }
+.category-badge.category-color-automotive { background: #546e7a; color: white; border-color: #546e7a; }
 .category-badge.category-color-food { background: var(--category-food); color: white; border-color: var(--category-food); }
 .category-badge.category-color-health { background: var(--category-health); color: white; border-color: var(--category-health); }
 .category-badge.category-color-travel { background: var(--info); color: white; border-color: var(--info); }
@@ -1633,6 +1636,7 @@ select {
 .category-badge.category-color-vlogs { background: var(--category-vlogs); color: white; border-color: var(--category-vlogs); }
 .category-badge.category-color-sports { background: var(--category-sports); color: white; border-color: var(--category-sports); }
 .category-badge.category-color-art { background: var(--category-art); color: white; border-color: var(--category-art); }
+.category-badge.category-color-animals { background: #689f38; color: white; border-color: #689f38; }
 .category-badge.category-color-science { background: var(--category-science); color: white; border-color: var(--category-science); }
 .category-badge.category-color-lifestyle { background: var(--success); color: white; border-color: var(--success); }
 .category-badge.category-color-business { background: var(--muted); color: white; border-color: var(--muted); }

@@ -51,6 +51,32 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - `Escape` clears the sidebar search.
 - The overlaid broom action clears the sidebar search and keeps focus on the same field.
 
+## Channel Classification
+
+- The app now uses a precision-first classifier set with only two active methods:
+  - `youtube_topics`
+  - `tfidf`
+- `Hybrid` and `Ollama` are no longer part of the runtime classification path.
+- The app taxonomy now includes direct YouTube-native categories that were missing
+  from the original product taxonomy:
+  - `Automotive`
+  - `Animals`
+- Bare subscription import no longer auto-classifies channels from weak snippet data alone.
+- Classification happens after stronger evidence exists:
+  - channel enrichment (`topic_ids`, keywords, country)
+  - or recent local channel videos fetched during refresh
+- Recent local videos are now the primary practical evidence source because many
+  channels do not expose useful `topic_ids`, `keywords`, or `country`.
+- Stored video evidence now includes:
+  - `video_category_id`
+  - `tags`
+  - refreshed title/description/thumbnail/duration metadata on already known videos
+- Manual reclassification first enriches unclassified channels with recent video
+  evidence and only then runs full reclassification.
+- Deterministic recent-video-category heuristics run before TF-IDF text
+  similarity when the signal is clear enough.
+- `TF-IDF` is intentionally stricter and may abstain instead of forcing a weak label.
+
 ## Run Tests
 
 ```bash

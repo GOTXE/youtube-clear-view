@@ -536,6 +536,40 @@ Response:
 { "enriched": 10, "errors": 0, "remaining": 200, "message": "Enriched 10 channels with topic data." }
 ```
 
+### POST /api/channels/enrich-video-evidence
+
+Fetches recent video metadata for subscribed channels and stores it locally so
+classification can use stronger evidence than channel snippet text alone.
+
+This endpoint is the practical recovery path for channels that remain
+unclassified because `topic_ids` and `keywords` are missing from the YouTube
+channel resource.
+
+Request (optional):
+
+```json
+{
+  "channel_id": 1,
+  "limit": 25,
+  "max_results": 12,
+  "only_unclassified": true
+}
+```
+
+Response:
+
+```json
+{
+  "channels_processed": 12,
+  "videos_created": 48,
+  "videos_updated": 15,
+  "classified": 7,
+  "errors": 0,
+  "remaining_unclassified": 143,
+  "message": "Processed 12 channels with recent video evidence."
+}
+```
+
 ---
 
 ## Videos
@@ -641,7 +675,10 @@ Triggers a reclassification attempt for all channels of the current user.
 
 ### GET /api/categories/status
 
-Returns the status of all classification methods.
+Returns the status of the active classification methods currently used by the app:
+
+- `youtube_topics`
+- `tfidf`
 
 ---
 

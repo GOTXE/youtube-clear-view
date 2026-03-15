@@ -2198,54 +2198,63 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ui.reclassifyBtn.addEventListener('click', async () => {
       ui.reclassifyBtn.disabled = true;
+      try {
+        let totalEvidenceChannels = 0;
+        let totalVideosCreated = 0;
+        let totalVideosUpdated = 0;
+        let remaining = 999;
 
-      // Step 1: Enrich channels with topic_ids from YouTube API
-      ui.reclassifyBtn.textContent = 'Obteniendo datos de YouTube...';
-      let totalEnriched = 0;
-      let remaining = 999;
+        // Step 1: Enrich unclassified channels with recent video evidence.
+        ui.reclassifyBtn.textContent = 'Obteniendo evidencia de videos...';
 
-      while (remaining > 0) {
-        const enrichResponse = await api.enrichChannels(null, 50);
-        if (!enrichResponse.ok) {
-          break;
+        while (remaining > 0) {
+          const enrichResponse = await api.enrichChannelVideoEvidence(null, 25, 12, true);
+          if (!enrichResponse.ok) {
+            break;
+          }
+          totalEvidenceChannels += enrichResponse.data.channels_processed || 0;
+          totalVideosCreated += enrichResponse.data.videos_created || 0;
+          totalVideosUpdated += enrichResponse.data.videos_updated || 0;
+          remaining = enrichResponse.data.remaining_unclassified || 0;
+          ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEvidenceChannels} canales)`;
+
+          if (enrichResponse.data.channels_processed === 0) {
+            break;
+          }
         }
-        totalEnriched += enrichResponse.data.enriched || 0;
-        remaining = enrichResponse.data.remaining || 0;
-        ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEnriched} canales)`;
 
-        if (enrichResponse.data.enriched === 0) {
-          break;
+        if (totalEvidenceChannels > 0) {
+          showNotification(
+            `${totalEvidenceChannels} canales enriquecidos con evidencia de video (${totalVideosCreated} nuevos, ${totalVideosUpdated} actualizados)`,
+            'success'
+          );
         }
+
+        // Step 2: Reclassify all channels
+        ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
+
+        const response = await api.reclassifyAllChannels();
+        if (response.ok) {
+          const stats = response.data || {};
+          const reclassified = stats.reclassified || 0;
+          showNotification(`${reclassified} canales clasificados correctamente`, 'success');
+
+          const channelsResponse = await api.getChannels();
+          if (channelsResponse.ok) {
+            state.channels = channelsResponse.data || [];
+            renderChannelList(state.channels);
+          }
+
+          if (state.categoryManager) {
+            await state.categoryManager.init();
+          }
+        } else {
+          showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
+        }
+      } finally {
+        ui.reclassifyBtn.disabled = false;
+        ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
       }
-
-      if (totalEnriched > 0) {
-        showNotification(`${totalEnriched} canales enriquecidos con datos de YouTube`, 'success');
-      }
-
-      // Step 2: Reclassify all channels
-      ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
-
-      const response = await api.reclassifyAllChannels();
-      if (response.ok) {
-        const stats = response.data || {};
-        const classified = stats.classified || 0;
-        showNotification(`${classified} canales clasificados correctamente`, 'success');
-
-        const channelsResponse = await api.getChannels();
-        if (channelsResponse.ok) {
-          state.channels = channelsResponse.data || [];
-          renderChannelList(state.channels);
-        }
-
-        if (state.categoryManager) {
-          await state.categoryManager.init();
-        }
-      } else {
-        showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
-      }
-
-      ui.reclassifyBtn.disabled = false;
-      ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
     });
   }
 

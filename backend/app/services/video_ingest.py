@@ -8,7 +8,8 @@ from app.config import Config
 from app.extensions import db
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
-from app.models import UserChannel, Video
+from app.models import ChannelCategory, UserChannel, Video
+from app.services.classification_service import ClassificationService
 from app.services.presets import get_preset
 from app.services.quota import consume, mark_quota_exhausted, reset_quota_if_needed
 
@@ -31,6 +32,79 @@ def _is_short(duration):
         return int(duration) <= 60
     except (TypeError, ValueError):
         return False
+
+
+def _serialize_tags(value):
+    if not value:
+        return None
+    if isinstance(value, list):
+        cleaned = [str(tag).strip() for tag in value if str(tag).strip()]
+        return " ".join(cleaned) if cleaned else None
+    text = str(value).strip()
+    return text or None
+
+
+def _update_video_from_item(video, item, published_at):
+    updated = False
+    serialized_tags = _serialize_tags(item.get("tags"))
+
+    if item.get("title") and item.get("title") != video.title:
+        video.title = item.get("title")
+        updated = True
+    if item.get("description") and item.get("description") != video.description:
+        video.description = item.get("description")
+        updated = True
+    if item.get("thumbnail") and item.get("thumbnail") != video.thumbnail_url:
+        video.thumbnail_url = item.get("thumbnail")
+        updated = True
+    if published_at and published_at != video.published_at:
+        video.published_at = published_at
+        updated = True
+    if item.get("duration") is not None and item.get("duration") != video.duration:
+        video.duration = item.get("duration")
+        updated = True
+    if item.get("video_category_id") and item.get("video_category_id") != video.video_category_id:
+        video.video_category_id = item.get("video_category_id")
+        updated = True
+    if serialized_tags and serialized_tags != video.tags:
+        video.tags = serialized_tags
+        updated = True
+
+    return updated
+
+
+def upsert_channel_video_evidence(channel, items):
+    """Upsert local video evidence for a channel from YT API items."""
+    created = 0
+    updated = 0
+
+    for item in items:
+        video_id = item.get("video_id")
+        if not video_id:
+            continue
+
+        published_at = _parse_datetime(item.get("published_at"))
+        exists = Video.query.filter_by(yt_video_id=video_id).first()
+        if exists:
+            if _update_video_from_item(exists, item, published_at):
+                updated += 1
+            continue
+
+        video = Video(
+            yt_video_id=video_id,
+            channel_id=channel.id,
+            title=item.get("title"),
+            description=item.get("description"),
+            video_category_id=item.get("video_category_id"),
+            tags=_serialize_tags(item.get("tags")),
+            thumbnail_url=item.get("thumbnail"),
+            published_at=published_at,
+            duration=item.get("duration"),
+        )
+        db.session.add(video)
+        created += 1
+
+    return created, updated
 
 
 def _range_counts(channel_id, start, end, is_short):
@@ -114,6 +188,7 @@ def iter_refresh_user_channels(
     new_videos = 0
     rate_limited = False
     processed_channels = 0
+    classifier = None
 
     reset_quota_if_needed(settings)
 
@@ -128,6 +203,7 @@ def iter_refresh_user_channels(
     for index, subscription in enumerate(subscriptions, start=1):
         channel = subscription.channel
         channel_new_videos = 0
+        channel_metadata_updates = 0
 
         yield {
             "type": "channel_started",
@@ -209,13 +285,15 @@ def iter_refresh_user_channels(
             if published_at < older_max_cutoff:
                 continue
 
+            exists = Video.query.filter_by(yt_video_id=video_id).first()
+            if exists:
+                if _update_video_from_item(exists, item, published_at):
+                    channel_metadata_updates += 1
+                continue
+
             if not ignore_last_refreshed and subscription.last_refreshed_at:
                 if published_at <= subscription.last_refreshed_at:
                     continue
-
-            exists = Video.query.filter_by(yt_video_id=video_id).first()
-            if exists:
-                continue
 
             is_short = _is_short(item.get("duration"))
 
@@ -245,6 +323,8 @@ def iter_refresh_user_channels(
                 channel_id=channel.id,
                 title=item.get("title"),
                 description=item.get("description"),
+                video_category_id=item.get("video_category_id"),
+                tags=_serialize_tags(item.get("tags")),
                 thumbnail_url=item.get("thumbnail"),
                 published_at=published_at,
                 duration=item.get("duration"),
@@ -267,6 +347,22 @@ def iter_refresh_user_channels(
         _prune_range(channel.id, older_max_cutoff, older_min_cutoff, True, preset["older_short_cap"])
 
         db.session.commit()
+
+        if (
+            (channel_new_videos > 0 or channel_metadata_updates > 0)
+            and not ChannelCategory.query.filter_by(channel_id=channel.id).first()
+        ):
+            try:
+                if classifier is None:
+                    classifier = ClassificationService()
+                classifier.classify_channel(channel)
+            except Exception as error:
+                logger.warning(
+                    "Automatic channel classification after refresh failed: %s",
+                    error,
+                    extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
+                )
+
         processed_channels += 1
         yield {
             "type": "channel_complete",
@@ -274,6 +370,7 @@ def iter_refresh_user_channels(
             "yt_channel_id": channel.yt_channel_id,
             "channel_title": channel.title,
             "channel_new_videos": channel_new_videos,
+            "channel_metadata_updates": channel_metadata_updates,
             "new_videos": new_videos,
             "processed_channels": processed_channels,
             "current_channel": index,

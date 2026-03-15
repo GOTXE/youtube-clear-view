@@ -91,6 +91,7 @@ class CategoryManager {
       technology: 'category-color-technology',
       education: 'category-color-education',
       music: 'category-color-music',
+      automotive: 'category-color-automotive',
       food: 'category-color-food',
       fitness: 'category-color-health',
       health: 'category-color-health',
@@ -101,6 +102,7 @@ class CategoryManager {
       vlogs: 'category-color-vlogs',
       sports: 'category-color-sports',
       art: 'category-color-art',
+      animals: 'category-color-animals',
       science: 'category-color-science',
       lifestyle: 'category-color-lifestyle',
       business: 'category-color-business'

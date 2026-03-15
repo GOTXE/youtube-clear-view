@@ -3,6 +3,7 @@
 import pytest
 
 from app.extensions import db
+from app.migrations import ensure_category_schema
 from app.models import Category, PREDEFINED_CATEGORIES
 
 
@@ -65,8 +66,8 @@ def test_category_to_dict(app):
 
 
 def test_predefined_categories_count():
-    """Test that we have exactly 14 predefined categories."""
-    assert len(PREDEFINED_CATEGORIES) == 14
+    """Test that we have exactly 16 predefined categories."""
+    assert len(PREDEFINED_CATEGORIES) == 16
 
 
 def test_predefined_categories_structure():
@@ -80,19 +81,36 @@ def test_predefined_categories_structure():
 def test_predefined_categories_names():
     """Test that predefined categories have expected names."""
     expected_names = [
-        "Gaming", "Technology", "Education", "Music", "Food",
+        "Gaming", "Technology", "Education", "Music", "Automotive", "Food",
         "Fitness", "Travel", "Fashion", "News", "Entertainment",
-        "Vlogs", "Sports", "Art", "Science",
+        "Vlogs", "Sports", "Art", "Animals", "Science",
     ]
     actual_names = [cat["name"] for cat in PREDEFINED_CATEGORIES]
     assert sorted(actual_names) == sorted(expected_names)
 
 
-def test_category_seed_creates_14_categories(app):
-    """Test that seeding creates 14 categories in database."""
+def test_category_seed_creates_16_categories(app):
+    """Test that seeding creates 16 categories in database."""
     with app.app_context():
         count = Category.query.count()
-        assert count == 14, f"Expected 14 categories, got {count}"
+        assert count == 16, f"Expected 16 categories, got {count}"
+
+
+def test_category_schema_backfills_missing_categories(app):
+    """Existing databases should receive newly added predefined categories."""
+    with app.app_context():
+        Category.query.filter(Category.name.in_(["Automotive", "Animals"])).delete(
+            synchronize_session=False
+        )
+        db.session.commit()
+
+        assert Category.query.filter_by(name="Automotive").first() is None
+        assert Category.query.filter_by(name="Animals").first() is None
+
+        ensure_category_schema()
+
+        assert Category.query.filter_by(name="Automotive").first() is not None
+        assert Category.query.filter_by(name="Animals").first() is not None
 
 
 def test_category_colors_are_valid_hex(app):

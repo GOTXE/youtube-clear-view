@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     carousels: [],
     searchActive: false,
     searchQuery: '',
+    channelFilterQuery: '',
     autoImportAttempted: false,
     autoRefreshAttempted: false,
     categoryManager: null,
@@ -125,6 +126,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     lastUpdatedLabel: document.getElementById('last-updated'),
     channelList: document.getElementById('channel-list'),
     channelCount: document.getElementById('channel-count'),
+    channelSearchLabel: document.getElementById('channel-search-label'),
+    channelSearchInput: document.getElementById('channel-search-input'),
+    channelSearchClear: document.getElementById('channel-search-clear'),
     videosCount: document.getElementById('videos-count'),
     shortsCount: document.getElementById('shorts-count'),
     videosLabel: document.getElementById('videos-label'),
@@ -267,9 +271,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.filtersSearchLabel) {
       ui.filtersSearchLabel.textContent = t('searchLabel');
     }
+    if (ui.channelSearchLabel) {
+      ui.channelSearchLabel.textContent = t('searchChannelsLabel');
+    }
     if (ui.searchInput) {
       ui.searchInput.placeholder = t('searchPlaceholder');
       ui.searchInput.setAttribute('aria-label', t('searchAriaLabel'));
+    }
+    if (ui.channelSearchInput) {
+      ui.channelSearchInput.placeholder = t('searchChannelsPlaceholder');
+      ui.channelSearchInput.setAttribute('aria-label', t('searchChannelsAriaLabel'));
+    }
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.setAttribute('aria-label', t('clearChannelSearch'));
+      ui.channelSearchClear.title = t('clearChannelSearch');
     }
     if (ui.refreshButton) {
       ui.refreshButton.textContent = t('refresh');
@@ -1072,6 +1087,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     ui.channelList.innerHTML = '';
+    syncChannelSearchUI();
 
     const allItem = document.createElement('div');
     allItem.className = 'channel-item';
@@ -1091,14 +1107,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const channelMatchesFilters = channel => {
-      const searchText = (state.searchQuery || '').trim().toLowerCase();
-      if (searchText) {
-        const name = (channel.title || channel.yt_channel_id || '').toLowerCase();
-        if (!name.includes(searchText)) {
-          return false;
-        }
-      }
-
       const monthFilter = state.filters.month;
       const unwatchedFilter = state.filters.unwatched;
 
@@ -1124,12 +1132,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.channelList.appendChild(empty);
     }
 
-    const filtered = sorted.length ? sorted.filter(channelMatchesFilters) : [];
+    const sidebarFiltered = sorted.length
+      ? (
+          typeof window.filterChannelsForSidebar === 'function'
+            ? window.filterChannelsForSidebar(sorted, state.channelFilterQuery)
+            : sorted
+        )
+      : [];
+    const filtered = sidebarFiltered.length ? sidebarFiltered.filter(channelMatchesFilters) : [];
 
     if (sorted.length && !filtered.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
-      empty.textContent = t('noChannelsMatch');
+      empty.textContent = state.channelFilterQuery
+        ? t('noChannelsSearchMatch')
+        : t('noChannelsMatch');
       ui.channelList.appendChild(empty);
     }
 
@@ -1719,6 +1736,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   }
 
+  function syncChannelSearchUI() {
+    if (ui.channelSearchInput && ui.channelSearchInput.value !== state.channelFilterQuery) {
+      ui.channelSearchInput.value = state.channelFilterQuery;
+    }
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.hidden = !state.channelFilterQuery;
+    }
+  }
+
+  function clearChannelSearch(options = {}) {
+    const { focusInput = false } = options;
+    state.channelFilterQuery = '';
+    syncChannelSearchUI();
+    renderChannelList(state.channels);
+    if (focusInput && ui.channelSearchInput) {
+      ui.channelSearchInput.focus();
+    }
+  }
+
+  function setupChannelSidebarSearch() {
+    if (!ui.channelSearchInput) {
+      return;
+    }
+
+    const applySidebarSearch = query => {
+      state.channelFilterQuery = typeof window.normalizeSidebarQuery === 'function'
+        ? window.normalizeSidebarQuery(query)
+        : String(query || '').trim().toLowerCase();
+      syncChannelSearchUI();
+      renderChannelList(state.channels);
+    };
+
+    ui.channelSearchInput.addEventListener('input', event => {
+      applySidebarSearch(event.target.value);
+    });
+
+    ui.channelSearchInput.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        clearChannelSearch({ focusInput: true });
+      }
+    });
+
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.addEventListener('click', () => {
+        clearChannelSearch({ focusInput: true });
+      });
+    }
+
+    syncChannelSearchUI();
+  }
+
   function setupMenu() {
     if (!ui.menuToggle || !ui.menuPanel) {
       return;
@@ -2243,6 +2312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupFilters();
+    setupChannelSidebarSearch();
     setupSearch();
     setupMenu();
     setupFilterPanel();

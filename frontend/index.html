@@ -94,6 +94,25 @@
                 <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
               <span id="channel-count" class="caption">0</span>
             </div>
+            <label class="channel-sidebar__search" for="channel-search-input">
+              <span id="channel-search-label" class="sr-only">Search channels</span>
+              <input
+                id="channel-search-input"
+                class="field__input channel-sidebar__search-input"
+                type="search"
+                placeholder="Search channels"
+                aria-label="Search channels"
+              >
+              <button
+                id="channel-search-clear"
+                class="channel-sidebar__search-clear"
+                type="button"
+                aria-label="Clear channel search"
+                hidden
+              >
+                <span aria-hidden="true">🧹</span>
+              </button>
+            </label>
             <div id="channel-list" class="channel-list" role="list"></div>
           </aside>
 
@@ -289,6 +308,7 @@
     <script src="config.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/utils.js"></script>
+    <script src="js/channel-sidebar-search.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/device.js"></script>

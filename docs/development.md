@@ -44,6 +44,13 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The device modal now auto-opens only when the current user's device is not yet confirmed.
 - The hamburger menu also exposes a manual `Device type` action that reopens the same modal on demand.
 
+## Subscription Sidebar Search
+
+- The subscriptions sidebar has its own local search field above the channel list.
+- This filter is independent from the main video search and only narrows the visible channels in the sidebar.
+- `Escape` clears the sidebar search.
+- The overlaid broom action clears the sidebar search and keeps focus on the same field.
+
 ## Run Tests
 
 ```bash

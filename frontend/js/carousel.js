@@ -37,6 +37,8 @@ class Carousel {
     this.onRightClick = () => this.scrollRight();
     this.onTrackKeydown = event => this.handleTrackKeydown(event);
     this.onResize = () => this.updateCardSizing();
+    this.root = null;
+    this.preservedChildren = [];
   }
 
   async init() {
@@ -45,9 +47,20 @@ class Carousel {
       return;
     }
 
-    this.container.innerHTML = '';
+    const preserveExisting = Boolean(this.options.preserveContentOnInit && this.container.childNodes.length);
+    this.preservedChildren = preserveExisting ? Array.from(this.container.childNodes) : [];
+    if (!preserveExisting) {
+      this.container.innerHTML = '';
+    }
     this.render();
     await this.loadMore();
+    if (preserveExisting) {
+      this.preservedChildren.forEach(node => node.remove());
+      this.preservedChildren = [];
+      if (this.root) {
+        this.root.hidden = false;
+      }
+    }
     this.updateCardSizing();
     window.addEventListener('resize', this.onResize);
   }
@@ -59,8 +72,12 @@ class Carousel {
 
     const carousel = document.createElement('div');
     carousel.className = 'carousel';
+    this.root = carousel;
     if (this.options.theme) {
       carousel.dataset.themeColor = this.options.theme;
+    }
+    if (this.options.preserveContentOnInit && this.preservedChildren.length) {
+      carousel.hidden = true;
     }
 
     if (this.options.showControls) {
@@ -521,7 +538,7 @@ class Carousel {
     }
   }
 
-  destroy() {
+  destroy(preserveDOM = false) {
     if (this.leftControl) {
       this.leftControl.removeEventListener('click', this.onLeftClick);
     }
@@ -544,7 +561,7 @@ class Carousel {
       this.scrollObserver.disconnect();
     }
 
-    if (this.container) {
+    if (this.container && !preserveDOM) {
       this.container.innerHTML = '';
     }
   }

@@ -38,6 +38,9 @@
             <div class="brand__text">
               <h1 id="app-title" class="heading-1">YT Clear View</h1>
               <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+              <div id="app-notices" class="app-notices" aria-live="polite" aria-atomic="true">
+                <p id="refresh-progress" class="refresh-progress" hidden></p>
+              </div>
               <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
                 No Algorithm, just your favorite channels.
               </p>
@@ -104,10 +107,7 @@
                       <span id="videos-count" class="count-pill">0</span>
                     </h2>
                   </div>
-                  <div class="section-status">
-                    <p id="refresh-progress" class="refresh-progress" aria-live="polite" hidden></p>
-                    <p id="last-updated" class="caption"></p>
-                  </div>
+                  <p id="last-updated" class="caption"></p>
                 </div>
                 <div id="latest-carousel" class="carousel-shell__body" aria-live="polite"></div>
               </div>

@@ -796,7 +796,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function buildRefreshStreamUrl(channelId = null, backfill = false) {
-    const baseUrl = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '';
+    const configuredBaseUrl = (api && api.baseURL) || ((window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '');
+    const baseUrl = configuredBaseUrl.endsWith('/api')
+      ? configuredBaseUrl
+      : `${configuredBaseUrl}/api`;
     const params = new URLSearchParams();
     if (channelId !== null && channelId !== undefined) {
       params.set('channel_id', String(channelId));
@@ -908,20 +911,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { ...payload, videos: filtered };
   }
 
-  function clearCarousels() {
-    state.carousels.forEach(carousel => carousel.destroy());
+  function clearCarousels(preserveDOM = false) {
+    state.carousels.forEach(carousel => carousel.destroy(preserveDOM));
     state.carousels = [];
 
-    if (ui.latestCarousel) {
+    if (!preserveDOM && ui.latestCarousel) {
       ui.latestCarousel.innerHTML = '';
     }
-    if (ui.shortsCarousel) {
+    if (!preserveDOM && ui.shortsCarousel) {
       ui.shortsCarousel.innerHTML = '';
     }
-    if (ui.olderCarousel) {
+    if (!preserveDOM && ui.olderCarousel) {
       ui.olderCarousel.innerHTML = '';
     }
-    if (ui.themeCarousels) {
+    if (!preserveDOM && ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
     if (state.categoryManager) {
@@ -951,7 +954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    });
+    }, { preserveContentOnInit: true });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -979,7 +982,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    }, { showTitle: false, showDescription: false });
+    }, {
+      showTitle: false,
+      showDescription: false,
+      preserveContentOnInit: true
+    });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -1008,7 +1015,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    }, { hideTextForShorts: true });
+    }, {
+      hideTextForShorts: true,
+      preserveContentOnInit: true
+    });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -1355,6 +1365,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     return timestamps[0];
   }
 
+  async function syncChannelsState() {
+    const channelsResponse = await api.getChannels();
+    if (channelsResponse.ok) {
+      state.channels = channelsResponse.data || [];
+    }
+    return state.channels;
+  }
+
+  async function syncVisibleStateAfterRefresh() {
+    await syncChannelsState();
+    renderChannelList(state.channels);
+    updateChannelCount(state.channels);
+    updateLastUpdatedLabel(state.channels);
+    await updateVideoCounts();
+
+    if (state.searchActive) {
+      await runSearch(state.searchQuery);
+      return;
+    }
+
+    await reloadCarousels();
+  }
+
   async function loadApp() {
     if (!state.currentUser) {
       return;
@@ -1362,10 +1395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setLoading(true, 'latest-carousel');
 
-    const channelsResponse = await api.getChannels();
-    if (channelsResponse.ok) {
-      state.channels = channelsResponse.data || [];
-    }
+    await syncChannelsState();
 
     if (
       state.currentUser.auth_provider === 'google'
@@ -1373,35 +1403,43 @@ document.addEventListener('DOMContentLoaded', async () => {
       && !state.autoImportAttempted
     ) {
       state.autoImportAttempted = true;
-      await importSubscriptionsAndRefresh(false);
-      const refreshedChannels = await api.getChannels();
-      if (refreshedChannels.ok) {
-        state.channels = refreshedChannels.data || [];
-      }
+      await importSubscriptions(false);
+      await syncChannelsState();
+      renderChannelList(state.channels);
+      updateChannelCount(state.channels);
+      updateLastUpdatedLabel(state.channels);
+      await updateVideoCounts();
     }
 
     const latestCheckedAt = getLatestCheckedAt(state.channels);
-    if (!state.autoRefreshAttempted && latestCheckedAt) {
-      const ageMs = Date.now() - latestCheckedAt.getTime();
-      if (ageMs > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000) {
-        state.autoRefreshAttempted = true;
-        showNotification(t('refreshInProgress'), 'info');
-        try {
-          await streamRefresh(null, {
-            onProgress: async payload => {
-              updateRefreshProgressFromEvent(payload);
-              if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
-                scheduleVisibleReload();
-              }
+    const shouldAutoRefreshFromEmptyState = (
+      state.currentUser.auth_provider === 'google'
+      && state.channels.length > 0
+      && !latestCheckedAt
+    );
+    const shouldAutoRefreshFromStaleState = latestCheckedAt
+      ? Date.now() - latestCheckedAt.getTime() > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000
+      : false;
+
+    if (
+      !state.autoRefreshAttempted
+      && (shouldAutoRefreshFromEmptyState || shouldAutoRefreshFromStaleState)
+    ) {
+      state.autoRefreshAttempted = true;
+      showNotification(t('refreshInProgress'), 'info');
+      setRefreshProgress(t('refreshProgressWaiting'));
+      try {
+        await streamRefresh(null, {
+          onProgress: async payload => {
+            updateRefreshProgressFromEvent(payload);
+            if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+              scheduleVisibleReload();
             }
-          });
-          const refreshedChannels = await api.getChannels();
-          if (refreshedChannels.ok) {
-            state.channels = refreshedChannels.data || [];
           }
-        } catch (error) {
-          // Ignore auto-refresh stream errors and continue rendering existing data.
-        }
+        });
+        await syncChannelsState();
+      } catch (error) {
+        // Ignore auto-refresh stream errors and continue rendering existing data.
       }
     }
 
@@ -1439,7 +1477,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function reloadCarousels() {
-    clearCarousels();
+    clearCarousels(true);
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
@@ -1832,6 +1870,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ui.refreshButton.addEventListener('click', async () => {
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
       reportImportStatus(t('refreshInProgress'), 'info');
+      setRefreshProgress(t('refreshProgressWaiting'));
 
       try {
         const result = await streamRefresh(targetChannelId, {
@@ -1843,7 +1882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           },
           onComplete: async payload => {
             reportImportStatus('', 'info');
-            await loadApp();
+            await syncVisibleStateAfterRefresh();
             showNotification(t('newVideosFound', { count: payload.new_videos || 0 }), 'success');
           },
           onError: async () => {
@@ -1860,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  async function importSubscriptionsAndRefresh(showToast) {
+  async function importSubscriptions(showToast) {
     if (!state.currentUser || state.currentUser.auth_provider !== 'google') {
       return false;
     }
@@ -1909,7 +1948,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       await sleep(800);
     }
 
+    reportImportStatus('', 'info');
+
+    return {
+      ok: true,
+      newSubscriptions,
+      newChannels
+    };
+  }
+
+  async function importSubscriptionsAndRefresh(showToast) {
+    const importResult = await importSubscriptions(showToast);
+    if (!importResult || !importResult.ok) {
+      return false;
+    }
+
     reportImportStatus(t('refreshInProgress'), 'info');
+    setRefreshProgress(t('refreshProgressWaiting'));
     let videoCount = 0;
     try {
       const refreshPayload = await streamRefresh(null, {
@@ -1935,8 +1990,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (showToast) {
       showNotification(
         t('importSummary', {
-          subscriptions: newSubscriptions,
-          channels: newChannels,
+          subscriptions: importResult.newSubscriptions,
+          channels: importResult.newChannels,
           videos: videoCount
         }),
         'success'
@@ -1970,7 +2025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.importButton.disabled = true;
       await importSubscriptionsAndRefresh(true);
       ui.importButton.disabled = false;
-      await loadApp();
+      await syncVisibleStateAfterRefresh();
     });
 
     updateImportVisibility(state.currentUser);
@@ -2113,10 +2168,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupReclassifyButton();
     setupKeyboardNavigation();
     setupDebug();
-
-    if (state.currentUser) {
-      await bootstrapAuthenticated();
-    }
   }
 
   window.addEventListener('auth:changed', async event => {

@@ -65,6 +65,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ui = {
     appSubtitle: document.getElementById('app-subtitle'),
     appSubtitleSecondary: document.getElementById('app-subtitle-secondary'),
+    headerContext: document.getElementById('header-context'),
+    headerContextMedia: document.getElementById('header-context-media'),
+    headerContextImage: document.getElementById('header-context-image'),
+    headerContextEyebrow: document.getElementById('header-context-eyebrow'),
+    headerContextTitle: document.getElementById('header-context-title'),
+    headerContextDescription: document.getElementById('header-context-description'),
+    headerContextMetrics: document.getElementById('header-context-metrics'),
     subscriptionsTitle: document.getElementById('subscriptions-title'),
     filtersTitle: document.getElementById('filters-title'),
     filtersSearchLabel: document.getElementById('filters-search-label'),
@@ -313,6 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
     }
+    updateHeaderContext();
     const googleButton = document.getElementById('google-login-button');
     if (googleButton) {
       googleButton.textContent = t('signInWithGoogle');
@@ -797,6 +805,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function resolveHeaderMediaUrl(media) {
+    if (!media || !media.url) {
+      return '';
+    }
+    if (/^https?:\/\//.test(media.url)) {
+      return media.url;
+    }
+    const configuredBase = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL
+      ? window.APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
+      : '';
+    return configuredBase ? `${configuredBase}${media.url}` : media.url;
+  }
+
+  function updateHeaderContext() {
+    if (!ui.headerContext || typeof window.buildHeaderContext !== 'function') {
+      return;
+    }
+
+    const context = window.buildHeaderContext(
+      state.channels,
+      state.selectedChannelId,
+      state.selectedChannelYtId,
+      state.settings,
+      t
+    );
+
+    if (ui.headerContextEyebrow) {
+      ui.headerContextEyebrow.textContent = context.eyebrow || '';
+    }
+    if (ui.headerContextTitle) {
+      ui.headerContextTitle.textContent = context.title || '';
+    }
+    if (ui.headerContextDescription) {
+      ui.headerContextDescription.textContent = context.description || '';
+    }
+
+    if (ui.headerContextMetrics) {
+      ui.headerContextMetrics.innerHTML = '';
+      (context.metrics || []).slice(0, 4).forEach(metric => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'header-context__metric';
+
+        const title = document.createElement('dt');
+        title.textContent = metric.label || '';
+
+        const value = document.createElement('dd');
+        value.textContent = metric.value || '';
+
+        wrapper.appendChild(title);
+        wrapper.appendChild(value);
+        ui.headerContextMetrics.appendChild(wrapper);
+      });
+    }
+
+    if (ui.headerContextMedia && ui.headerContextImage) {
+      const resolvedUrl = resolveHeaderMediaUrl(context.media);
+      if (resolvedUrl) {
+        ui.headerContextMedia.hidden = false;
+        ui.headerContextImage.src = resolvedUrl;
+        ui.headerContextImage.alt = context.media.alt || '';
+      } else {
+        ui.headerContextMedia.hidden = true;
+        ui.headerContextImage.removeAttribute('src');
+        ui.headerContextImage.alt = '';
+      }
+    }
+  }
+
   function setRefreshProgress(message, status = 'running') {
     state.refreshProgress = message
       ? {
@@ -1277,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
           node.setAttribute('aria-pressed', node.classList.contains('is-active') ? 'true' : 'false');
         });
+        updateHeaderContext();
         updateVideoCounts();
         if (state.searchActive) {
           runSearch(state.searchQuery);
@@ -1440,6 +1517,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderChannelList(state.channels);
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
+    updateHeaderContext();
     await updateVideoCounts();
 
     if (state.searchActive) {
@@ -1530,6 +1608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderChannelList(state.channels);
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
+    updateHeaderContext();
     await updateVideoCounts();
     prefetchChannelThumbnails(state.channels);
 
@@ -2344,7 +2423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadSettings();
       await bootstrapAuthenticated();
     } else {
+      state.channels = [];
+      state.selectedChannelId = null;
+      state.selectedChannelYtId = null;
       clearCarousels();
+      updateHeaderContext();
     }
   });
 

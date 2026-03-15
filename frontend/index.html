@@ -34,13 +34,9 @@
       <header class="app-header" role="banner">
         <div class="header-row">
           <div class="brand">
-            <span class="brand__mark" aria-hidden="true"></span>
             <div class="brand__text">
               <h1 id="app-title" class="heading-1">YT Clear View</h1>
-              <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
-              <div id="app-notices" class="app-notices" aria-live="polite" aria-atomic="true">
-                <p id="refresh-progress" class="refresh-progress" hidden></p>
-              </div>
+              <p id="app-subtitle" class="body">Your subscriptions, zero noise.</p>
               <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
                 No Algorithm, just your favorite channels.
               </p>
@@ -50,6 +46,17 @@
               </p>
             </div>
           </div>
+          <section id="header-context" class="header-context" aria-live="polite">
+            <div id="header-context-media" class="header-context__media" hidden>
+              <img id="header-context-image" class="header-context__image" alt="">
+            </div>
+            <div class="header-context__content">
+              <p id="header-context-eyebrow" class="caption header-context__eyebrow"></p>
+              <h2 id="header-context-title" class="heading-3 header-context__title"></h2>
+              <p id="header-context-description" class="caption header-context__description"></p>
+              <dl id="header-context-metrics" class="header-context__metrics"></dl>
+            </div>
+          </section>
           <div class="menu-wrapper">
             <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-panel">
               <span class="sr-only">Open menu</span>
@@ -84,6 +91,9 @@
               </div>
             </nav>
           </div>
+        </div>
+        <div class="header-status" aria-live="polite" aria-atomic="true">
+          <p id="refresh-progress" class="refresh-progress" hidden></p>
         </div>
       </header>
 
@@ -309,6 +319,7 @@
     <script src="js/i18n.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/channel-sidebar-search.js"></script>
+    <script src="js/header-context.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/device.js"></script>

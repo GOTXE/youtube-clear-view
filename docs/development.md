@@ -51,6 +51,12 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - `Escape` clears the sidebar search.
 - The overlaid broom action clears the sidebar search and keeps focus on the same field.
 
+## Header Context Panel
+
+- The header keeps the brand block on the left, a centered contextual summary panel, and the hamburger menu on the far right.
+- The centered panel shows a global summary by default and switches to selected-channel context when a sidebar channel is active.
+- Refresh progress is rendered in a detached header status bar below the main header row so it does not compete with the `Videos` title block.
+
 ## Channel Classification
 
 - The app now uses a precision-first classifier set with only two active methods:

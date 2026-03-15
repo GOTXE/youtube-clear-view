@@ -7,8 +7,30 @@
   align-items: flex-start;
 }
 
+.header-row {
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "brand menu"
+    "context context";
+  align-items: start;
+}
+
 .brand {
   width: 100%;
+}
+
+.header-context {
+  justify-self: stretch;
+  width: 100%;
+}
+
+.header-context__metrics {
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.menu-wrapper {
+  justify-self: end;
 }
 
 .header-actions {

@@ -2,6 +2,10 @@
   padding: var(--space-6);
 }
 
+.header-row {
+  grid-template-columns: minmax(220px, 280px) minmax(260px, 1fr) auto;
+}
+
 .header-actions {
   width: 100%;
   justify-content: flex-start;

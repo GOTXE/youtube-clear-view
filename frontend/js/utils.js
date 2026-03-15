@@ -59,11 +59,9 @@
 
     if (seconds < 3600) {
       const minutes = Math.floor(seconds / 60);
-      if (minutes < 15) {
-        return t('timeJustNow');
-      }
-
-      const quarterHour = Math.min(45, Math.floor(minutes / 15) * 15);
+      const quarterHour = minutes < 15
+        ? 15
+        : Math.min(45, Math.floor(minutes / 15) * 15);
       const unitKey = quarterHour === 1 ? 'timeMinute' : 'timeMinutePlural';
       return t('timeAgo', { count: quarterHour, unit: t(unitKey) });
     }

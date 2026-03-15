@@ -95,7 +95,7 @@ describe('frontend utils', () => {
     vi.setSystemTime(new Date('2026-03-15T10:00:00Z'));
     await import('../js/utils.js');
 
-    expect(window.timeAgo('2026-03-15T09:51:00Z')).toBe('just now');
+    expect(window.timeAgo('2026-03-15T09:51:00Z')).toBe('15 minutes ago');
     expect(window.timeAgo('2026-03-15T09:40:00Z')).toBe('15 minutes ago');
     expect(window.timeAgo('2026-03-15T09:29:00Z')).toBe('30 minutes ago');
     expect(window.timeAgo('2026-03-15T09:10:00Z')).toBe('45 minutes ago');

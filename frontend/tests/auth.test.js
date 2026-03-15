@@ -126,6 +126,11 @@ describe('google account switching', () => {
     openButton.click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
+    const modal = document.getElementById('account-switcher-modal');
+    expect(modal).not.toBeNull();
+    expect(modal.querySelector('.account-switcher-modal')).not.toBeNull();
+    expect(modal.querySelector('.account-switcher-modal__primary-action')).not.toBeNull();
+
     const accountButton = document.querySelector('#account-switcher-list button[data-user-id="2"]');
     expect(accountButton).not.toBeNull();
 

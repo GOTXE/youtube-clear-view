@@ -55,7 +55,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoriesLoaded: false,
     settings: null,
     presets: null,
-    refreshProgress: null
+    refreshProgress: null,
+    initialContentReady: false,
+    autoRefreshPromise: null,
+    autoRefreshKeepsLoadingState: false
   };
 
   const ui = {
@@ -725,6 +728,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function renderSectionLoadingState(container, messageKey = 'loadingContent') {
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="section-loading" role="status" aria-live="polite">
+        <span class="section-loading__text">${t(messageKey)}</span>
+      </div>
+    `;
+  }
+
+  function renderPrimaryLoadingStates() {
+    renderSectionLoadingState(ui.latestCarousel, 'loadingVideos');
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = false;
+    }
+    renderSectionLoadingState(ui.shortsCarousel, 'loadingShorts');
+    if (ui.olderSection) {
+      ui.olderSection.hidden = false;
+    }
+    renderSectionLoadingState(ui.olderCarousel, 'loadingOlder');
+  }
+
+  function renderChannelListLoading() {
+    if (!ui.channelList) {
+      return;
+    }
+    ui.channelList.innerHTML = `
+      <p class="channel-list__loading caption" role="status" aria-live="polite">
+        ${t('loadingChannels')}
+      </p>
+    `;
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -1155,11 +1193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const meta = document.createElement('div');
       meta.className = 'channel-item__meta';
 
-      if (typeof window.createCategoryBadge === 'function' && state.categorySelector) {
+      if (typeof window.createCategoryBadge === 'function') {
         const categoryData = channel.category && channel.category.category
           ? channel.category.category
           : null;
         const badge = window.createCategoryBadge(categoryData, () => {
+          if (!state.categorySelector) {
+            return;
+          }
           state.categorySelector.open(
             channel.id,
             channel.title,
@@ -1382,10 +1423,65 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (state.searchActive) {
       await runSearch(state.searchQuery);
+      state.initialContentReady = true;
       return;
     }
 
     await reloadCarousels();
+    state.initialContentReady = true;
+  }
+
+  function startAutoRefresh(channelId = null, options = {}) {
+    const {
+      keepLoadingState = false,
+      onComplete = null,
+      onError = null
+    } = options;
+
+    if (state.autoRefreshPromise) {
+      return state.autoRefreshPromise;
+    }
+
+    state.autoRefreshAttempted = true;
+    state.autoRefreshKeepsLoadingState = keepLoadingState;
+    showNotification(t('refreshInProgress'), 'info');
+    setRefreshProgress(t('refreshProgressWaiting'));
+
+    state.autoRefreshPromise = streamRefresh(channelId, {
+      onProgress: async payload => {
+        updateRefreshProgressFromEvent(payload);
+        if (
+          !keepLoadingState
+          && state.initialContentReady
+          && payload.type === 'channel_complete'
+          && payload.channel_new_videos > 0
+        ) {
+          scheduleVisibleReload();
+        }
+      }
+    })
+      .then(async payload => {
+        await syncChannelsState();
+        if (keepLoadingState || !state.initialContentReady) {
+          await syncVisibleStateAfterRefresh();
+        }
+        if (typeof onComplete === 'function') {
+          await onComplete(payload);
+        }
+        return payload;
+      })
+      .catch(async error => {
+        if (typeof onError === 'function') {
+          await onError(error);
+        }
+        return null;
+      })
+      .finally(() => {
+        state.autoRefreshPromise = null;
+        state.autoRefreshKeepsLoadingState = false;
+      });
+
+    return state.autoRefreshPromise;
   }
 
   async function loadApp() {
@@ -1393,7 +1489,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    state.initialContentReady = false;
     setLoading(true, 'latest-carousel');
+    renderChannelListLoading();
+    renderPrimaryLoadingStates();
 
     await syncChannelsState();
 
@@ -1405,11 +1504,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.autoImportAttempted = true;
       await importSubscriptions(false);
       await syncChannelsState();
-      renderChannelList(state.channels);
-      updateChannelCount(state.channels);
-      updateLastUpdatedLabel(state.channels);
-      await updateVideoCounts();
     }
+
+    renderChannelList(state.channels);
+    updateChannelCount(state.channels);
+    updateLastUpdatedLabel(state.channels);
+    await updateVideoCounts();
+    prefetchChannelThumbnails(state.channels);
 
     const latestCheckedAt = getLatestCheckedAt(state.channels);
     const shouldAutoRefreshFromEmptyState = (
@@ -1421,41 +1522,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? Date.now() - latestCheckedAt.getTime() > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000
       : false;
 
-    if (
-      !state.autoRefreshAttempted
-      && (shouldAutoRefreshFromEmptyState || shouldAutoRefreshFromStaleState)
-    ) {
-      state.autoRefreshAttempted = true;
-      showNotification(t('refreshInProgress'), 'info');
-      setRefreshProgress(t('refreshProgressWaiting'));
-      try {
-        await streamRefresh(null, {
-          onProgress: async payload => {
-            updateRefreshProgressFromEvent(payload);
-            if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
-              scheduleVisibleReload();
-            }
-          }
-        });
-        await syncChannelsState();
-      } catch (error) {
-        // Ignore auto-refresh stream errors and continue rendering existing data.
-      }
+    if (!state.autoRefreshAttempted && shouldAutoRefreshFromEmptyState) {
+      startAutoRefresh(null, { keepLoadingState: true });
+      setLoading(false, 'latest-carousel');
+      return;
     }
-
-    renderChannelList(state.channels);
-    updateChannelCount(state.channels);
-    updateLastUpdatedLabel(state.channels);
-    await updateVideoCounts();
 
     clearCarousels();
     await renderMainCarousel();
-
-    setLoading(false, 'latest-carousel');
+    state.initialContentReady = true;
 
     deferredTask(async () => {
-      prefetchChannelThumbnails(state.channels);
-
       if (ui.shortsSection) {
         ui.shortsSection.hidden = false;
       }
@@ -1474,6 +1551,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     });
+
+    setLoading(false, 'latest-carousel');
+
+    if (!state.autoRefreshAttempted && shouldAutoRefreshFromStaleState) {
+      startAutoRefresh(null);
+    }
   }
 
   async function reloadCarousels() {
@@ -1490,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let refreshVisibleTimer = null;
   function scheduleVisibleReload() {
-    if (state.searchActive) {
+    if (state.searchActive || !state.initialContentReady) {
       return;
     }
     if (refreshVisibleTimer) {

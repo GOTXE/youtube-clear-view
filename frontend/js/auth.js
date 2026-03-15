@@ -462,12 +462,12 @@
     }
 
     const overlay = document.createElement('section');
-    overlay.className = 'confirm-modal-overlay';
+    overlay.className = 'confirm-modal-overlay account-switcher-overlay';
     overlay.id = 'account-switcher-modal';
     overlay.hidden = true;
 
     const modal = document.createElement('div');
-    modal.className = 'confirm-modal';
+    modal.className = 'confirm-modal account-switcher-modal';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', 'account-switcher-title');
@@ -504,11 +504,11 @@
     body.appendChild(list);
 
     const footer = document.createElement('footer');
-    footer.className = 'confirm-modal__footer';
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
 
     const newLoginButton = document.createElement('button');
     newLoginButton.type = 'button';
-    newLoginButton.className = 'button';
+    newLoginButton.className = 'button account-switcher-modal__primary-action';
     newLoginButton.textContent = t('addGoogleAccount');
 
     footer.appendChild(newLoginButton);

@@ -297,7 +297,6 @@
 
   async function initDevice() {
     deviceIdentifier = buildDeviceIdentifier();
-    const storedId = getDeviceId();
     const suggestion = await detectDevice();
     const suggestedType = suggestion && suggestion.suggested_type
       ? suggestion.suggested_type
@@ -312,8 +311,10 @@
     currentDeviceId = registration.id;
     currentDeviceType = registration.device_type;
     setDeviceId(currentDeviceId);
-
-    const isNew = !storedId || String(storedId) !== String(currentDeviceId);
+    const normalizedSuggestedType = suggestedType || DEVICE_TYPES.DESKTOP;
+    const normalizedCurrentType = currentDeviceType || DEVICE_TYPES.DESKTOP;
+    const isNew = normalizedCurrentType === DEVICE_TYPES.DESKTOP
+      && normalizedSuggestedType !== DEVICE_TYPES.DESKTOP;
 
     if (isNew) {
       openDeviceModal(suggestedType);

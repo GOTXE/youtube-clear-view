@@ -57,13 +57,23 @@
       return t('timeJustNow');
     }
 
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 15) {
+        return t('timeJustNow');
+      }
+
+      const quarterHour = Math.min(45, Math.floor(minutes / 15) * 15);
+      const unitKey = quarterHour === 1 ? 'timeMinute' : 'timeMinutePlural';
+      return t('timeAgo', { count: quarterHour, unit: t(unitKey) });
+    }
+
     const intervals = [
       { key: 'timeYear', seconds: 31536000 },
       { key: 'timeMonth', seconds: 2592000 },
       { key: 'timeWeek', seconds: 604800 },
       { key: 'timeDay', seconds: 86400 },
       { key: 'timeHour', seconds: 3600 },
-      { key: 'timeMinute', seconds: 60 },
       { key: 'timeSecond', seconds: 1 }
     ];
 

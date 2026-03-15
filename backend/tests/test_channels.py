@@ -147,3 +147,21 @@ def test_refresh_and_videos(client, app):
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["videos"][0]["watched"] is True
+
+
+def test_refresh_stream_emits_incremental_events(client):
+    _login(client, "erin")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    response = client.get(f"/api/channels/refresh/stream?channel_id={channel_id}")
+    assert response.status_code == 200
+    assert response.mimetype == "text/event-stream"
+
+    body = response.get_data(as_text=True)
+    assert '"type": "stream_opened"' in body
+    assert '"type": "start"' in body
+    assert '"type": "channel_started"' in body
+    assert '"type": "channel_complete"' in body
+    assert '"type": "complete"' in body
+    assert '"channel_new_videos": 1' in body

@@ -54,7 +54,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     categorySelector: null,
     categoriesLoaded: false,
     settings: null,
-    presets: null
+    presets: null,
+    refreshProgress: null
   };
 
   const ui = {
@@ -116,6 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     olderTitle: document.getElementById('older-title'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
+    refreshProgress: document.getElementById('refresh-progress'),
     lastUpdatedLabel: document.getElementById('last-updated'),
     channelList: document.getElementById('channel-list'),
     channelCount: document.getElementById('channel-count'),
@@ -137,6 +139,114 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
+  const deferredTask = callback => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => {
+        callback();
+      }, { timeout: 1200 });
+      return;
+    }
+
+    window.setTimeout(() => {
+      callback();
+    }, 0);
+  };
+
+  const isVisibleForKeyboardNav = element => {
+    if (!element || element.hidden || element.getAttribute('aria-hidden') === 'true') {
+      return false;
+    }
+
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+
+  const getKeyboardNavigableElements = () => (
+    Array.from(document.querySelectorAll(
+      [
+        '.menu-toggle',
+        '.menu-item:not([hidden])',
+        '.filter-panel__close',
+        '.filter-pill',
+        '.button',
+        '.channel-item',
+        '.video-card',
+        '.carousel-control',
+        '.field__input',
+        '.menu-language__button'
+      ].join(', ')
+    )).filter(element => !element.disabled && isVisibleForKeyboardNav(element))
+  );
+
+  const getDirectionalCandidate = (current, direction) => {
+    if (!current) {
+      return null;
+    }
+
+    const currentRect = current.getBoundingClientRect();
+    const currentCenterX = currentRect.left + currentRect.width / 2;
+    const currentCenterY = currentRect.top + currentRect.height / 2;
+
+    const candidates = getKeyboardNavigableElements()
+      .filter(element => element !== current)
+      .map(element => {
+        const rect = element.getBoundingClientRect();
+        return {
+          element,
+          centerX: rect.left + rect.width / 2,
+          centerY: rect.top + rect.height / 2
+        };
+      })
+      .filter(candidate => {
+        if (direction === 'left') {
+          return candidate.centerX < currentCenterX - 4;
+        }
+        if (direction === 'right') {
+          return candidate.centerX > currentCenterX + 4;
+        }
+        if (direction === 'up') {
+          return candidate.centerY < currentCenterY - 4;
+        }
+        if (direction === 'down') {
+          return candidate.centerY > currentCenterY + 4;
+        }
+        return false;
+      });
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    candidates.sort((a, b) => {
+      const primaryA = direction === 'left' || direction === 'right'
+        ? Math.abs(a.centerX - currentCenterX)
+        : Math.abs(a.centerY - currentCenterY);
+      const primaryB = direction === 'left' || direction === 'right'
+        ? Math.abs(b.centerX - currentCenterX)
+        : Math.abs(b.centerY - currentCenterY);
+
+      if (primaryA !== primaryB) {
+        return primaryA - primaryB;
+      }
+
+      const secondaryA = direction === 'left' || direction === 'right'
+        ? Math.abs(a.centerY - currentCenterY)
+        : Math.abs(a.centerX - currentCenterX);
+      const secondaryB = direction === 'left' || direction === 'right'
+        ? Math.abs(b.centerY - currentCenterY)
+        : Math.abs(b.centerX - currentCenterX);
+
+      return secondaryA - secondaryB;
+    });
+
+    return candidates[0].element;
+  };
+
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
       ui.appSubtitle.textContent = t('subtitlePrimary');
@@ -630,6 +740,131 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function setRefreshProgress(message, status = 'running') {
+    state.refreshProgress = message
+      ? {
+          message,
+          status
+        }
+      : null;
+
+    if (!ui.refreshProgress) {
+      return;
+    }
+
+    if (!message) {
+      ui.refreshProgress.hidden = true;
+      ui.refreshProgress.textContent = '';
+      ui.refreshProgress.removeAttribute('data-state');
+      return;
+    }
+
+    ui.refreshProgress.hidden = false;
+    ui.refreshProgress.textContent = message;
+    ui.refreshProgress.setAttribute('data-state', status);
+  }
+
+  function updateRefreshProgressFromEvent(payload) {
+    if (!payload || !payload.type) {
+      return;
+    }
+
+    if (payload.type === 'stream_opened' || payload.type === 'start') {
+      setRefreshProgress(t('refreshProgressWaiting'));
+      return;
+    }
+
+    if (payload.type === 'channel_started') {
+      const total = payload.total_channels || '?';
+      const current = payload.current_channel || 0;
+      const title = payload.channel_title || t('unknownChannel');
+      setRefreshProgress(t('refreshProgressChannels', { current, total, title }));
+      return;
+    }
+
+    if (payload.type === 'complete') {
+      setRefreshProgress(
+        t('refreshProgressDone', { count: payload.new_videos || 0 }),
+        'complete'
+      );
+      window.setTimeout(() => {
+        if (state.refreshProgress && state.refreshProgress.status === 'complete') {
+          setRefreshProgress('');
+        }
+      }, 2500);
+    }
+  }
+
+  function buildRefreshStreamUrl(channelId = null, backfill = false) {
+    const baseUrl = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '';
+    const params = new URLSearchParams();
+    if (channelId !== null && channelId !== undefined) {
+      params.set('channel_id', String(channelId));
+    }
+    if (backfill) {
+      params.set('backfill', 'true');
+    }
+    const query = params.toString();
+    return `${baseUrl}/channels/refresh/stream${query ? `?${query}` : ''}`;
+  }
+
+  function streamRefresh(channelId = null, options = {}) {
+    const {
+      backfill = false,
+      onProgress = null,
+      onComplete = null,
+      onError = null
+    } = options;
+
+    return new Promise((resolve, reject) => {
+      if (typeof window.EventSource !== 'function') {
+        reject(new Error('SSE not supported'));
+        return;
+      }
+
+      const source = new window.EventSource(buildRefreshStreamUrl(channelId, backfill), {
+        withCredentials: true
+      });
+      let finished = false;
+
+      const close = () => {
+        source.close();
+      };
+
+      source.addEventListener('refresh', async event => {
+        let payload = null;
+        try {
+          payload = JSON.parse(event.data);
+        } catch (error) {
+          return;
+        }
+
+        if (typeof onProgress === 'function') {
+          await onProgress(payload);
+        }
+
+        if (payload.type === 'complete') {
+          finished = true;
+          close();
+          if (typeof onComplete === 'function') {
+            await onComplete(payload);
+          }
+          resolve(payload);
+        }
+      });
+
+      source.onerror = async () => {
+        close();
+        const error = new Error('Refresh stream failed');
+        setRefreshProgress(t('refreshProgressError'), 'error');
+        if (!finished && typeof onError === 'function') {
+          await onError(error);
+        }
+        reject(error);
+      };
+    });
+  }
+
   function applyFilters(payload) {
     if (!payload || !Array.isArray(payload.videos)) {
       return payload;
@@ -947,6 +1182,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if ((isAllSelected && !id) || matchesId || matchesYt) {
         item.classList.add('is-active');
       }
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-pressed', item.classList.contains('is-active') ? 'true' : 'false');
       item.addEventListener('click', () => {
         const rawId = item.dataset.channelId;
         const parsedId = rawId ? Number(rawId) : null;
@@ -965,12 +1203,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             'is-active',
             (allSelected && !nodeId) || idSelected || ytSelected
           );
+          node.setAttribute('aria-pressed', node.classList.contains('is-active') ? 'true' : 'false');
         });
         updateVideoCounts();
         if (state.searchActive) {
           runSearch(state.searchQuery);
         } else {
           reloadCarousels();
+        }
+      });
+      item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          item.click();
         }
       });
     });
@@ -1141,12 +1386,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (ageMs > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000) {
         state.autoRefreshAttempted = true;
         showNotification(t('refreshInProgress'), 'info');
-        const refreshResponse = await api.refreshChannels();
-        if (refreshResponse.ok) {
+        try {
+          await streamRefresh(null, {
+            onProgress: async payload => {
+              updateRefreshProgressFromEvent(payload);
+              if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+                scheduleVisibleReload();
+              }
+            }
+          });
           const refreshedChannels = await api.getChannels();
           if (refreshedChannels.ok) {
             state.channels = refreshedChannels.data || [];
           }
+        } catch (error) {
+          // Ignore auto-refresh stream errors and continue rendering existing data.
         }
       }
     }
@@ -1155,29 +1409,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
     await updateVideoCounts();
-    prefetchChannelThumbnails(state.channels);
 
     clearCarousels();
     await renderMainCarousel();
-    await renderShortsCarousel();
-    await renderOlderCarousel();
-
-    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
-      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
-      await state.categoryManager.init();
-      if (ui.categoriesSection) {
-        ui.categoriesSection.hidden = false;
-      }
-    }
-
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
-    }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
 
     setLoading(false, 'latest-carousel');
+
+    deferredTask(async () => {
+      prefetchChannelThumbnails(state.channels);
+
+      if (ui.shortsSection) {
+        ui.shortsSection.hidden = false;
+      }
+      await renderShortsCarousel();
+
+      if (ui.olderSection) {
+        ui.olderSection.hidden = false;
+      }
+      await renderOlderCarousel();
+
+      if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+        state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+        await state.categoryManager.init();
+        if (ui.categoriesSection) {
+          ui.categoriesSection.hidden = false;
+        }
+      }
+    });
   }
 
   async function reloadCarousels() {
@@ -1190,6 +1448,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.categoryManager = new window.CategoryManager(api, 'category-carousels');
       await state.categoryManager.init();
     }
+  }
+
+  let refreshVisibleTimer = null;
+  function scheduleVisibleReload() {
+    if (state.searchActive) {
+      return;
+    }
+    if (refreshVisibleTimer) {
+      window.clearTimeout(refreshVisibleTimer);
+    }
+    refreshVisibleTimer = window.setTimeout(async () => {
+      refreshVisibleTimer = null;
+      await reloadCarousels();
+    }, 700);
   }
 
   function setupFilters() {
@@ -1330,6 +1602,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const setMenuOpen = isOpen => {
       ui.menuPanel.hidden = !isOpen;
       ui.menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (isOpen) {
+        const firstAction = ui.menuPanel.querySelector('button:not([hidden])');
+        if (firstAction) {
+          firstAction.focus();
+        }
+      }
     };
 
     ui.menuToggle.addEventListener('click', event => {
@@ -1471,6 +1749,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.filterPanelClose) {
       ui.filterPanelClose.addEventListener('click', () => {
         panel.hidden = true;
+        if (ui.menuFilters) {
+          ui.menuFilters.focus();
+        }
       });
     }
 
@@ -1502,6 +1783,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function setupKeyboardNavigation() {
+    document.addEventListener('keydown', event => {
+      const isArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key);
+      if (!isArrow) {
+        return;
+      }
+
+      const active = document.activeElement;
+      const isTypingTarget = active && (
+        active.tagName === 'INPUT'
+        || active.tagName === 'TEXTAREA'
+        || active.tagName === 'SELECT'
+        || active.isContentEditable
+      );
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      const directionMap = {
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+        ArrowUp: 'up',
+        ArrowDown: 'down'
+      };
+
+      const nextElement = getDirectionalCandidate(active, directionMap[event.key]);
+      if (!nextElement) {
+        return;
+      }
+
+      event.preventDefault();
+      nextElement.focus();
+      nextElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    });
+  }
+
   function setupRefresh() {
     if (!ui.refreshButton) {
       return;
@@ -1509,17 +1831,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ui.refreshButton.addEventListener('click', async () => {
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
-      const response = await api.refreshChannels(targetChannelId);
-      if (!response.ok) {
-        showNotification(t('unableRefreshVideos'), 'error');
-        return;
-      }
+      reportImportStatus(t('refreshInProgress'), 'info');
 
-      const count = response.data && typeof response.data.new_videos === 'number'
-        ? response.data.new_videos
-        : 0;
-      showNotification(t('newVideosFound', { count }), 'success');
-      await loadApp();
+      try {
+        const result = await streamRefresh(targetChannelId, {
+          onProgress: async payload => {
+            updateRefreshProgressFromEvent(payload);
+            if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+              scheduleVisibleReload();
+            }
+          },
+          onComplete: async payload => {
+            reportImportStatus('', 'info');
+            await loadApp();
+            showNotification(t('newVideosFound', { count: payload.new_videos || 0 }), 'success');
+          },
+          onError: async () => {
+            reportImportStatus('', 'info');
+          }
+        });
+        if (!result) {
+          return;
+        }
+      } catch (error) {
+        reportImportStatus('', 'info');
+        showNotification(t('unableRefreshVideos'), 'error');
+      }
     });
   }
 
@@ -1573,20 +1910,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     reportImportStatus(t('refreshInProgress'), 'info');
-    const refreshResponse = await api.refreshChannels();
-    reportImportStatus('', 'info');
-
-    if (!refreshResponse.ok) {
+    let videoCount = 0;
+    try {
+      const refreshPayload = await streamRefresh(null, {
+        onProgress: async payload => {
+          updateRefreshProgressFromEvent(payload);
+          if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+            scheduleVisibleReload();
+          }
+        }
+      });
+      videoCount = refreshPayload && typeof refreshPayload.new_videos === 'number'
+        ? refreshPayload.new_videos
+        : 0;
+    } catch (error) {
+      reportImportStatus('', 'info');
       if (showToast) {
         showNotification(t('importFailed'), 'warning');
       }
       return true;
     }
-
-    const refreshPayload = refreshResponse.data || {};
-    const videoCount = typeof refreshPayload.new_videos === 'number'
-      ? refreshPayload.new_videos
-      : 0;
+    reportImportStatus('', 'info');
 
     if (showToast) {
       showNotification(
@@ -1767,6 +2111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupRefresh();
     setupImportButton();
     setupReclassifyButton();
+    setupKeyboardNavigation();
     setupDebug();
 
     if (state.currentUser) {

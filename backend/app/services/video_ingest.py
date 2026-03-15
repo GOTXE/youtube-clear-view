@@ -76,8 +76,15 @@ def _delete_older_than(channel_id, cutoff):
         db.session.delete(video)
 
 
-def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_refreshed=False, now=None):
-    """Refresh videos for a user with per-channel caps."""
+def iter_refresh_user_channels(
+    user,
+    settings,
+    service,
+    channel_id=None,
+    ignore_last_refreshed=False,
+    now=None,
+):
+    """Yield incremental refresh progress for a user with per-channel caps."""
     now = now or datetime.utcnow()
     preset = get_preset(settings.preset)
     recent_days = preset["recent_days"]
@@ -93,30 +100,94 @@ def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_
     else:
         subscriptions = UserChannel.query.filter_by(user_id=user.id).all()
 
+    total_channels = len(subscriptions)
     if not subscriptions:
-        return {"new_videos": 0, "rate_limited": False}
+        yield {
+            "type": "complete",
+            "new_videos": 0,
+            "rate_limited": False,
+            "processed_channels": 0,
+            "total_channels": 0,
+        }
+        return
 
     new_videos = 0
     rate_limited = False
+    processed_channels = 0
 
     reset_quota_if_needed(settings)
 
-    for subscription in subscriptions:
+    yield {
+        "type": "start",
+        "new_videos": 0,
+        "rate_limited": False,
+        "processed_channels": 0,
+        "total_channels": total_channels,
+    }
+
+    for index, subscription in enumerate(subscriptions, start=1):
         channel = subscription.channel
+        channel_new_videos = 0
+
+        yield {
+            "type": "channel_started",
+            "channel_id": channel.id,
+            "yt_channel_id": channel.yt_channel_id,
+            "channel_title": channel.title,
+            "processed_channels": processed_channels,
+            "current_channel": index,
+            "total_channels": total_channels,
+            "new_videos": new_videos,
+        }
 
         if not consume(settings, Config.YT_REFRESH_COST):
+            db.session.commit()
+            yield {
+                "type": "complete",
+                "new_videos": new_videos,
+                "rate_limited": False,
+                "processed_channels": processed_channels,
+                "total_channels": total_channels,
+                "blocked": True,
+                "reason": "quota_cap_reached",
+            }
             break
 
         response = service.get_channel_videos(channel.yt_channel_id)
         if response.get("rate_limited"):
             mark_quota_exhausted(settings)
             rate_limited = True
+            db.session.commit()
+            yield {
+                "type": "complete",
+                "new_videos": new_videos,
+                "rate_limited": True,
+                "processed_channels": processed_channels,
+                "total_channels": total_channels,
+                "blocked": True,
+                "reason": "upstream_rate_limited",
+            }
             break
         if not response.get("success", True):
             logger.warning(
                 "Channel refresh failed.",
                 extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
             )
+            subscription.last_checked_at = now
+            db.session.commit()
+            processed_channels += 1
+            yield {
+                "type": "channel_complete",
+                "channel_id": channel.id,
+                "yt_channel_id": channel.yt_channel_id,
+                "channel_title": channel.title,
+                "channel_new_videos": 0,
+                "new_videos": new_videos,
+                "processed_channels": processed_channels,
+                "current_channel": index,
+                "total_channels": total_channels,
+                "success": False,
+            }
             continue
 
         latest_seen = subscription.last_refreshed_at
@@ -180,6 +251,7 @@ def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_
             )
             db.session.add(video)
             new_videos += 1
+            channel_new_videos += 1
 
             if latest_seen is None or published_at > latest_seen:
                 latest_seen = published_at
@@ -194,5 +266,53 @@ def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_
         _prune_range(channel.id, older_max_cutoff, older_min_cutoff, False, preset["older_video_cap"])
         _prune_range(channel.id, older_max_cutoff, older_min_cutoff, True, preset["older_short_cap"])
 
-    db.session.commit()
-    return {"new_videos": new_videos, "rate_limited": rate_limited}
+        db.session.commit()
+        processed_channels += 1
+        yield {
+            "type": "channel_complete",
+            "channel_id": channel.id,
+            "yt_channel_id": channel.yt_channel_id,
+            "channel_title": channel.title,
+            "channel_new_videos": channel_new_videos,
+            "new_videos": new_videos,
+            "processed_channels": processed_channels,
+            "current_channel": index,
+            "total_channels": total_channels,
+            "success": True,
+        }
+    else:
+        yield {
+            "type": "complete",
+            "new_videos": new_videos,
+            "rate_limited": rate_limited,
+            "processed_channels": processed_channels,
+            "total_channels": total_channels,
+        }
+
+
+def refresh_user_channels(user, settings, service, channel_id=None, ignore_last_refreshed=False, now=None):
+    """Refresh videos for a user with per-channel caps."""
+    summary = {
+        "new_videos": 0,
+        "rate_limited": False,
+        "processed_channels": 0,
+        "total_channels": 0,
+    }
+    for event in iter_refresh_user_channels(
+        user,
+        settings,
+        service,
+        channel_id=channel_id,
+        ignore_last_refreshed=ignore_last_refreshed,
+        now=now,
+    ):
+        if event.get("type") == "complete":
+            summary.update(
+                {
+                    "new_videos": event.get("new_videos", 0),
+                    "rate_limited": event.get("rate_limited", False),
+                    "processed_channels": event.get("processed_channels", 0),
+                    "total_channels": event.get("total_channels", 0),
+                }
+            )
+    return summary

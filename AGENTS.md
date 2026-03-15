@@ -12,6 +12,23 @@ This repository is currently a scaffold/design workspace. The intended target la
 - `docs/`: public documentation (API, deployment, development)
 - `tech_docs/`: private/local notes (gitignored; not synced to GitHub)
 
+## VibeCoding
+
+This repo uses a local overlay in `vibecoding/`.
+
+Before working on code changes:
+1. Read `vibecoding/project.yaml`
+2. Read `vibecoding/docs/ia/00_core/00_index_maestro_ia.spec`
+3. Load only the profiles and documents needed for the task
+
+Operational flow:
+- use `quick` for small changes
+- use `full` for structural or multi-module changes
+- persist evidence in `vibecoding/runs/<task-id>/`
+
+Runner:
+- `./vibecoding/orchestration/runner/vibecoding_runner.sh`
+
 ## Build, Test, and Development Commands
 
 Commands below apply once `backend/` and related modules exist:

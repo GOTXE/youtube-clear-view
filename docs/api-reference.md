@@ -331,6 +331,64 @@ Response:
 
 ### POST /api/channels/refresh
 
+Refreshes one subscribed channel or all channels for the current user.
+
+Request (optional):
+
+```json
+{ "channel_id": 12, "backfill": false }
+```
+
+Response:
+
+```json
+{
+  "new_videos": 3,
+  "refreshed_at": "2026-03-15T01:46:18.221000"
+}
+```
+
+### GET /api/channels/refresh/stream
+
+Streams refresh progress as Server-Sent Events (SSE). This is intended for the
+web client so visible content can update incrementally while the backend keeps
+processing channels.
+
+Query params:
+- `channel_id` (optional): refresh only one subscribed channel
+- `backfill=true` (optional): ignore the last refresh watermark for this run
+
+Response headers:
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache`
+
+Event stream format:
+
+```text
+event: refresh
+data: {"type":"stream_opened","refreshed_at":"2026-03-15T01:46:18.221000"}
+
+event: refresh
+data: {"type":"start","processed_channels":0,"total_channels":12,"new_videos":0}
+
+event: refresh
+data: {"type":"channel_started","channel_id":7,"channel_title":"Example","current_channel":1,"total_channels":12}
+
+event: refresh
+data: {"type":"channel_complete","channel_id":7,"channel_new_videos":2,"new_videos":2,"processed_channels":1,"total_channels":12,"success":true}
+
+event: refresh
+data: {"type":"complete","new_videos":8,"processed_channels":12,"total_channels":12,"rate_limited":false}
+```
+
+Notes:
+- The backend persists progress per channel, so new videos may become visible
+  before the full refresh completes.
+- The frontend should treat SSE as the source of refresh progress and use the
+  final `complete` event as the end-of-run signal.
+
+### POST /api/channels/refresh
+
 Refreshes videos for one channel or all channels.
 
 Request (optional):
@@ -578,4 +636,3 @@ Deletes a device.
 ### POST /api/devices/detect
 
 Suggests a device type based on screen size.
-

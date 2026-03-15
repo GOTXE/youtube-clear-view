@@ -349,6 +349,12 @@ class Carousel {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         handleActivate();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        this.moveCardFocus(card, event.key === 'ArrowRight' ? 1 : -1);
       }
     });
 
@@ -402,6 +408,17 @@ class Carousel {
   }
 
   handleTrackKeydown(event) {
+    const active = document.activeElement;
+    const activeCard = active && active.classList && active.classList.contains('video-card')
+      ? active
+      : null;
+
+    if (activeCard && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      event.preventDefault();
+      this.moveCardFocus(activeCard, event.key === 'ArrowRight' ? 1 : -1);
+      return;
+    }
+
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
       this.scrollLeft();
@@ -410,6 +427,38 @@ class Carousel {
     if (event.key === 'ArrowRight') {
       event.preventDefault();
       this.scrollRight();
+    }
+  }
+
+  moveCardFocus(currentCard, direction) {
+    if (!this.track || !currentCard) {
+      return;
+    }
+
+    const cards = Array.from(this.track.querySelectorAll('.video-card'));
+    const currentIndex = cards.indexOf(currentCard);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= cards.length) {
+      if (direction > 0) {
+        this.scrollRight();
+      } else {
+        this.scrollLeft();
+      }
+      return;
+    }
+
+    const nextCard = cards[nextIndex];
+    nextCard.focus();
+    if (typeof nextCard.scrollIntoView === 'function') {
+      nextCard.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
     }
   }
 
@@ -452,7 +501,11 @@ class Carousel {
     }
 
     const amount = this.track.clientWidth;
-    this.track.scrollBy({ left: -amount, behavior: 'smooth' });
+    if (typeof this.track.scrollBy === 'function') {
+      this.track.scrollBy({ left: -amount, behavior: 'smooth' });
+    } else {
+      this.track.scrollLeft -= amount;
+    }
   }
 
   scrollRight() {
@@ -461,7 +514,11 @@ class Carousel {
     }
 
     const amount = this.track.clientWidth;
-    this.track.scrollBy({ left: amount, behavior: 'smooth' });
+    if (typeof this.track.scrollBy === 'function') {
+      this.track.scrollBy({ left: amount, behavior: 'smooth' });
+    } else {
+      this.track.scrollLeft += amount;
+    }
   }
 
   destroy() {

@@ -245,6 +245,35 @@ select {
   margin: 0;
 }
 
+.section-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.refresh-progress {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--text);
+  font-size: var(--font-body-small);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.refresh-progress[data-state="complete"] {
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.refresh-progress[data-state="error"] {
+  border-color: color-mix(in srgb, var(--error) 28%, transparent);
+  background: color-mix(in srgb, var(--error) 12%, var(--surface));
+}
+
 .body {
   margin: 0;
   font-size: var(--font-body);
@@ -368,6 +397,18 @@ select {
   border-color: var(--primary);
 }
 
+.menu-toggle:focus,
+.menu-item:focus,
+.filter-panel__close:focus,
+.filter-pill:focus,
+.channel-item:focus,
+.carousel-control:focus,
+.video-card:focus,
+.menu-language__button:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .menu-language {
   display: flex;
   gap: var(--space-2);
@@ -484,6 +525,10 @@ select {
 
 .channel-item:hover {
   background: var(--bg-secondary);
+}
+
+.channel-item:focus {
+  background: color-mix(in srgb, var(--surface) 88%, var(--primary) 12%);
 }
 
 .channel-item.is-active {
@@ -778,6 +823,11 @@ select {
 
 .video-card:hover {
   transform: translateY(-6px);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
+}
+
+.video-card:focus {
+  transform: translateY(-4px);
   box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
 }
 

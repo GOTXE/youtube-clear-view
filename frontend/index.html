@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <style>
       html:not(.i18n-ready) body {
         visibility: hidden;
@@ -103,7 +104,10 @@
                       <span id="videos-count" class="count-pill">0</span>
                     </h2>
                   </div>
-                  <p id="last-updated" class="caption"></p>
+                  <div class="section-status">
+                    <p id="refresh-progress" class="refresh-progress" aria-live="polite" hidden></p>
+                    <p id="last-updated" class="caption"></p>
+                  </div>
                 </div>
                 <div id="latest-carousel" class="carousel-shell__body" aria-live="polite"></div>
               </div>

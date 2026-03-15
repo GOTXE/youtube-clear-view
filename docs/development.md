@@ -6,23 +6,37 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
+cd frontend && npm install
 ```
 
 Create `.env` in `backend/` based on `.env.example`.
 
-## Run Backend
+## Run the App Locally
 
 ```bash
-cd backend
 python -c "from app import create_app; create_app(); print('OK')"
-python -m flask --app app run --port 5550
+./scripts/run_local.sh
 ```
+
+This starts:
+- frontend on `http://localhost:8080`
+- backend on `http://localhost:5550`
+- log viewer on `http://localhost:5551/logs`
+
+Google OAuth local development must use:
+- `GOOGLE_REDIRECT_URI=http://localhost:5550/api/auth/google/callback`
+- `FRONTEND_URL=http://localhost:8080`
 
 ## Run Tests
 
 ```bash
 pytest backend/tests -v
+./scripts/test_frontend.sh
+./scripts/test_fast.sh
+./scripts/test_full.sh
 ```
+
+Frontend tests use `Vitest` + `jsdom` and live under `frontend/tests/`.
 
 ## Project Structure
 
@@ -71,7 +85,7 @@ The UI waits for translations to load before rendering to avoid a brief flash of
 
 ## Git Workflow
 
-1. Create a feature branch: `desarrollo_paso_<n>`.
+1. Create a feature branch, for example `feat/web-ui-ux`.
 2. Implement changes and run tests.
 3. Commit and push.
 4. Open a PR if needed.

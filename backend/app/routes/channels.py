@@ -1,11 +1,12 @@
 """Channel management routes."""
 
 from datetime import datetime, timedelta
+import json
 import os
 from urllib.parse import urlparse
 
 import requests
-from flask import Blueprint, current_app, g, jsonify, redirect, request, send_file
+from flask import Blueprint, Response, current_app, g, jsonify, redirect, request, send_file, stream_with_context
 from sqlalchemy import func
 
 from app.extensions import db
@@ -18,7 +19,7 @@ from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
-from app.services.video_ingest import refresh_user_channels
+from app.services.video_ingest import iter_refresh_user_channels, refresh_user_channels
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
 
@@ -419,6 +420,58 @@ def refresh_channels():
     )
 
     return jsonify({"new_videos": result.get("new_videos", 0), "refreshed_at": refreshed_at.isoformat()})
+
+
+@channels_bp.get("/api/channels/refresh/stream")
+@handle_route_errors
+@require_auth
+def refresh_channels_stream():
+    """Stream refresh progress for one or all subscribed channels."""
+    user = g.current_user
+    user_id = user.id
+    channel_id = request.args.get("channel_id", type=int)
+    backfill = request.args.get("backfill", "false").lower() == "true"
+
+    if channel_id:
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        if not subscription:
+            return _not_found("Subscription not found.")
+
+    settings = UserSettings.query.filter_by(user_id=user_id).first()
+    if not settings:
+        settings = UserSettings(user_id=user_id, preset=DEFAULT_PRESET)
+        db.session.add(settings)
+        db.session.commit()
+
+    refreshed_at = datetime.utcnow()
+
+    def generate():
+        stream_user = db.session.get(type(user), user_id)
+        stream_settings = UserSettings.query.filter_by(user_id=user_id).first()
+        if not stream_settings:
+            stream_settings = UserSettings(user_id=user_id, preset=DEFAULT_PRESET)
+            db.session.add(stream_settings)
+            db.session.commit()
+
+        service = _get_service()
+        yield "event: refresh\ndata: " + json.dumps(
+            {"type": "stream_opened", "refreshed_at": refreshed_at.isoformat()}
+        ) + "\n\n"
+        for event in iter_refresh_user_channels(
+            stream_user,
+            stream_settings,
+            service,
+            channel_id=channel_id,
+            ignore_last_refreshed=backfill,
+            now=refreshed_at,
+        ):
+            event.setdefault("refreshed_at", refreshed_at.isoformat())
+            yield "event: refresh\ndata: " + json.dumps(event) + "\n\n"
+
+    response = Response(stream_with_context(generate()), mimetype="text/event-stream")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    return response
 
 
 @channels_bp.post("/api/channels/import")

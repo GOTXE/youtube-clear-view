@@ -99,7 +99,7 @@
   }
 
   function initTheme() {
-    let theme = DEFAULT_THEME;
+    let theme = null;
 
     if (typeof window.getCurrentUser === 'function') {
       const user = window.getCurrentUser();

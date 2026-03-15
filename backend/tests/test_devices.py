@@ -59,6 +59,7 @@ def test_register_and_list_devices(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["device_type"] in ("desktop", "tv", "tablet", "mobile")
+    assert data["device_type_confirmed"] is False
 
     response = client.get("/api/devices")
     assert response.status_code == 200
@@ -80,6 +81,30 @@ def test_update_device_type(client):
     )
     assert response.status_code == 200
     assert response.get_json()["device_type"] == "tv"
+    assert response.get_json()["device_type_confirmed"] is True
+
+
+def test_register_device_returns_confirmation_state_for_existing_device(client):
+    _login(client, "bob")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "dev", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    client.put(
+        f"/api/devices/{device_id}/type",
+        json={"device_type": "tv"},
+    )
+
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "dev", "user_agent": "ua"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["device_type"] == "tv"
+    assert data["device_type_confirmed"] is True
 
 
 def test_detect_device(client):

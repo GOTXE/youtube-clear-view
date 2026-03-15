@@ -681,13 +681,23 @@ Removes a channel from a theme.
 
 Registers a device for the current user and updates `last_used_at`.
 
+Response example:
+
+```json
+{
+  "id": 3,
+  "device_type": "tv",
+  "device_type_confirmed": true
+}
+```
+
 ### GET /api/devices
 
 Lists registered devices.
 
 ### PUT /api/devices/<device_id>/type
 
-Updates device type.
+Updates device type and marks it as explicitly confirmed for that user/device pair.
 
 ### DELETE /api/devices/<device_id>
 

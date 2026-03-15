@@ -37,6 +37,13 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - Selecting an existing account switches the backend session and reloads channels, videos, watched state, and settings for that user.
 - Choosing a new account starts the normal Google OAuth flow and adds that account to the browser-known list after callback.
 
+## Device Type Persistence
+
+- Device state is stored per `user_id + device_identifier` in `user_devices`.
+- The frontend keeps only the latest device row id in local storage; the confirmed device type remains authoritative in the backend.
+- The device modal now auto-opens only when the current user's device is not yet confirmed.
+- The hamburger menu also exposes a manual `Device type` action that reopens the same modal on demand.
+
 ## Run Tests
 
 ```bash

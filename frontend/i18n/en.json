@@ -124,6 +124,7 @@
   "menuLabel": "App menu",
   "reportIssue": "Report issue",
   "categoryGuideLabel": "Category guide",
+  "deviceTypeMenuLabel": "Device type",
   "categoryGuideTitle": "How categories work",
   "categoryGuideIntro": "We automatically organize channels into themes so you can browse faster.",
   "categoryGuideStep1": "Auto: we read YouTube topic data and the channel description.",

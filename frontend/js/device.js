@@ -17,11 +17,13 @@
 
   let currentDeviceId = null;
   let currentDeviceType = null;
+  let currentDeviceConfirmed = false;
   let deviceIdentifier = null;
   let modal = null;
 
   const ui = {
-    deviceLabel: document.getElementById('device-type')
+    deviceLabel: document.getElementById('device-type'),
+    menuDeviceType: document.getElementById('menu-device-type')
   };
 
   const t = (key, vars) => (
@@ -173,6 +175,7 @@
       return false;
     }
 
+    currentDeviceConfirmed = true;
     setCurrentDevice(type);
     return true;
   }
@@ -295,6 +298,16 @@
     modal.parentNode.removeChild(modal);
   }
 
+  async function openDeviceTypeModal() {
+    const suggestion = await detectDevice();
+    const suggestedType = currentDeviceType || (
+      suggestion && suggestion.suggested_type
+        ? suggestion.suggested_type
+        : DEVICE_TYPES.DESKTOP
+    );
+    openDeviceModal(suggestedType);
+  }
+
   async function initDevice() {
     deviceIdentifier = buildDeviceIdentifier();
     const suggestion = await detectDevice();
@@ -310,19 +323,40 @@
 
     currentDeviceId = registration.id;
     currentDeviceType = registration.device_type;
+    currentDeviceConfirmed = Boolean(registration.device_type_confirmed);
     setDeviceId(currentDeviceId);
     const normalizedSuggestedType = suggestedType || DEVICE_TYPES.DESKTOP;
-    const normalizedCurrentType = currentDeviceType || DEVICE_TYPES.DESKTOP;
-    const isNew = normalizedCurrentType === DEVICE_TYPES.DESKTOP
-      && normalizedSuggestedType !== DEVICE_TYPES.DESKTOP;
+    const shouldConfirm = !currentDeviceConfirmed;
 
-    if (isNew) {
-      openDeviceModal(suggestedType);
+    if (shouldConfirm) {
+      openDeviceModal(normalizedSuggestedType);
     } else {
       setCurrentDevice(currentDeviceType);
     }
 
     return registration;
+  }
+
+  function setupMenuDeviceType() {
+    if (!ui.menuDeviceType) {
+      return;
+    }
+
+    ui.menuDeviceType.hidden = typeof window.getCurrentUser !== 'function' || !window.getCurrentUser();
+
+    if (ui.menuDeviceType.dataset.listenerAttached === 'true') {
+      return;
+    }
+
+    ui.menuDeviceType.addEventListener('click', async () => {
+      await openDeviceTypeModal();
+    });
+    ui.menuDeviceType.dataset.listenerAttached = 'true';
+
+    window.addEventListener('auth:changed', event => {
+      const user = event.detail ? event.detail.user : null;
+      ui.menuDeviceType.hidden = !user;
+    });
   }
 
   function getCurrentDeviceType() {
@@ -335,4 +369,6 @@
   window.confirmDeviceType = confirmDeviceType;
   window.getDeviceId = getDeviceId;
   window.getCurrentDeviceType = getCurrentDeviceType;
+  window.openDeviceTypeModal = openDeviceTypeModal;
+  setupMenuDeviceType();
 })();

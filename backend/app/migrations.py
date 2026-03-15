@@ -204,6 +204,35 @@ def ensure_user_settings_schema():
         )
 
 
+def ensure_user_device_schema():
+    """Ensure newer user device columns exist in SQLite dev databases."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_devices)")).fetchall()
+            if not result:
+                return
+
+            columns = {row[1] for row in result}
+            if "device_type_confirmed" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN device_type_confirmed BOOLEAN NOT NULL DEFAULT 0"
+                    )
+                )
+    except Exception as error:
+        logger.warning(
+            "User device schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_category_schema():
     """Ensure categories table exists and is seeded with predefined categories."""
     engine = db.engine

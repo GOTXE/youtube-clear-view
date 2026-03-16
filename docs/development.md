@@ -23,6 +23,26 @@ This starts:
 - backend on `http://localhost:5550`
 - log viewer on `http://localhost:5551/logs`
 
+## Container Baseline (v0.2.0)
+
+The v0.2.0 architecture baseline introduces repo-level infrastructure files in
+`infra/`:
+
+- `infra/docker/backend/Dockerfile`
+- `infra/docker/log_viewer/Dockerfile`
+- `infra/docker/proxy/Dockerfile`
+- `infra/proxy/Caddyfile`
+- `infra/compose/compose.v020.yaml`
+
+This baseline is meant to move the app toward:
+
+- same-origin frontend + API delivery through the proxy
+- repo-level deployment topology
+- an optional log viewer service
+- a persistent SQLite volume managed by containers
+
+It does not replace the local developer scripts yet.
+
 LAN testing from another device:
 - run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`
 - `DEV_HOST` must be the LAN IP or hostname of the development PC
@@ -115,6 +135,7 @@ Frontend tests use `Vitest` + `jsdom` and live under `frontend/tests/`.
 - `backend/`: Flask API + SQLite
 - `log_viewer/`: log monitoring service
 - `frontend/`: static UI
+- `infra/`: repo-level Docker, compose, and proxy baseline for v0.2.0
 - `frontend/i18n/`: UI translation JSON files (EN/ES)
 - `docs/`: public docs
 - `tech_docs/`: local notes (gitignored)

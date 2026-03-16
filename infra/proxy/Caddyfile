@@ -1,0 +1,19 @@
+:8080 {
+  root * /srv
+  encode zstd gzip
+
+  @api path /api*
+  handle @api {
+    reverse_proxy backend:5550
+  }
+
+  @logs path /logs*
+  handle @logs {
+    reverse_proxy log_viewer:5551
+  }
+
+  handle {
+    try_files {path} /index.html
+    file_server
+  }
+}

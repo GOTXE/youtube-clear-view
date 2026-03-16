@@ -21,6 +21,7 @@ from .migrations import (
 )
 from .routes import register_routes
 from .services.scheduler import start_scheduler
+from .services.sqlite_metrics import initialize_sqlite_metrics
 
 
 def create_app(config_class=Config):
@@ -42,6 +43,10 @@ def create_app(config_class=Config):
 
     # Initialize Flask extensions.
     init_extensions(app)
+    initialize_sqlite_metrics(
+        enabled=app.config.get("SQLITE_METRICS_ENABLED", False),
+        slow_write_ms=app.config.get("SQLITE_METRICS_SLOW_WRITE_MS", 100),
+    )
 
     # Register routes and error handlers.
     register_routes(app)

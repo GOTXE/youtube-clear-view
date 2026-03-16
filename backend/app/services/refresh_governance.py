@@ -100,6 +100,18 @@ def get_active_refresh(user_id):
         }
 
 
+def list_active_refreshes():
+    """Return all in-flight manual refreshes in process-local memory."""
+    with _active_refreshes_lock:
+        return {
+            str(user_id): {
+                "scope": dict(active["scope"]),
+                "started_at": active["started_at"],
+            }
+            for user_id, active in _active_refreshes.items()
+        }
+
+
 @contextmanager
 def acquire_manual_refresh(user_id, channel_id=None, now=None):
     """Acquire a user-level manual refresh lease, if possible."""

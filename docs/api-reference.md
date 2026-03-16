@@ -87,6 +87,53 @@ Response:
 
 ---
 
+## Admin Observability
+
+These endpoints are admin-only and require the authenticated user's username or email
+to be present in `ADMIN_USERNAMES`.
+
+### GET /api/admin/observability/sqlite
+
+Returns process-local SQLite observability metrics.
+
+Response example:
+
+```json
+{
+  "enabled": false,
+  "slow_write_threshold_ms": 100,
+  "write_count": 12,
+  "write_time_ms_total": 45.3,
+  "write_time_ms_avg": 3.78,
+  "write_time_ms_max": 12.4,
+  "slow_write_count": 0,
+  "lock_error_count": 0,
+  "recent_writes": [],
+  "active_manual_refreshes": {
+    "1": {
+      "scope": { "type": "all_channels", "channel_id": null },
+      "started_at": "2026-03-16T23:50:00"
+    }
+  }
+}
+```
+
+### PUT /api/admin/observability/sqlite
+
+Enables or disables detailed SQLite metrics capture at runtime.
+
+Request:
+
+```json
+{ "enabled": true }
+```
+
+Response:
+
+Returns the same payload shape as `GET /api/admin/observability/sqlite`.
+
+---
+
 ## Authentication
 
 ### POST /api/auth/login

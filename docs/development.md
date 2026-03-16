@@ -46,6 +46,9 @@ It does not replace the local developer scripts yet.
 Relevant refresh governance knobs in `backend/.env` / `.env.example`:
 - `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`
 - `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`
+- `ADMIN_USERNAMES`
+- `SQLITE_METRICS_ENABLED`
+- `SQLITE_METRICS_SLOW_WRITE_MS`
 
 LAN testing from another device:
 - run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`
@@ -124,6 +127,18 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - a refresh is already running for that user
   - the cooldown window is still active
 - The frontend interprets those blocked states and keeps the current UI stable instead of treating them as generic network failures.
+
+## Admin Observability
+
+- Admin-only runtime access is configured with `ADMIN_USERNAMES` in `backend/.env`.
+- SQLite observability is process-local and intentionally lightweight for the current single-node deployment target.
+- Admin endpoints now expose:
+  - SQLite write counters
+  - slow write counters
+  - lock error counters
+  - recent write samples when detailed metrics are enabled
+  - currently active manual refresh leases
+- Detailed SQLite metrics can be enabled or disabled at runtime by an admin without changing the deployment topology.
 
 ## Channel Classification
 

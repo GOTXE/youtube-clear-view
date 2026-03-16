@@ -32,6 +32,9 @@ class Config:
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", str(10 * 1024 * 1024)))
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+    ADMIN_USERNAMES = os.getenv("ADMIN_USERNAMES", "")
+    SQLITE_METRICS_ENABLED = os.getenv("SQLITE_METRICS_ENABLED", "false").lower() == "true"
+    SQLITE_METRICS_SLOW_WRITE_MS = int(os.getenv("SQLITE_METRICS_SLOW_WRITE_MS", "100"))
 
     LOG_VIEWER_USER = os.getenv("LOG_VIEWER_USER")
     LOG_VIEWER_PASSWORD = os.getenv("LOG_VIEWER_PASSWORD")

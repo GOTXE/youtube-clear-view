@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify
 
 from app.middleware.error_handler import handle_route_errors
+from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.categories import categories_bp
 from app.routes.channels import channels_bp
@@ -24,6 +25,7 @@ def health_check():
 def register_routes(app):
     """Register all route blueprints with the app."""
     app.register_blueprint(health_bp)
+    app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(categories_bp)
     app.register_blueprint(channels_bp)

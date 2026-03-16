@@ -23,9 +23,25 @@ This starts:
 - backend on `http://localhost:5550`
 - log viewer on `http://localhost:5551/logs`
 
+LAN testing from another device:
+- run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`
+- `DEV_HOST` must be the LAN IP or hostname of the development PC
+- the frontend will be reachable at `http://192.168.1.50:8080`
+- the generated frontend config will point API calls to `http://192.168.1.50:5550`
+
 Google OAuth local development must use:
 - `GOOGLE_REDIRECT_URI=http://localhost:5550/api/auth/google/callback`
 - `FRONTEND_URL=http://localhost:8080`
+
+Google OAuth for web apps does not work reliably with raw private IP redirect URIs.
+For OAuth from other devices, use one of these:
+- keep OAuth local on `localhost`
+- expose the dev app through an HTTPS hostname or tunnel
+- test LAN browsing without OAuth and log in only from the development machine
+
+For plain LAN browsing without Google OAuth:
+- `FRONTEND_URL` may stay on `localhost`
+- `CORS_ORIGINS` should still include the LAN frontend origin if frontend and API are split during development
 
 ## Google Account Switching
 

@@ -202,7 +202,7 @@ select {
 
 .header-row {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(320px, 1fr) auto;
+  grid-template-columns: minmax(360px, 430px) minmax(360px, 1fr) auto;
   grid-template-areas: "brand context menu";
   align-items: start;
   gap: var(--space-4);
@@ -219,11 +219,18 @@ select {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .brand__subtitle-secondary {
   margin-top: 2px;
+}
+
+#app-subtitle {
+  max-width: 15ch;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  text-wrap: balance;
 }
 
 .heading-1 {
@@ -231,6 +238,7 @@ select {
   font-weight: 600;
   margin: 0;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .heading-2 {
@@ -249,14 +257,14 @@ select {
 .header-context {
   grid-area: context;
   min-width: 0;
-  max-width: 640px;
+  max-width: 760px;
   justify-self: center;
-  width: min(100%, 640px);
+  width: min(100%, 760px);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3);
   align-items: center;
-  padding: 18px 20px;
+  padding: 22px 24px;
   border-radius: var(--radius-3);
   border: 1px solid color-mix(in srgb, var(--border) 80%, var(--primary) 20%);
   background:
@@ -291,12 +299,14 @@ select {
 
 .header-context__eyebrow {
   margin: 0;
+  font-size: 0.94rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .header-context__title {
   margin: 0;
+  font-size: clamp(2.05rem, 2.8vw, 2.7rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -304,6 +314,7 @@ select {
 
 .header-context__description {
   margin: 0;
+  font-size: 1.14rem;
   min-height: 1.3em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -324,7 +335,7 @@ select {
 
 .header-context__metric dt {
   margin: 0 0 2px;
-  font-size: 0.72rem;
+  font-size: 0.92rem;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
@@ -332,7 +343,7 @@ select {
 
 .header-context__metric dd {
   margin: 0;
-  font-size: var(--font-body-small);
+  font-size: 1.3rem;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -393,6 +404,7 @@ select {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
+  font-size: 0.98rem;
 }
 
 .session-info__label {

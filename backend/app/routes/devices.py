@@ -38,6 +38,10 @@ def _serialize_device(device):
         "device_identifier": device.device_identifier,
         "device_type": device.device_type,
         "device_type_confirmed": bool(device.device_type_confirmed),
+        "frontend_mode": device.frontend_mode,
+        "tv_scale": device.tv_scale,
+        "screen_size_inches": device.screen_size_inches,
+        "viewing_distance_m": device.viewing_distance_m,
         "user_agent": device.user_agent,
         "last_used_at": device.last_used_at.isoformat() if device.last_used_at else None,
         "created_at": device.created_at.isoformat() if device.created_at else None,
@@ -75,13 +79,7 @@ def register_device():
         if user_agent:
             device.user_agent = user_agent
         db.session.commit()
-        return jsonify(
-            {
-                "id": device.id,
-                "device_type": device.device_type,
-                "device_type_confirmed": bool(device.device_type_confirmed),
-            }
-        )
+        return jsonify(_serialize_device(device))
 
     device = UserDevice(
         user_id=user.id,
@@ -93,13 +91,7 @@ def register_device():
     )
     db.session.add(device)
     db.session.commit()
-    return jsonify(
-        {
-            "id": device.id,
-            "device_type": device.device_type,
-            "device_type_confirmed": bool(device.device_type_confirmed),
-        }
-    )
+    return jsonify(_serialize_device(device))
 
 
 @devices_bp.get("/api/devices")
@@ -130,6 +122,57 @@ def update_device_type(device_id):
 
     device.device_type = device_type
     device.device_type_confirmed = True
+    db.session.commit()
+    return jsonify(_serialize_device(device))
+
+
+@devices_bp.put("/api/devices/<int:device_id>/preferences")
+@handle_route_errors
+@require_auth
+def update_device_preferences(device_id):
+    """Update frontend mode and TV setup preferences for a user's device."""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+
+    device = UserDevice.query.filter_by(id=device_id, user_id=user.id).first()
+    if not device:
+        return _not_found("Device not found.")
+
+    frontend_mode = payload.get("frontend_mode")
+    tv_scale = payload.get("tv_scale")
+    screen_size_inches = payload.get("screen_size_inches")
+    viewing_distance_m = payload.get("viewing_distance_m")
+
+    if frontend_mode is not None and frontend_mode not in ("phone", "desktop_tablet", "tv"):
+        return _bad_request("Invalid frontend_mode.")
+
+    if tv_scale is not None and tv_scale not in ("M", "L", "XL", "XXL"):
+        return _bad_request("Invalid tv_scale.")
+
+    if screen_size_inches in ("", None):
+        screen_size_inches = None
+    else:
+        try:
+            screen_size_inches = int(screen_size_inches)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid screen_size_inches.")
+        if screen_size_inches < 20 or screen_size_inches > 150:
+            return _bad_request("Invalid screen_size_inches.")
+
+    if viewing_distance_m in ("", None):
+        viewing_distance_m = None
+    else:
+        try:
+            viewing_distance_m = float(viewing_distance_m)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid viewing_distance_m.")
+        if viewing_distance_m <= 0 or viewing_distance_m > 20:
+            return _bad_request("Invalid viewing_distance_m.")
+
+    device.frontend_mode = frontend_mode
+    device.tv_scale = tv_scale
+    device.screen_size_inches = screen_size_inches
+    device.viewing_distance_m = viewing_distance_m
     db.session.commit()
     return jsonify(_serialize_device(device))
 

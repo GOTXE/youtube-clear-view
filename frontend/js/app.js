@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
     menuDeviceType: document.getElementById('menu-device-type'),
+    menuDisplayMode: document.getElementById('menu-display-mode'),
     menuSettings: document.getElementById('menu-settings'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
@@ -313,6 +314,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.menuDeviceType) {
       ui.menuDeviceType.textContent = t('deviceTypeMenuLabel');
+    }
+
+    if (ui.menuDisplayMode) {
+      ui.menuDisplayMode.textContent = t('displayModeMenuLabel');
     }
     if (ui.menuSettings) {
       ui.menuSettings.textContent = t('autoUpdatesLabel');

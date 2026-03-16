@@ -18,6 +18,7 @@
   let currentDeviceId = null;
   let currentDeviceType = null;
   let currentDeviceConfirmed = false;
+  let currentDevice = null;
   let deviceIdentifier = null;
   let modal = null;
 
@@ -175,8 +176,15 @@
       return false;
     }
 
+    currentDevice = response.data;
     currentDeviceConfirmed = true;
     setCurrentDevice(type);
+    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+      window.ytcvLayoutMode.syncFromDevice(currentDevice);
+    }
+    window.dispatchEvent(new CustomEvent('device:changed', {
+      detail: { device: currentDevice }
+    }));
     return true;
   }
 
@@ -324,7 +332,14 @@
     currentDeviceId = registration.id;
     currentDeviceType = registration.device_type;
     currentDeviceConfirmed = Boolean(registration.device_type_confirmed);
+    currentDevice = registration;
     setDeviceId(currentDeviceId);
+    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+      window.ytcvLayoutMode.syncFromDevice(registration);
+    }
+    window.dispatchEvent(new CustomEvent('device:changed', {
+      detail: { device: registration }
+    }));
     const normalizedSuggestedType = suggestedType || DEVICE_TYPES.DESKTOP;
     const shouldConfirm = !currentDeviceConfirmed;
 
@@ -363,12 +378,17 @@
     return currentDeviceType;
   }
 
+  function getCurrentDevice() {
+    return currentDevice;
+  }
+
   window.initDevice = initDevice;
   window.detectDevice = detectDevice;
   window.registerDevice = registerDevice;
   window.confirmDeviceType = confirmDeviceType;
   window.getDeviceId = getDeviceId;
   window.getCurrentDeviceType = getCurrentDeviceType;
+  window.getCurrentDevice = getCurrentDevice;
   window.openDeviceTypeModal = openDeviceTypeModal;
   setupMenuDeviceType();
 })();

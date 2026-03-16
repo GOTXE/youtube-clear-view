@@ -80,6 +80,22 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The device modal now auto-opens only when the current user's device is not yet confirmed.
 - The hamburger menu also exposes a manual `Device type` action that reopens the same modal on demand.
 
+## Frontend Mode System
+
+- Devices can now also persist frontend display preferences:
+  - `frontend_mode`: `phone`, `desktop_tablet`, or `tv`
+  - `tv_scale`: `M`, `L`, `XL`, or `XXL`
+  - optional TV setup hints:
+    - `screen_size_inches`
+    - `viewing_distance_m`
+- The frontend resolves layout mode with this precedence:
+  1. explicit local override saved from the display mode modal
+  2. persisted device preferences from the backend
+  3. mapped device type (`tv` -> `tv`, `mobile` -> `phone`, everything else -> `desktop_tablet`)
+  4. viewport fallback
+- The hamburger menu exposes a `Display mode` action for authenticated users.
+- This slice intentionally stops short of full TV calibration and only establishes the persistence and resolver contract for v0.2.0.
+
 ## Subscription Sidebar Search
 
 - The subscriptions sidebar has its own local search field above the channel list.

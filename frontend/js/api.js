@@ -228,6 +228,10 @@ class APIClient {
     return this.put(`/api/devices/${deviceId}/type`, { device_type: deviceType });
   }
 
+  updateDevicePreferences(deviceId, preferences) {
+    return this.put(`/api/devices/${deviceId}/preferences`, preferences);
+  }
+
   deleteDevice(deviceId) {
     return this.delete(`/api/devices/${deviceId}`);
   }

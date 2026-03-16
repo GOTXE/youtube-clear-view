@@ -18,6 +18,13 @@ class UserDevice(db.Model):
         nullable=False,
     )
     device_type_confirmed = db.Column(db.Boolean, nullable=False, default=False)
+    frontend_mode = db.Column(
+        db.Enum("phone", "desktop_tablet", "tv", name="frontend_mode"),
+        nullable=True,
+    )
+    tv_scale = db.Column(db.String(8))
+    screen_size_inches = db.Column(db.Integer)
+    viewing_distance_m = db.Column(db.Float)
     user_agent = db.Column(db.String(500))
     last_used_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -37,6 +44,10 @@ class UserDevice(db.Model):
             "device_identifier": self.device_identifier,
             "device_type": self.device_type,
             "device_type_confirmed": self.device_type_confirmed,
+            "frontend_mode": self.frontend_mode,
+            "tv_scale": self.tv_scale,
+            "screen_size_inches": self.screen_size_inches,
+            "viewing_distance_m": self.viewing_distance_m,
             "user_agent": self.user_agent,
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,

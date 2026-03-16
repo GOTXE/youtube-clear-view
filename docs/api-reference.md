@@ -723,8 +723,13 @@ Response example:
 ```json
 {
   "id": 3,
+  "device_identifier": "dev-abc123",
   "device_type": "tv",
-  "device_type_confirmed": true
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
 }
 ```
 
@@ -735,6 +740,45 @@ Lists registered devices.
 ### PUT /api/devices/<device_id>/type
 
 Updates device type and marks it as explicitly confirmed for that user/device pair.
+
+### PUT /api/devices/<device_id>/preferences
+
+Updates persisted frontend display preferences for the current user/device pair.
+
+Request example:
+
+```json
+{
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
+}
+```
+
+Rules:
+- `frontend_mode` must be one of `phone`, `desktop_tablet`, `tv`
+- `tv_scale` must be one of `M`, `L`, `XL`, `XXL`
+- `screen_size_inches` is optional and must be between `20` and `150`
+- `viewing_distance_m` is optional and must be greater than `0` and at most `20`
+
+Response example:
+
+```json
+{
+  "id": 3,
+  "device_identifier": "dev-abc123",
+  "device_type": "tv",
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8,
+  "user_agent": "Mozilla/5.0 ...",
+  "last_used_at": "2026-03-16T22:00:00",
+  "created_at": "2026-03-16T20:00:00"
+}
+```
 
 ### DELETE /api/devices/<device_id>
 

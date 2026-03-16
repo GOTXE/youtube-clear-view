@@ -232,6 +232,34 @@ def ensure_user_device_schema():
                         "ADD COLUMN device_type_confirmed BOOLEAN NOT NULL DEFAULT 0"
                     )
                 )
+            if "frontend_mode" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN frontend_mode VARCHAR(32)"
+                    )
+                )
+            if "tv_scale" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN tv_scale VARCHAR(8)"
+                    )
+                )
+            if "screen_size_inches" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN screen_size_inches INTEGER"
+                    )
+                )
+            if "viewing_distance_m" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN viewing_distance_m FLOAT"
+                    )
+                )
     except Exception as error:
         logger.warning(
             "User device schema migration skipped: %s",

@@ -129,6 +129,46 @@ def test_detect_device_invalid_tracking_id(client):
     assert data.get("tracking_id")
 
 
+def test_update_device_preferences(client):
+    _login(client, "gina")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={
+            "frontend_mode": "tv",
+            "tv_scale": "XL",
+            "screen_size_inches": 55,
+            "viewing_distance_m": 2.8,
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["frontend_mode"] == "tv"
+    assert data["tv_scale"] == "XL"
+    assert data["screen_size_inches"] == 55
+    assert data["viewing_distance_m"] == 2.8
+
+
+def test_update_device_preferences_invalid_mode(client):
+    _login(client, "hugo")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs2", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={"frontend_mode": "cinema"},
+    )
+    assert response.status_code == 400
+
+
 def test_delete_device(client):
     _login(client, "dave")
     response = client.post(

@@ -155,6 +155,38 @@ body {
   overflow: hidden;
 }
 
+html[data-mode="tv"][data-tv-scale="M"] {
+  --space-8: 36px;
+  --space-10: 48px;
+  --font-h1: 2.35rem;
+  --font-h2: 1.8rem;
+  --font-body: 1.35rem;
+}
+
+html[data-mode="tv"][data-tv-scale="L"] {
+  --space-8: 40px;
+  --space-10: 56px;
+  --font-h1: 2.7rem;
+  --font-h2: 2rem;
+  --font-body: 1.5rem;
+}
+
+html[data-mode="tv"][data-tv-scale="XL"] {
+  --space-8: 44px;
+  --space-10: 64px;
+  --font-h1: 3rem;
+  --font-h2: 2.2rem;
+  --font-body: 1.65rem;
+}
+
+html[data-mode="tv"][data-tv-scale="XXL"] {
+  --space-8: 52px;
+  --space-10: 72px;
+  --font-h1: 3.3rem;
+  --font-h2: 2.45rem;
+  --font-body: 1.8rem;
+}
+
 .app {
   height: 100vh;
   min-height: 100vh;
@@ -1118,6 +1150,16 @@ select {
   width: 100%;
 }
 
+.layout-mode-modal__tv-options[hidden] {
+  display: none;
+}
+
+.layout-mode-modal__tv-options {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
 .spinner {
   width: 32px;
   height: 32px;
@@ -1156,6 +1198,62 @@ select {
   max-width: var(--panel-max-width);
   width: 100%;
   margin: 0 auto;
+}
+
+html[data-mode="phone"] .app {
+  padding: var(--space-4);
+  gap: var(--space-6);
+}
+
+html[data-mode="phone"] .app-header {
+  align-items: flex-start;
+}
+
+html[data-mode="phone"] .header-row {
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "brand menu"
+    "context context";
+  align-items: start;
+}
+
+html[data-mode="phone"] .brand,
+html[data-mode="phone"] .header-context {
+  width: 100%;
+}
+
+html[data-mode="phone"] .header-context__metrics {
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+html[data-mode="phone"] .section-header,
+html[data-mode="phone"] .field__group,
+html[data-mode="phone"] .app-footer {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+html[data-mode="tv"] .app {
+  padding: var(--space-10);
+}
+
+html[data-mode="tv"] .carousel-track {
+  gap: var(--space-6);
+}
+
+html[data-mode="tv"] .video-card {
+  flex: 0 0 320px;
+  max-width: 320px;
+}
+
+html[data-mode="tv"] .video-card__thumb {
+  min-height: 225px;
+}
+
+html[data-mode="tv"] .button:focus,
+html[data-mode="tv"] .field__input:focus {
+  outline-width: 3px;
 }
 
 .footer-links {

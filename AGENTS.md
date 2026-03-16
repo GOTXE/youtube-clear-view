@@ -42,6 +42,7 @@ Commands below apply once `backend/` and related modules exist:
 ## Coding Style & Naming Conventions
 
 - Write code and comments in English.
+- Write pull requests, issue-facing technical summaries, and public developer documentation in English.
 - Python: 4-space indentation, PEP 8 naming (`snake_case`, `PascalCase` for classes).
 - Frontend: keep JS/CSS readable and modular; prefer descriptive names (e.g., `theme-switcher.js`).
 - Configuration: do not hardcode URLs/keys; use `.env` and keep templates in `.env.example`.
@@ -55,7 +56,10 @@ Commands below apply once `backend/` and related modules exist:
 
 - Current commit history is informal (e.g., “inicio”, “correccion carpeta”). Going forward, prefer Conventional Commits:
   - `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, `chore: ...`
+- Use `develop` as the main integration branch for ongoing work.
+- Target feature PRs to `develop` unless the change is a release/hotfix explicitly meant for `main`.
 - PRs should include: purpose, how to test, and screenshots for UI changes. Link related issues when applicable.
+- PR text should be written in English.
 - Release tags: follow SemVer guidance in `tech_docs/yt-curator-guide.md` (use annotated tags like `v0.X.Y-beta.N` and never retag).
 
 ## Security & Configuration Tips

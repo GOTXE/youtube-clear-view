@@ -12,6 +12,12 @@ YT Clear View (YTCV) is a self-hosted YouTube subscription viewer that removes a
 - Auth: YouTube Data API v3 (OAuth) or local authentication
 - Deployment: Gunicorn + reverse proxy (Nginx/Synology)
 
+## Repository Conventions
+
+- Write code, comments, PR text, and developer-facing documentation in English.
+- Use `develop` as the main integration branch.
+- Target feature branches and PRs to `develop` unless the change is an explicit release or hotfix for `main`.
+
 ## VibeCoding
 
 This repo uses a local overlay in `vibecoding/`.

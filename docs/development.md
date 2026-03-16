@@ -131,6 +131,7 @@ Frontend tests use `Vitest` + `jsdom` and live under `frontend/tests/`.
 - Python: PEP 8, 4-space indentation.
 - JS/CSS: readable, descriptive names.
 - Comments and docs in English.
+- Pull requests and reviewer-facing technical writeups in English.
 
 ## Commit Format
 
@@ -160,4 +161,11 @@ The UI waits for translations to load before rendering to avoid a brief flash of
 1. Create a feature branch, for example `feat/web-ui-ux`.
 2. Implement changes and run tests.
 3. Commit and push.
-4. Open a PR if needed.
+4. Open a PR against `develop` unless the change is a release or hotfix for `main`.
+
+## Branching Policy
+
+- `develop`: main integration branch for ongoing work
+- `main`: stable/release branch
+- feature branches should branch from and merge back into `develop`
+- release tags should be created from the release commit after merge into `main`

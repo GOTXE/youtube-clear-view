@@ -37,6 +37,7 @@ def _serialize_device(device):
         "id": device.id,
         "device_identifier": device.device_identifier,
         "device_type": device.device_type,
+        "device_type_confirmed": bool(device.device_type_confirmed),
         "user_agent": device.user_agent,
         "last_used_at": device.last_used_at.isoformat() if device.last_used_at else None,
         "created_at": device.created_at.isoformat() if device.created_at else None,
@@ -74,7 +75,13 @@ def register_device():
         if user_agent:
             device.user_agent = user_agent
         db.session.commit()
-        return jsonify({"id": device.id, "device_type": device.device_type})
+        return jsonify(
+            {
+                "id": device.id,
+                "device_type": device.device_type,
+                "device_type_confirmed": bool(device.device_type_confirmed),
+            }
+        )
 
     device = UserDevice(
         user_id=user.id,
@@ -82,10 +89,17 @@ def register_device():
         user_agent=user_agent or None,
         last_used_at=datetime.utcnow(),
         device_type="desktop",
+        device_type_confirmed=False,
     )
     db.session.add(device)
     db.session.commit()
-    return jsonify({"id": device.id, "device_type": device.device_type})
+    return jsonify(
+        {
+            "id": device.id,
+            "device_type": device.device_type,
+            "device_type_confirmed": bool(device.device_type_confirmed),
+        }
+    )
 
 
 @devices_bp.get("/api/devices")
@@ -115,6 +129,7 @@ def update_device_type(device_id):
         return _not_found("Device not found.")
 
     device.device_type = device_type
+    device.device_type_confirmed = True
     db.session.commit()
     return jsonify(_serialize_device(device))
 

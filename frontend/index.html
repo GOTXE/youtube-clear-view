@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <style>
       html:not(.i18n-ready) body {
         visibility: hidden;
@@ -33,10 +34,9 @@
       <header class="app-header" role="banner">
         <div class="header-row">
           <div class="brand">
-            <span class="brand__mark" aria-hidden="true"></span>
             <div class="brand__text">
               <h1 id="app-title" class="heading-1">YT Clear View</h1>
-              <p id="app-subtitle" class="body">Curated videos, zero noise.</p>
+              <p id="app-subtitle" class="body">Your subscriptions, zero noise.</p>
               <p id="app-subtitle-secondary" class="caption brand__subtitle-secondary">
                 No Algorithm, just your favorite channels.
               </p>
@@ -46,6 +46,17 @@
               </p>
             </div>
           </div>
+          <section id="header-context" class="header-context" aria-live="polite">
+            <div id="header-context-media" class="header-context__media" hidden>
+              <img id="header-context-image" class="header-context__image" alt="">
+            </div>
+            <div class="header-context__content">
+              <p id="header-context-eyebrow" class="caption header-context__eyebrow"></p>
+              <h2 id="header-context-title" class="heading-3 header-context__title"></h2>
+              <p id="header-context-description" class="caption header-context__description"></p>
+              <dl id="header-context-metrics" class="header-context__metrics"></dl>
+            </div>
+          </section>
           <div class="menu-wrapper">
             <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-panel">
               <span class="sr-only">Open menu</span>
@@ -55,6 +66,7 @@
               <div class="menu-panel__section">
                 <button id="menu-filters" class="menu-item" type="button">Filters</button>
                 <button id="menu-category-guide" class="menu-item" type="button">Category guide</button>
+                <button id="menu-device-type" class="menu-item" type="button" hidden>Device type</button>
                 <button id="menu-settings" class="menu-item" type="button">Auto updates</button>
                 <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
                   <span class="button__label">Toggle theme</span>
@@ -80,6 +92,9 @@
             </nav>
           </div>
         </div>
+        <div class="header-status" aria-live="polite" aria-atomic="true">
+          <p id="refresh-progress" class="refresh-progress" hidden></p>
+        </div>
       </header>
 
       <main class="app-main" role="main">
@@ -89,6 +104,25 @@
                 <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
               <span id="channel-count" class="caption">0</span>
             </div>
+            <label class="channel-sidebar__search" for="channel-search-input">
+              <span id="channel-search-label" class="sr-only">Search channels</span>
+              <input
+                id="channel-search-input"
+                class="field__input channel-sidebar__search-input"
+                type="search"
+                placeholder="Search channels"
+                aria-label="Search channels"
+              >
+              <button
+                id="channel-search-clear"
+                class="channel-sidebar__search-clear"
+                type="button"
+                aria-label="Clear channel search"
+                hidden
+              >
+                <span aria-hidden="true">🧹</span>
+              </button>
+            </label>
             <div id="channel-list" class="channel-list" role="list"></div>
           </aside>
 
@@ -284,6 +318,8 @@
     <script src="config.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/utils.js"></script>
+    <script src="js/channel-sidebar-search.js"></script>
+    <script src="js/header-context.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/device.js"></script>

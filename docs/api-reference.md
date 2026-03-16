@@ -28,6 +28,7 @@ Authentication uses httpOnly cookies. The frontend never stores or reads access 
 Notes:
 - Cookies are scoped to the `/api` path.
 - `AUTH_MODE` controls which login methods are available (`local` or `google`).
+- In Google mode, the backend also remembers browser-known Google accounts in the signed Flask session so the UI can switch accounts without a manual logout.
 
 ### Auth modes
 
@@ -159,6 +160,65 @@ Response (no session):
 { "authenticated": false }
 ```
 
+### GET /api/auth/accounts
+
+Returns the Google accounts already authenticated in this browser session.
+Only available when `AUTH_MODE=google`.
+
+Response:
+
+```json
+{
+  "current_user_id": 1,
+  "accounts": [
+    {
+      "id": 1,
+      "username": "alice@gmail.com",
+      "display_name": "Alice",
+      "email": "alice@gmail.com",
+      "auth_provider": "google",
+      "google_avatar_url": "https://...",
+      "is_current": true
+    },
+    {
+      "id": 2,
+      "username": "bob@gmail.com",
+      "display_name": "Bob",
+      "email": "bob@gmail.com",
+      "auth_provider": "google",
+      "google_avatar_url": "https://...",
+      "is_current": false
+    }
+  ]
+}
+```
+
+### POST /api/auth/switch
+
+Switches the active backend session to another Google account already known in this browser.
+Only available when `AUTH_MODE=google`.
+
+Request:
+
+```json
+{ "user_id": 2 }
+```
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 2,
+  "username": "bob@gmail.com",
+  "display_name": "Bob",
+  "email": "bob@gmail.com",
+  "auth_provider": "google",
+  "google_avatar_url": null,
+  "theme_preference": "dark"
+}
+```
+
 ### PUT /api/auth/profile
 
 Updates display name and theme preference.
@@ -188,7 +248,7 @@ This endpoint redirects the browser to the consent screen.
 ### GET /api/auth/google/callback
 
 OAuth callback endpoint. Google redirects here after user consent.
-On success, the backend sets a session cookie and redirects the browser to `FRONTEND_URL`.
+On success, the backend sets a session cookie, remembers that Google account for this browser, and redirects the browser to `FRONTEND_URL`.
 
 If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
 
@@ -331,6 +391,64 @@ Response:
 
 ### POST /api/channels/refresh
 
+Refreshes one subscribed channel or all channels for the current user.
+
+Request (optional):
+
+```json
+{ "channel_id": 12, "backfill": false }
+```
+
+Response:
+
+```json
+{
+  "new_videos": 3,
+  "refreshed_at": "2026-03-15T01:46:18.221000"
+}
+```
+
+### GET /api/channels/refresh/stream
+
+Streams refresh progress as Server-Sent Events (SSE). This is intended for the
+web client so visible content can update incrementally while the backend keeps
+processing channels.
+
+Query params:
+- `channel_id` (optional): refresh only one subscribed channel
+- `backfill=true` (optional): ignore the last refresh watermark for this run
+
+Response headers:
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache`
+
+Event stream format:
+
+```text
+event: refresh
+data: {"type":"stream_opened","refreshed_at":"2026-03-15T01:46:18.221000"}
+
+event: refresh
+data: {"type":"start","processed_channels":0,"total_channels":12,"new_videos":0}
+
+event: refresh
+data: {"type":"channel_started","channel_id":7,"channel_title":"Example","current_channel":1,"total_channels":12}
+
+event: refresh
+data: {"type":"channel_complete","channel_id":7,"channel_new_videos":2,"new_videos":2,"processed_channels":1,"total_channels":12,"success":true}
+
+event: refresh
+data: {"type":"complete","new_videos":8,"processed_channels":12,"total_channels":12,"rate_limited":false}
+```
+
+Notes:
+- The backend persists progress per channel, so new videos may become visible
+  before the full refresh completes.
+- The frontend should treat SSE as the source of refresh progress and use the
+  final `complete` event as the end-of-run signal.
+
+### POST /api/channels/refresh
+
 Refreshes videos for one channel or all channels.
 
 Request (optional):
@@ -416,6 +534,40 @@ Response:
 
 ```json
 { "enriched": 10, "errors": 0, "remaining": 200, "message": "Enriched 10 channels with topic data." }
+```
+
+### POST /api/channels/enrich-video-evidence
+
+Fetches recent video metadata for subscribed channels and stores it locally so
+classification can use stronger evidence than channel snippet text alone.
+
+This endpoint is the practical recovery path for channels that remain
+unclassified because `topic_ids` and `keywords` are missing from the YouTube
+channel resource.
+
+Request (optional):
+
+```json
+{
+  "channel_id": 1,
+  "limit": 25,
+  "max_results": 12,
+  "only_unclassified": true
+}
+```
+
+Response:
+
+```json
+{
+  "channels_processed": 12,
+  "videos_created": 48,
+  "videos_updated": 15,
+  "classified": 7,
+  "errors": 0,
+  "remaining_unclassified": 143,
+  "message": "Processed 12 channels with recent video evidence."
+}
 ```
 
 ---
@@ -523,7 +675,10 @@ Triggers a reclassification attempt for all channels of the current user.
 
 ### GET /api/categories/status
 
-Returns the status of all classification methods.
+Returns the status of the active classification methods currently used by the app:
+
+- `youtube_topics`
+- `tfidf`
 
 ---
 
@@ -563,13 +718,23 @@ Removes a channel from a theme.
 
 Registers a device for the current user and updates `last_used_at`.
 
+Response example:
+
+```json
+{
+  "id": 3,
+  "device_type": "tv",
+  "device_type_confirmed": true
+}
+```
+
 ### GET /api/devices
 
 Lists registered devices.
 
 ### PUT /api/devices/<device_id>/type
 
-Updates device type.
+Updates device type and marks it as explicitly confirmed for that user/device pair.
 
 ### DELETE /api/devices/<device_id>
 
@@ -578,4 +743,3 @@ Deletes a device.
 ### POST /api/devices/detect
 
 Suggests a device type based on screen size.
-

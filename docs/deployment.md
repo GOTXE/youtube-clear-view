@@ -61,14 +61,34 @@ Use the example config in `backend/nginx-reverse-proxy.conf` and update:
 
 ## Frontend Deployment
 
-Deploy to Web Station path:
+Build and deploy the production frontend bundle:
 
 ```bash
 cd frontend
 ./deploy-to-synology.sh
 ```
 
-By default, it syncs to `/volume1/web/yt-clear-view/`.
+The script:
+- prompts for SSH user, host, and port if they are not already exported
+- runs `npm run build`
+- generates `frontend/dist/`
+- syncs only `dist/` to the NAS target path
+
+Default target path:
+
+```bash
+/volume1/web/yt-clear-view/
+```
+
+Supported environment variables:
+- `DEPLOY_USER`
+- `DEPLOY_HOST`
+- `DEPLOY_PORT`
+- `DEPLOY_PATH`
+
+Only production assets are deployed from `dist/`. Development-only files such
+as tests, `package.json`, and `vitest.config.mjs` are not part of the deployed
+frontend payload.
 
 ## Channel Thumbnail Cache
 

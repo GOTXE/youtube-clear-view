@@ -17,6 +17,7 @@ class UserDevice(db.Model):
         db.Enum("tv", "tablet", "mobile", "desktop", name="device_type"),
         nullable=False,
     )
+    device_type_confirmed = db.Column(db.Boolean, nullable=False, default=False)
     user_agent = db.Column(db.String(500))
     last_used_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -35,6 +36,7 @@ class UserDevice(db.Model):
             "user_id": self.user_id,
             "device_identifier": self.device_identifier,
             "device_type": self.device_type,
+            "device_type_confirmed": self.device_type_confirmed,
             "user_agent": self.user_agent,
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,

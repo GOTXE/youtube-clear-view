@@ -30,6 +30,10 @@ class TestConfig:
         return None
 
 
+class GoogleTestConfig(TestConfig):
+    AUTH_MODE = "google"
+
+
 @pytest.fixture()
 def app():
     app = create_app(TestConfig)
@@ -45,6 +49,23 @@ def app():
 @pytest.fixture()
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture()
+def app_google():
+    app = create_app(GoogleTestConfig)
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+    yield app
+    with app.app_context():
+        db.session.remove()
+        db.drop_all()
+
+
+@pytest.fixture()
+def client_google(app_google):
+    return app_google.test_client()
 
 
 def test_login_creates_user_and_cookie(client):
@@ -126,3 +147,77 @@ def test_logout_clears_token(client, app):
     with app.app_context():
         user = User.query.filter_by(username="erin").first()
         assert user.session_token is None
+
+
+def test_google_accounts_returns_known_accounts_for_browser(client_google, app_google):
+    with app_google.app_context():
+        user_a = User(
+            username="alice@gmail.com",
+            display_name="Alice",
+            email="alice@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-alice",
+            session_token="token-alice",
+        )
+        user_b = User(
+            username="bob@gmail.com",
+            display_name="Bob",
+            email="bob@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-bob",
+        )
+        db.session.add_all([user_a, user_b])
+        db.session.commit()
+
+        alice_id = user_a.id
+        bob_id = user_b.id
+
+    with client_google.session_transaction() as sess:
+        sess["known_google_user_ids"] = [bob_id, alice_id]
+
+    client_google.set_cookie("ytcv_session", "token-alice")
+
+    response = client_google.get("/api/auth/accounts")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["current_user_id"] == alice_id
+    assert [account["id"] for account in data["accounts"]] == [bob_id, alice_id]
+    assert data["accounts"][1]["is_current"] is True
+
+
+def test_google_switch_account_sets_new_session_cookie(client_google, app_google):
+    with app_google.app_context():
+        user_a = User(
+            username="alice@gmail.com",
+            display_name="Alice",
+            email="alice@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-alice",
+        )
+        user_b = User(
+            username="bob@gmail.com",
+            display_name="Bob",
+            email="bob@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-bob",
+        )
+        db.session.add_all([user_a, user_b])
+        db.session.commit()
+        bob_id = user_b.id
+
+    with client_google.session_transaction() as sess:
+        sess["known_google_user_ids"] = [bob_id]
+
+    response = client_google.post("/api/auth/switch", json={"user_id": bob_id})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is True
+    assert data["user_id"] == bob_id
+
+    cookie = response.headers.get("Set-Cookie", "")
+    assert "ytcv_session=" in cookie
+
+    with app_google.app_context():
+        user_b = User.query.filter_by(id=bob_id).first()
+        assert user_b.session_token

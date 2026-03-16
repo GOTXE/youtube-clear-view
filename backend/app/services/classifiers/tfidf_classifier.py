@@ -1,8 +1,10 @@
-"""TF-IDF classifier using keyword-based analysis."""
+"""TF-IDF classifier using precision-first text and video evidence."""
 
+from collections import Counter
 from typing import Optional, Tuple
 
 from app.logging.logger import get_logger
+from app.models import Video
 
 logger = get_logger(__name__)
 
@@ -30,6 +32,13 @@ CATEGORY_KEYWORDS = {
         "music", "song", "singer", "band", "album", "concert", "musician",
         "cover", "lyrics", "hip hop", "rap", "rock", "pop", "electronic",
         "dj", "producer", "musica", "cancion", "cantante", "banda"
+    ],
+    "Automotive": [
+        "car", "cars", "auto", "automotive", "vehicle", "vehicles", "driving",
+        "driver", "road", "track", "motor", "engine", "garage", "racing",
+        "tesla", "bmw", "audi", "porsche", "4x4", "offroad", "off-road",
+        "coche", "coches", "motor", "motores", "conduccion", "vehiculo",
+        "vehiculos", "camion", "moto", "motos"
     ],
     "Food": [
         "food", "cooking", "recipe", "kitchen", "chef", "baking", "cuisine",
@@ -76,6 +85,12 @@ CATEGORY_KEYWORDS = {
         "design", "graphic", "digital art", "sketch", "artwork",
         "arte", "artista", "dibujo", "pintura", "diseno"
     ],
+    "Animals": [
+        "animal", "animals", "pet", "pets", "dog", "dogs", "cat", "cats",
+        "puppy", "kitten", "veterinary", "vet", "wildlife", "bird", "birds",
+        "horse", "horses", "rescue", "farm animal", "mascota", "mascotas",
+        "perro", "perros", "gato", "gatos", "veterinario", "animales"
+    ],
     "Science": [
         "science", "scientific", "research", "experiment", "physics",
         "chemistry", "biology", "space", "nasa", "astronomy", "discovery",
@@ -83,9 +98,33 @@ CATEGORY_KEYWORDS = {
     ],
 }
 
+VIDEO_CATEGORY_TO_CANDIDATES = {
+    "1": ["Entertainment"],
+    "2": ["Automotive"],
+    "10": ["Music"],
+    "15": ["Animals"],
+    "17": ["Sports"],
+    "19": ["Travel"],
+    "20": ["Gaming"],
+    "22": ["Vlogs"],
+    "23": ["Entertainment"],
+    "24": ["Entertainment"],
+    "25": ["News"],
+    "27": ["Education"],
+    "28": ["Technology", "Science"],
+}
+
 
 class TFIDFClassifier:
     """Classifier using TF-IDF keyword-based analysis."""
+
+    MIN_CONFIDENCE = 0.18
+    MIN_MARGIN = 0.03
+    MIN_FALLBACK_SCORE = 3
+    MIN_FALLBACK_MARGIN = 1
+    MIN_VIDEO_EVIDENCE = 4
+    MIN_VIDEO_SHARE = 0.6
+    MIN_VIDEO_MARGIN = 2
 
     def __init__(self):
         """Initialize the classifier with keyword corpus."""
@@ -140,6 +179,10 @@ class TFIDFClassifier:
         Returns:
             Tuple of (category_name, confidence_score) or None if no match
         """
+        video_category_match = self._classify_from_video_categories(channel)
+        if video_category_match:
+            return video_category_match
+
         self._initialize()
 
         if not self._sklearn_available:
@@ -161,13 +204,20 @@ class TFIDFClassifier:
             ).flatten()
 
             # Get best match
-            best_idx = self._np.argmax(similarities)
-            best_score = similarities[best_idx]
+            ranked = sorted(
+                enumerate(similarities),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+            best_idx, best_score = ranked[0]
+            second_score = ranked[1][1] if len(ranked) > 1 else 0.0
 
-            # Minimum threshold for confidence
-            if best_score < 0.1:
+            if best_score < self.MIN_CONFIDENCE or (best_score - second_score) < self.MIN_MARGIN:
                 logger.debug(
-                    f"Channel {channel.yt_channel_id} TF-IDF score too low: {best_score}"
+                    "Channel %s TF-IDF signal too weak (best=%s, second=%s)",
+                    channel.yt_channel_id,
+                    best_score,
+                    second_score,
                 )
                 return None
 
@@ -191,20 +241,73 @@ class TFIDFClassifier:
         if not text:
             return None
 
-        best_category = None
-        best_score = 0
+        scores = {}
 
         for category, keywords in self.category_keywords.items():
-            score = sum(1 for kw in keywords if kw.lower() in text)
-            if score > best_score:
-                best_score = score
-                best_category = category
+            scores[category] = sum(1 for kw in keywords if kw.lower() in text)
 
-        if best_category and best_score >= 2:
+        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        best_category, best_score = ranked[0]
+        second_score = ranked[1][1] if len(ranked) > 1 else 0
+
+        if (
+            best_category
+            and best_score >= self.MIN_FALLBACK_SCORE
+            and (best_score - second_score) >= self.MIN_FALLBACK_MARGIN
+        ):
             confidence = min(best_score / 10, 0.8)
             return (best_category, confidence)
 
         return None
+
+    def _classify_from_video_categories(self, channel) -> Optional[Tuple[str, float]]:
+        """Use dominant recent YouTube video categories when the signal is clear."""
+        if not getattr(channel, "id", None):
+            return None
+
+        recent_videos = (
+            Video.query.filter_by(channel_id=channel.id)
+            .filter(Video.video_category_id.isnot(None))
+            .order_by(Video.published_at.desc())
+            .limit(12)
+            .all()
+        )
+        if not recent_videos:
+            return None
+
+        counts = Counter()
+        mapped_total = 0
+
+        for video in recent_videos:
+            candidates = VIDEO_CATEGORY_TO_CANDIDATES.get(str(video.video_category_id))
+            if not candidates:
+                continue
+            if len(candidates) != 1:
+                continue
+            counts[candidates[0]] += 1
+            mapped_total += 1
+
+        if mapped_total < self.MIN_VIDEO_EVIDENCE or not counts:
+            return None
+
+        ranked = counts.most_common()
+        best_category, best_score = ranked[0]
+        second_score = ranked[1][1] if len(ranked) > 1 else 0
+        share = best_score / mapped_total if mapped_total else 0.0
+
+        if share < self.MIN_VIDEO_SHARE or (best_score - second_score) < self.MIN_VIDEO_MARGIN:
+            return None
+
+        confidence = min(0.9, 0.7 + (share * 0.2))
+        logger.info(
+            "Classified channel %s as %s using recent video categories (share=%.2f, votes=%s/%s)",
+            channel.yt_channel_id,
+            best_category,
+            share,
+            best_score,
+            mapped_total,
+        )
+        return best_category, confidence
 
     def _build_channel_text(self, channel) -> str:
         """Build text representation from channel data."""
@@ -219,13 +322,37 @@ class TFIDFClassifier:
 
         if channel.keywords:
             parts.append(channel.keywords)
+            parts.append(channel.keywords)
+
+        if getattr(channel, "id", None):
+            recent_videos = (
+                Video.query.filter_by(channel_id=channel.id)
+                .order_by(Video.published_at.desc())
+                .limit(12)
+                .all()
+            )
+            for video in recent_videos:
+                if video.title:
+                    parts.append(video.title)
+                    parts.append(video.title)
+                if video.description:
+                    parts.append(video.description[:180])
+                if video.tags:
+                    parts.append(video.tags)
+                    parts.append(video.tags)
 
         return " ".join(parts)
 
     def can_classify(self, channel) -> bool:
         """Check if this classifier can handle the channel."""
         text = self._build_channel_text(channel)
-        return len(text.strip()) >= 10
+        if len(text.strip()) >= 10:
+            return True
+        return self._classify_from_video_categories(channel) is not None
+
+    @property
+    def method_name(self) -> str:
+        return "tfidf"
 
     @property
     def method_name(self) -> str:

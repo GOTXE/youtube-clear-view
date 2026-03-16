@@ -57,13 +57,32 @@ log_pip_install "${VENV_PY}" "backend/requirements.txt"
 
 FLASK_RUN_HOST="${FLASK_HOST:-0.0.0.0}"
 FLASK_RUN_PORT="${FLASK_PORT:-5550}"
+FRONTEND_PORT="${FRONTEND_PORT:-8080}"
+FRONTEND_BIND_HOST="${FRONTEND_BIND_HOST:-0.0.0.0}"
+DEV_HOST="${DEV_HOST:-localhost}"
+FRONTEND_PUBLIC_URL="http://${DEV_HOST}:${FRONTEND_PORT}"
 
 API_BASE_URL_VALUE="${API_BASE_URL:-}"
 if [[ -z "${API_BASE_URL_VALUE}" ]]; then
     if [[ "${MODE_LABEL}" == "prod" ]]; then
         API_BASE_URL_VALUE="https://apiyt.mi-nas.me"
     else
-        API_BASE_URL_VALUE="http://localhost:${FLASK_RUN_PORT}"
+        API_BASE_URL_VALUE="http://${DEV_HOST}:${FLASK_RUN_PORT}"
+    fi
+fi
+
+if [[ "${MODE_LABEL}" != "prod" ]]; then
+    if [[ ",${CORS_ORIGINS:-}," != *",${FRONTEND_PUBLIC_URL},"* ]]; then
+        log_warn "CORS_ORIGINS does not include ${FRONTEND_PUBLIC_URL}"
+    fi
+
+    if [[ "${AUTH_MODE:-local}" == "google" ]]; then
+        if [[ "${FRONTEND_URL:-}" != "${FRONTEND_PUBLIC_URL}" ]]; then
+            log_warn "FRONTEND_URL is ${FRONTEND_URL:-<empty>} and may not match LAN browsing at ${FRONTEND_PUBLIC_URL}"
+        fi
+        if [[ "${DEV_HOST}" != "localhost" && "${DEV_HOST}" != "127.0.0.1" ]]; then
+            log_warn "Google OAuth web apps usually reject raw private IP redirect URIs; use localhost or an HTTPS hostname/tunnel for OAuth testing"
+        fi
     fi
 fi
 
@@ -128,11 +147,13 @@ trap cleanup EXIT
 log_info "=============================================="
 log_info "Mode: ${MODE_LABEL}"
 log_info "Backend: http://${FLASK_RUN_HOST}:${FLASK_RUN_PORT}"
+log_info "Backend (LAN): http://${DEV_HOST}:${FLASK_RUN_PORT}"
 log_info "Log viewer: http://localhost:5551/logs"
 log_info "Frontend API_BASE_URL: ${API_BASE_URL_VALUE}"
-log_info "Starting frontend on http://localhost:8080"
+log_info "Frontend: ${FRONTEND_PUBLIC_URL}"
+log_info "Frontend bind: http://${FRONTEND_BIND_HOST}:${FRONTEND_PORT}"
 log_info "=============================================="
 log_info "Run log: ${RUN_LOG_FILE}"
 
 cd frontend
-python3 -m http.server 8080
+python3 -m http.server "${FRONTEND_PORT}" --bind "${FRONTEND_BIND_HOST}"

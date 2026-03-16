@@ -23,7 +23,7 @@ def test_get_categories(app, sample_user, sample_channel_category):
             assert response.status_code == 200
             data = response.get_json()
             assert isinstance(data, list)
-            assert len(data) >= 14  # 14 predefined categories
+            assert len(data) >= 16  # 16 predefined categories
 
             # Each category should have required fields
             for cat in data:
@@ -201,8 +201,6 @@ def test_get_classifier_status(app, sample_user):
             data = response.get_json()
             assert "youtube_topics" in data
             assert "tfidf" in data
-            assert "hybrid" in data
-            assert "ollama" in data
 
 
 def test_categories_require_auth(app):

@@ -48,18 +48,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     carousels: [],
     searchActive: false,
     searchQuery: '',
+    channelFilterQuery: '',
     autoImportAttempted: false,
     autoRefreshAttempted: false,
     categoryManager: null,
     categorySelector: null,
     categoriesLoaded: false,
     settings: null,
-    presets: null
+    presets: null,
+    refreshProgress: null,
+    initialContentReady: false,
+    autoRefreshPromise: null,
+    autoRefreshKeepsLoadingState: false
   };
 
   const ui = {
     appSubtitle: document.getElementById('app-subtitle'),
     appSubtitleSecondary: document.getElementById('app-subtitle-secondary'),
+    headerContext: document.getElementById('header-context'),
+    headerContextMedia: document.getElementById('header-context-media'),
+    headerContextImage: document.getElementById('header-context-image'),
+    headerContextEyebrow: document.getElementById('header-context-eyebrow'),
+    headerContextTitle: document.getElementById('header-context-title'),
+    headerContextDescription: document.getElementById('header-context-description'),
+    headerContextMetrics: document.getElementById('header-context-metrics'),
     subscriptionsTitle: document.getElementById('subscriptions-title'),
     filtersTitle: document.getElementById('filters-title'),
     filtersSearchLabel: document.getElementById('filters-search-label'),
@@ -69,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuPanel: document.getElementById('menu-panel'),
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
+    menuDeviceType: document.getElementById('menu-device-type'),
     menuSettings: document.getElementById('menu-settings'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
@@ -116,9 +129,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     olderTitle: document.getElementById('older-title'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
+    refreshProgress: document.getElementById('refresh-progress'),
     lastUpdatedLabel: document.getElementById('last-updated'),
     channelList: document.getElementById('channel-list'),
     channelCount: document.getElementById('channel-count'),
+    channelSearchLabel: document.getElementById('channel-search-label'),
+    channelSearchInput: document.getElementById('channel-search-input'),
+    channelSearchClear: document.getElementById('channel-search-clear'),
     videosCount: document.getElementById('videos-count'),
     shortsCount: document.getElementById('shorts-count'),
     videosLabel: document.getElementById('videos-label'),
@@ -137,6 +154,114 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
+  const deferredTask = callback => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => {
+        callback();
+      }, { timeout: 1200 });
+      return;
+    }
+
+    window.setTimeout(() => {
+      callback();
+    }, 0);
+  };
+
+  const isVisibleForKeyboardNav = element => {
+    if (!element || element.hidden || element.getAttribute('aria-hidden') === 'true') {
+      return false;
+    }
+
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+
+  const getKeyboardNavigableElements = () => (
+    Array.from(document.querySelectorAll(
+      [
+        '.menu-toggle',
+        '.menu-item:not([hidden])',
+        '.filter-panel__close',
+        '.filter-pill',
+        '.button',
+        '.channel-item',
+        '.video-card',
+        '.carousel-control',
+        '.field__input',
+        '.menu-language__button'
+      ].join(', ')
+    )).filter(element => !element.disabled && isVisibleForKeyboardNav(element))
+  );
+
+  const getDirectionalCandidate = (current, direction) => {
+    if (!current) {
+      return null;
+    }
+
+    const currentRect = current.getBoundingClientRect();
+    const currentCenterX = currentRect.left + currentRect.width / 2;
+    const currentCenterY = currentRect.top + currentRect.height / 2;
+
+    const candidates = getKeyboardNavigableElements()
+      .filter(element => element !== current)
+      .map(element => {
+        const rect = element.getBoundingClientRect();
+        return {
+          element,
+          centerX: rect.left + rect.width / 2,
+          centerY: rect.top + rect.height / 2
+        };
+      })
+      .filter(candidate => {
+        if (direction === 'left') {
+          return candidate.centerX < currentCenterX - 4;
+        }
+        if (direction === 'right') {
+          return candidate.centerX > currentCenterX + 4;
+        }
+        if (direction === 'up') {
+          return candidate.centerY < currentCenterY - 4;
+        }
+        if (direction === 'down') {
+          return candidate.centerY > currentCenterY + 4;
+        }
+        return false;
+      });
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    candidates.sort((a, b) => {
+      const primaryA = direction === 'left' || direction === 'right'
+        ? Math.abs(a.centerX - currentCenterX)
+        : Math.abs(a.centerY - currentCenterY);
+      const primaryB = direction === 'left' || direction === 'right'
+        ? Math.abs(b.centerX - currentCenterX)
+        : Math.abs(b.centerY - currentCenterY);
+
+      if (primaryA !== primaryB) {
+        return primaryA - primaryB;
+      }
+
+      const secondaryA = direction === 'left' || direction === 'right'
+        ? Math.abs(a.centerY - currentCenterY)
+        : Math.abs(a.centerX - currentCenterX);
+      const secondaryB = direction === 'left' || direction === 'right'
+        ? Math.abs(b.centerY - currentCenterY)
+        : Math.abs(b.centerX - currentCenterX);
+
+      return secondaryA - secondaryB;
+    });
+
+    return candidates[0].element;
+  };
+
   function applyLocalizedCopy() {
     if (ui.appSubtitle) {
       ui.appSubtitle.textContent = t('subtitlePrimary');
@@ -153,9 +278,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.filtersSearchLabel) {
       ui.filtersSearchLabel.textContent = t('searchLabel');
     }
+    if (ui.channelSearchLabel) {
+      ui.channelSearchLabel.textContent = t('searchChannelsLabel');
+    }
     if (ui.searchInput) {
       ui.searchInput.placeholder = t('searchPlaceholder');
       ui.searchInput.setAttribute('aria-label', t('searchAriaLabel'));
+    }
+    if (ui.channelSearchInput) {
+      ui.channelSearchInput.placeholder = t('searchChannelsPlaceholder');
+      ui.channelSearchInput.setAttribute('aria-label', t('searchChannelsAriaLabel'));
+    }
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.setAttribute('aria-label', t('clearChannelSearch'));
+      ui.channelSearchClear.title = t('clearChannelSearch');
     }
     if (ui.refreshButton) {
       ui.refreshButton.textContent = t('refresh');
@@ -175,12 +311,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuCategoryGuide) {
       ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
     }
+    if (ui.menuDeviceType) {
+      ui.menuDeviceType.textContent = t('deviceTypeMenuLabel');
+    }
     if (ui.menuSettings) {
       ui.menuSettings.textContent = t('autoUpdatesLabel');
     }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
     }
+    updateHeaderContext();
     const googleButton = document.getElementById('google-login-button');
     if (googleButton) {
       googleButton.textContent = t('signInWithGoogle');
@@ -615,6 +755,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function renderSectionLoadingState(container, messageKey = 'loadingContent') {
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="section-loading" role="status" aria-live="polite">
+        <span class="section-loading__text">${t(messageKey)}</span>
+      </div>
+    `;
+  }
+
+  function renderPrimaryLoadingStates() {
+    renderSectionLoadingState(ui.latestCarousel, 'loadingVideos');
+    if (ui.shortsSection) {
+      ui.shortsSection.hidden = false;
+    }
+    renderSectionLoadingState(ui.shortsCarousel, 'loadingShorts');
+    if (ui.olderSection) {
+      ui.olderSection.hidden = false;
+    }
+    renderSectionLoadingState(ui.olderCarousel, 'loadingOlder');
+  }
+
+  function renderChannelListLoading() {
+    if (!ui.channelList) {
+      return;
+    }
+    ui.channelList.innerHTML = `
+      <p class="channel-list__loading caption" role="status" aria-live="polite">
+        ${t('loadingChannels')}
+      </p>
+    `;
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -628,6 +803,202 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (message) {
       showNotification(message, type);
     }
+  }
+
+  function resolveHeaderMediaUrl(media) {
+    if (!media || !media.url) {
+      return '';
+    }
+    if (/^https?:\/\//.test(media.url)) {
+      return media.url;
+    }
+    const configuredBase = window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL
+      ? window.APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
+      : '';
+    return configuredBase ? `${configuredBase}${media.url}` : media.url;
+  }
+
+  function updateHeaderContext() {
+    if (!ui.headerContext || typeof window.buildHeaderContext !== 'function') {
+      return;
+    }
+
+    const context = window.buildHeaderContext(
+      state.channels,
+      state.selectedChannelId,
+      state.selectedChannelYtId,
+      state.settings,
+      t
+    );
+
+    if (ui.headerContextEyebrow) {
+      ui.headerContextEyebrow.textContent = context.eyebrow || '';
+    }
+    if (ui.headerContextTitle) {
+      ui.headerContextTitle.textContent = context.title || '';
+    }
+    if (ui.headerContextDescription) {
+      ui.headerContextDescription.textContent = context.description || '';
+    }
+
+    if (ui.headerContextMetrics) {
+      ui.headerContextMetrics.innerHTML = '';
+      (context.metrics || []).slice(0, 4).forEach(metric => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'header-context__metric';
+
+        const title = document.createElement('dt');
+        title.textContent = metric.label || '';
+
+        const value = document.createElement('dd');
+        value.textContent = metric.value || '';
+
+        wrapper.appendChild(title);
+        wrapper.appendChild(value);
+        ui.headerContextMetrics.appendChild(wrapper);
+      });
+    }
+
+    if (ui.headerContextMedia && ui.headerContextImage) {
+      const resolvedUrl = resolveHeaderMediaUrl(context.media);
+      if (resolvedUrl) {
+        ui.headerContextMedia.hidden = false;
+        ui.headerContextImage.src = resolvedUrl;
+        ui.headerContextImage.alt = context.media.alt || '';
+      } else {
+        ui.headerContextMedia.hidden = true;
+        ui.headerContextImage.removeAttribute('src');
+        ui.headerContextImage.alt = '';
+      }
+    }
+  }
+
+  function setRefreshProgress(message, status = 'running') {
+    state.refreshProgress = message
+      ? {
+          message,
+          status
+        }
+      : null;
+
+    if (!ui.refreshProgress) {
+      return;
+    }
+
+    if (!message) {
+      ui.refreshProgress.hidden = true;
+      ui.refreshProgress.textContent = '';
+      ui.refreshProgress.removeAttribute('data-state');
+      return;
+    }
+
+    ui.refreshProgress.hidden = false;
+    ui.refreshProgress.textContent = message;
+    ui.refreshProgress.setAttribute('data-state', status);
+  }
+
+  function updateRefreshProgressFromEvent(payload) {
+    if (!payload || !payload.type) {
+      return;
+    }
+
+    if (payload.type === 'stream_opened' || payload.type === 'start') {
+      setRefreshProgress(t('refreshProgressWaiting'));
+      return;
+    }
+
+    if (payload.type === 'channel_started') {
+      const total = payload.total_channels || '?';
+      const current = payload.current_channel || 0;
+      const title = payload.channel_title || t('unknownChannel');
+      setRefreshProgress(t('refreshProgressChannels', { current, total, title }));
+      return;
+    }
+
+    if (payload.type === 'complete') {
+      setRefreshProgress(
+        t('refreshProgressDone', { count: payload.new_videos || 0 }),
+        'complete'
+      );
+      window.setTimeout(() => {
+        if (state.refreshProgress && state.refreshProgress.status === 'complete') {
+          setRefreshProgress('');
+        }
+      }, 2500);
+    }
+  }
+
+  function buildRefreshStreamUrl(channelId = null, backfill = false) {
+    const configuredBaseUrl = (api && api.baseURL) || ((window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '');
+    const baseUrl = configuredBaseUrl.endsWith('/api')
+      ? configuredBaseUrl
+      : `${configuredBaseUrl}/api`;
+    const params = new URLSearchParams();
+    if (channelId !== null && channelId !== undefined) {
+      params.set('channel_id', String(channelId));
+    }
+    if (backfill) {
+      params.set('backfill', 'true');
+    }
+    const query = params.toString();
+    return `${baseUrl}/channels/refresh/stream${query ? `?${query}` : ''}`;
+  }
+
+  function streamRefresh(channelId = null, options = {}) {
+    const {
+      backfill = false,
+      onProgress = null,
+      onComplete = null,
+      onError = null
+    } = options;
+
+    return new Promise((resolve, reject) => {
+      if (typeof window.EventSource !== 'function') {
+        reject(new Error('SSE not supported'));
+        return;
+      }
+
+      const source = new window.EventSource(buildRefreshStreamUrl(channelId, backfill), {
+        withCredentials: true
+      });
+      let finished = false;
+
+      const close = () => {
+        source.close();
+      };
+
+      source.addEventListener('refresh', async event => {
+        let payload = null;
+        try {
+          payload = JSON.parse(event.data);
+        } catch (error) {
+          return;
+        }
+
+        if (typeof onProgress === 'function') {
+          await onProgress(payload);
+        }
+
+        if (payload.type === 'complete') {
+          finished = true;
+          close();
+          if (typeof onComplete === 'function') {
+            await onComplete(payload);
+          }
+          resolve(payload);
+        }
+      });
+
+      source.onerror = async () => {
+        close();
+        const error = new Error('Refresh stream failed');
+        setRefreshProgress(t('refreshProgressError'), 'error');
+        if (!finished && typeof onError === 'function') {
+          await onError(error);
+        }
+        reject(error);
+      };
+    });
   }
 
   function applyFilters(payload) {
@@ -673,20 +1044,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { ...payload, videos: filtered };
   }
 
-  function clearCarousels() {
-    state.carousels.forEach(carousel => carousel.destroy());
+  function clearCarousels(preserveDOM = false) {
+    state.carousels.forEach(carousel => carousel.destroy(preserveDOM));
     state.carousels = [];
 
-    if (ui.latestCarousel) {
+    if (!preserveDOM && ui.latestCarousel) {
       ui.latestCarousel.innerHTML = '';
     }
-    if (ui.shortsCarousel) {
+    if (!preserveDOM && ui.shortsCarousel) {
       ui.shortsCarousel.innerHTML = '';
     }
-    if (ui.olderCarousel) {
+    if (!preserveDOM && ui.olderCarousel) {
       ui.olderCarousel.innerHTML = '';
     }
-    if (ui.themeCarousels) {
+    if (!preserveDOM && ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
     if (state.categoryManager) {
@@ -716,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    });
+    }, { preserveContentOnInit: true });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -744,7 +1115,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    }, { showTitle: false, showDescription: false });
+    }, {
+      showTitle: false,
+      showDescription: false,
+      preserveContentOnInit: true
+    });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -773,7 +1148,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    }, { hideTextForShorts: true });
+    }, {
+      hideTextForShorts: true,
+      preserveContentOnInit: true
+    });
 
     await carousel.init();
     state.carousels.push(carousel);
@@ -785,6 +1163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     ui.channelList.innerHTML = '';
+    syncChannelSearchUI();
 
     const allItem = document.createElement('div');
     allItem.className = 'channel-item';
@@ -804,14 +1183,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const channelMatchesFilters = channel => {
-      const searchText = (state.searchQuery || '').trim().toLowerCase();
-      if (searchText) {
-        const name = (channel.title || channel.yt_channel_id || '').toLowerCase();
-        if (!name.includes(searchText)) {
-          return false;
-        }
-      }
-
       const monthFilter = state.filters.month;
       const unwatchedFilter = state.filters.unwatched;
 
@@ -837,12 +1208,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.channelList.appendChild(empty);
     }
 
-    const filtered = sorted.length ? sorted.filter(channelMatchesFilters) : [];
+    const sidebarFiltered = sorted.length
+      ? (
+          typeof window.filterChannelsForSidebar === 'function'
+            ? window.filterChannelsForSidebar(sorted, state.channelFilterQuery)
+            : sorted
+        )
+      : [];
+    const filtered = sidebarFiltered.length ? sidebarFiltered.filter(channelMatchesFilters) : [];
 
     if (sorted.length && !filtered.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
-      empty.textContent = t('noChannelsMatch');
+      empty.textContent = state.channelFilterQuery
+        ? t('noChannelsSearchMatch')
+        : t('noChannelsMatch');
       ui.channelList.appendChild(empty);
     }
 
@@ -910,11 +1290,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const meta = document.createElement('div');
       meta.className = 'channel-item__meta';
 
-      if (typeof window.createCategoryBadge === 'function' && state.categorySelector) {
+      if (typeof window.createCategoryBadge === 'function') {
         const categoryData = channel.category && channel.category.category
           ? channel.category.category
           : null;
         const badge = window.createCategoryBadge(categoryData, () => {
+          if (!state.categorySelector) {
+            return;
+          }
           state.categorySelector.open(
             channel.id,
             channel.title,
@@ -947,6 +1330,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if ((isAllSelected && !id) || matchesId || matchesYt) {
         item.classList.add('is-active');
       }
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-pressed', item.classList.contains('is-active') ? 'true' : 'false');
       item.addEventListener('click', () => {
         const rawId = item.dataset.channelId;
         const parsedId = rawId ? Number(rawId) : null;
@@ -965,12 +1351,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             'is-active',
             (allSelected && !nodeId) || idSelected || ytSelected
           );
+          node.setAttribute('aria-pressed', node.classList.contains('is-active') ? 'true' : 'false');
         });
+        updateHeaderContext();
         updateVideoCounts();
         if (state.searchActive) {
           runSearch(state.searchQuery);
         } else {
           reloadCarousels();
+        }
+      });
+      item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          item.click();
         }
       });
     });
@@ -1110,17 +1504,96 @@ document.addEventListener('DOMContentLoaded', async () => {
     return timestamps[0];
   }
 
+  async function syncChannelsState() {
+    const channelsResponse = await api.getChannels();
+    if (channelsResponse.ok) {
+      state.channels = channelsResponse.data || [];
+    }
+    return state.channels;
+  }
+
+  async function syncVisibleStateAfterRefresh() {
+    await syncChannelsState();
+    renderChannelList(state.channels);
+    updateChannelCount(state.channels);
+    updateLastUpdatedLabel(state.channels);
+    updateHeaderContext();
+    await updateVideoCounts();
+
+    if (state.searchActive) {
+      await runSearch(state.searchQuery);
+      state.initialContentReady = true;
+      return;
+    }
+
+    await reloadCarousels();
+    state.initialContentReady = true;
+  }
+
+  function startAutoRefresh(channelId = null, options = {}) {
+    const {
+      keepLoadingState = false,
+      onComplete = null,
+      onError = null
+    } = options;
+
+    if (state.autoRefreshPromise) {
+      return state.autoRefreshPromise;
+    }
+
+    state.autoRefreshAttempted = true;
+    state.autoRefreshKeepsLoadingState = keepLoadingState;
+    showNotification(t('refreshInProgress'), 'info');
+    setRefreshProgress(t('refreshProgressWaiting'));
+
+    state.autoRefreshPromise = streamRefresh(channelId, {
+      onProgress: async payload => {
+        updateRefreshProgressFromEvent(payload);
+        if (
+          !keepLoadingState
+          && state.initialContentReady
+          && payload.type === 'channel_complete'
+          && payload.channel_new_videos > 0
+        ) {
+          scheduleVisibleReload();
+        }
+      }
+    })
+      .then(async payload => {
+        await syncChannelsState();
+        if (keepLoadingState || !state.initialContentReady) {
+          await syncVisibleStateAfterRefresh();
+        }
+        if (typeof onComplete === 'function') {
+          await onComplete(payload);
+        }
+        return payload;
+      })
+      .catch(async error => {
+        if (typeof onError === 'function') {
+          await onError(error);
+        }
+        return null;
+      })
+      .finally(() => {
+        state.autoRefreshPromise = null;
+        state.autoRefreshKeepsLoadingState = false;
+      });
+
+    return state.autoRefreshPromise;
+  }
+
   async function loadApp() {
     if (!state.currentUser) {
       return;
     }
 
+    state.initialContentReady = false;
     setLoading(true, 'latest-carousel');
+    renderChannelListLoading();
+    renderPrimaryLoadingStates();
 
-    const channelsResponse = await api.getChannels();
-    if (channelsResponse.ok) {
-      state.channels = channelsResponse.data || [];
-    }
+    await syncChannelsState();
 
     if (
       state.currentUser.auth_provider === 'google'
@@ -1128,60 +1601,66 @@ document.addEventListener('DOMContentLoaded', async () => {
       && !state.autoImportAttempted
     ) {
       state.autoImportAttempted = true;
-      await importSubscriptionsAndRefresh(false);
-      const refreshedChannels = await api.getChannels();
-      if (refreshedChannels.ok) {
-        state.channels = refreshedChannels.data || [];
-      }
-    }
-
-    const latestCheckedAt = getLatestCheckedAt(state.channels);
-    if (!state.autoRefreshAttempted && latestCheckedAt) {
-      const ageMs = Date.now() - latestCheckedAt.getTime();
-      if (ageMs > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000) {
-        state.autoRefreshAttempted = true;
-        showNotification(t('refreshInProgress'), 'info');
-        const refreshResponse = await api.refreshChannels();
-        if (refreshResponse.ok) {
-          const refreshedChannels = await api.getChannels();
-          if (refreshedChannels.ok) {
-            state.channels = refreshedChannels.data || [];
-          }
-        }
-      }
+      await importSubscriptions(false);
+      await syncChannelsState();
     }
 
     renderChannelList(state.channels);
     updateChannelCount(state.channels);
     updateLastUpdatedLabel(state.channels);
+    updateHeaderContext();
     await updateVideoCounts();
     prefetchChannelThumbnails(state.channels);
 
+    const latestCheckedAt = getLatestCheckedAt(state.channels);
+    const shouldAutoRefreshFromEmptyState = (
+      state.currentUser.auth_provider === 'google'
+      && state.channels.length > 0
+      && !latestCheckedAt
+    );
+    const shouldAutoRefreshFromStaleState = latestCheckedAt
+      ? Date.now() - latestCheckedAt.getTime() > AUTO_REFRESH_STALE_HOURS * 60 * 60 * 1000
+      : false;
+
+    if (!state.autoRefreshAttempted && shouldAutoRefreshFromEmptyState) {
+      startAutoRefresh(null, { keepLoadingState: true });
+      setLoading(false, 'latest-carousel');
+      return;
+    }
+
     clearCarousels();
     await renderMainCarousel();
-    await renderShortsCarousel();
-    await renderOlderCarousel();
+    state.initialContentReady = true;
 
-    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
-      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
-      await state.categoryManager.init();
-      if (ui.categoriesSection) {
-        ui.categoriesSection.hidden = false;
+    deferredTask(async () => {
+      if (ui.shortsSection) {
+        ui.shortsSection.hidden = false;
       }
-    }
+      await renderShortsCarousel();
 
-    if (ui.shortsSection) {
-      ui.shortsSection.hidden = false;
-    }
-    if (ui.olderSection) {
-      ui.olderSection.hidden = false;
-    }
+      if (ui.olderSection) {
+        ui.olderSection.hidden = false;
+      }
+      await renderOlderCarousel();
+
+      if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
+        state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+        await state.categoryManager.init();
+        if (ui.categoriesSection) {
+          ui.categoriesSection.hidden = false;
+        }
+      }
+    });
 
     setLoading(false, 'latest-carousel');
+
+    if (!state.autoRefreshAttempted && shouldAutoRefreshFromStaleState) {
+      startAutoRefresh(null);
+    }
   }
 
   async function reloadCarousels() {
-    clearCarousels();
+    clearCarousels(true);
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
@@ -1190,6 +1669,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.categoryManager = new window.CategoryManager(api, 'category-carousels');
       await state.categoryManager.init();
     }
+  }
+
+  let refreshVisibleTimer = null;
+  function scheduleVisibleReload() {
+    if (state.searchActive || !state.initialContentReady) {
+      return;
+    }
+    if (refreshVisibleTimer) {
+      window.clearTimeout(refreshVisibleTimer);
+    }
+    refreshVisibleTimer = window.setTimeout(async () => {
+      refreshVisibleTimer = null;
+      await reloadCarousels();
+    }, 700);
   }
 
   function setupFilters() {
@@ -1322,6 +1815,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   }
 
+  function syncChannelSearchUI() {
+    if (ui.channelSearchInput && ui.channelSearchInput.value !== state.channelFilterQuery) {
+      ui.channelSearchInput.value = state.channelFilterQuery;
+    }
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.hidden = !state.channelFilterQuery;
+    }
+  }
+
+  function clearChannelSearch(options = {}) {
+    const { focusInput = false } = options;
+    state.channelFilterQuery = '';
+    syncChannelSearchUI();
+    renderChannelList(state.channels);
+    if (focusInput && ui.channelSearchInput) {
+      ui.channelSearchInput.focus();
+    }
+  }
+
+  function setupChannelSidebarSearch() {
+    if (!ui.channelSearchInput) {
+      return;
+    }
+
+    const applySidebarSearch = query => {
+      state.channelFilterQuery = typeof window.normalizeSidebarQuery === 'function'
+        ? window.normalizeSidebarQuery(query)
+        : String(query || '').trim().toLowerCase();
+      syncChannelSearchUI();
+      renderChannelList(state.channels);
+    };
+
+    ui.channelSearchInput.addEventListener('input', event => {
+      applySidebarSearch(event.target.value);
+    });
+
+    ui.channelSearchInput.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        clearChannelSearch({ focusInput: true });
+      }
+    });
+
+    if (ui.channelSearchClear) {
+      ui.channelSearchClear.addEventListener('click', () => {
+        clearChannelSearch({ focusInput: true });
+      });
+    }
+
+    syncChannelSearchUI();
+  }
+
   function setupMenu() {
     if (!ui.menuToggle || !ui.menuPanel) {
       return;
@@ -1330,6 +1875,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const setMenuOpen = isOpen => {
       ui.menuPanel.hidden = !isOpen;
       ui.menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (isOpen) {
+        const firstAction = ui.menuPanel.querySelector('button:not([hidden])');
+        if (firstAction) {
+          firstAction.focus();
+        }
+      }
     };
 
     ui.menuToggle.addEventListener('click', event => {
@@ -1471,6 +2022,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.filterPanelClose) {
       ui.filterPanelClose.addEventListener('click', () => {
         panel.hidden = true;
+        if (ui.menuFilters) {
+          ui.menuFilters.focus();
+        }
       });
     }
 
@@ -1502,6 +2056,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function setupKeyboardNavigation() {
+    document.addEventListener('keydown', event => {
+      const isArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key);
+      if (!isArrow) {
+        return;
+      }
+
+      const active = document.activeElement;
+      const isTypingTarget = active && (
+        active.tagName === 'INPUT'
+        || active.tagName === 'TEXTAREA'
+        || active.tagName === 'SELECT'
+        || active.isContentEditable
+      );
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      const directionMap = {
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+        ArrowUp: 'up',
+        ArrowDown: 'down'
+      };
+
+      const nextElement = getDirectionalCandidate(active, directionMap[event.key]);
+      if (!nextElement) {
+        return;
+      }
+
+      event.preventDefault();
+      nextElement.focus();
+      nextElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    });
+  }
+
   function setupRefresh() {
     if (!ui.refreshButton) {
       return;
@@ -1509,21 +2104,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ui.refreshButton.addEventListener('click', async () => {
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
-      const response = await api.refreshChannels(targetChannelId);
-      if (!response.ok) {
-        showNotification(t('unableRefreshVideos'), 'error');
-        return;
-      }
+      reportImportStatus(t('refreshInProgress'), 'info');
+      setRefreshProgress(t('refreshProgressWaiting'));
 
-      const count = response.data && typeof response.data.new_videos === 'number'
-        ? response.data.new_videos
-        : 0;
-      showNotification(t('newVideosFound', { count }), 'success');
-      await loadApp();
+      try {
+        const result = await streamRefresh(targetChannelId, {
+          onProgress: async payload => {
+            updateRefreshProgressFromEvent(payload);
+            if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+              scheduleVisibleReload();
+            }
+          },
+          onComplete: async payload => {
+            reportImportStatus('', 'info');
+            await syncVisibleStateAfterRefresh();
+            showNotification(t('newVideosFound', { count: payload.new_videos || 0 }), 'success');
+          },
+          onError: async () => {
+            reportImportStatus('', 'info');
+          }
+        });
+        if (!result) {
+          return;
+        }
+      } catch (error) {
+        reportImportStatus('', 'info');
+        showNotification(t('unableRefreshVideos'), 'error');
+      }
     });
   }
 
-  async function importSubscriptionsAndRefresh(showToast) {
+  async function importSubscriptions(showToast) {
     if (!state.currentUser || state.currentUser.auth_provider !== 'google') {
       return false;
     }
@@ -1572,27 +2183,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       await sleep(800);
     }
 
-    reportImportStatus(t('refreshInProgress'), 'info');
-    const refreshResponse = await api.refreshChannels();
     reportImportStatus('', 'info');
 
-    if (!refreshResponse.ok) {
+    return {
+      ok: true,
+      newSubscriptions,
+      newChannels
+    };
+  }
+
+  async function importSubscriptionsAndRefresh(showToast) {
+    const importResult = await importSubscriptions(showToast);
+    if (!importResult || !importResult.ok) {
+      return false;
+    }
+
+    reportImportStatus(t('refreshInProgress'), 'info');
+    setRefreshProgress(t('refreshProgressWaiting'));
+    let videoCount = 0;
+    try {
+      const refreshPayload = await streamRefresh(null, {
+        onProgress: async payload => {
+          updateRefreshProgressFromEvent(payload);
+          if (payload.type === 'channel_complete' && payload.channel_new_videos > 0) {
+            scheduleVisibleReload();
+          }
+        }
+      });
+      videoCount = refreshPayload && typeof refreshPayload.new_videos === 'number'
+        ? refreshPayload.new_videos
+        : 0;
+    } catch (error) {
+      reportImportStatus('', 'info');
       if (showToast) {
         showNotification(t('importFailed'), 'warning');
       }
       return true;
     }
-
-    const refreshPayload = refreshResponse.data || {};
-    const videoCount = typeof refreshPayload.new_videos === 'number'
-      ? refreshPayload.new_videos
-      : 0;
+    reportImportStatus('', 'info');
 
     if (showToast) {
       showNotification(
         t('importSummary', {
-          subscriptions: newSubscriptions,
-          channels: newChannels,
+          subscriptions: importResult.newSubscriptions,
+          channels: importResult.newChannels,
           videos: videoCount
         }),
         'success'
@@ -1626,7 +2260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.importButton.disabled = true;
       await importSubscriptionsAndRefresh(true);
       ui.importButton.disabled = false;
-      await loadApp();
+      await syncVisibleStateAfterRefresh();
     });
 
     updateImportVisibility(state.currentUser);
@@ -1643,54 +2277,63 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ui.reclassifyBtn.addEventListener('click', async () => {
       ui.reclassifyBtn.disabled = true;
+      try {
+        let totalEvidenceChannels = 0;
+        let totalVideosCreated = 0;
+        let totalVideosUpdated = 0;
+        let remaining = 999;
 
-      // Step 1: Enrich channels with topic_ids from YouTube API
-      ui.reclassifyBtn.textContent = 'Obteniendo datos de YouTube...';
-      let totalEnriched = 0;
-      let remaining = 999;
+        // Step 1: Enrich unclassified channels with recent video evidence.
+        ui.reclassifyBtn.textContent = 'Obteniendo evidencia de videos...';
 
-      while (remaining > 0) {
-        const enrichResponse = await api.enrichChannels(null, 50);
-        if (!enrichResponse.ok) {
-          break;
+        while (remaining > 0) {
+          const enrichResponse = await api.enrichChannelVideoEvidence(null, 25, 12, true);
+          if (!enrichResponse.ok) {
+            break;
+          }
+          totalEvidenceChannels += enrichResponse.data.channels_processed || 0;
+          totalVideosCreated += enrichResponse.data.videos_created || 0;
+          totalVideosUpdated += enrichResponse.data.videos_updated || 0;
+          remaining = enrichResponse.data.remaining_unclassified || 0;
+          ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEvidenceChannels} canales)`;
+
+          if (enrichResponse.data.channels_processed === 0) {
+            break;
+          }
         }
-        totalEnriched += enrichResponse.data.enriched || 0;
-        remaining = enrichResponse.data.remaining || 0;
-        ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEnriched} canales)`;
 
-        if (enrichResponse.data.enriched === 0) {
-          break;
+        if (totalEvidenceChannels > 0) {
+          showNotification(
+            `${totalEvidenceChannels} canales enriquecidos con evidencia de video (${totalVideosCreated} nuevos, ${totalVideosUpdated} actualizados)`,
+            'success'
+          );
         }
+
+        // Step 2: Reclassify all channels
+        ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
+
+        const response = await api.reclassifyAllChannels();
+        if (response.ok) {
+          const stats = response.data || {};
+          const reclassified = stats.reclassified || 0;
+          showNotification(`${reclassified} canales clasificados correctamente`, 'success');
+
+          const channelsResponse = await api.getChannels();
+          if (channelsResponse.ok) {
+            state.channels = channelsResponse.data || [];
+            renderChannelList(state.channels);
+          }
+
+          if (state.categoryManager) {
+            await state.categoryManager.init();
+          }
+        } else {
+          showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
+        }
+      } finally {
+        ui.reclassifyBtn.disabled = false;
+        ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
       }
-
-      if (totalEnriched > 0) {
-        showNotification(`${totalEnriched} canales enriquecidos con datos de YouTube`, 'success');
-      }
-
-      // Step 2: Reclassify all channels
-      ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
-
-      const response = await api.reclassifyAllChannels();
-      if (response.ok) {
-        const stats = response.data || {};
-        const classified = stats.classified || 0;
-        showNotification(`${classified} canales clasificados correctamente`, 'success');
-
-        const channelsResponse = await api.getChannels();
-        if (channelsResponse.ok) {
-          state.channels = channelsResponse.data || [];
-          renderChannelList(state.channels);
-        }
-
-        if (state.categoryManager) {
-          await state.categoryManager.init();
-        }
-      } else {
-        showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
-      }
-
-      ui.reclassifyBtn.disabled = false;
-      ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
     });
   }
 
@@ -1757,6 +2400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupFilters();
+    setupChannelSidebarSearch();
     setupSearch();
     setupMenu();
     setupFilterPanel();
@@ -1767,11 +2411,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupRefresh();
     setupImportButton();
     setupReclassifyButton();
+    setupKeyboardNavigation();
     setupDebug();
-
-    if (state.currentUser) {
-      await bootstrapAuthenticated();
-    }
   }
 
   window.addEventListener('auth:changed', async event => {
@@ -1782,7 +2423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadSettings();
       await bootstrapAuthenticated();
     } else {
+      state.channels = [];
+      state.selectedChannelId = null;
+      state.selectedChannelYtId = null;
       clearCarousels();
+      updateHeaderContext();
     }
   });
 

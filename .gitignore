@@ -12,6 +12,7 @@ __pycache__/
 .env.*
 !.env.example
 !backend/.env.example
+env(copia)
 Google-No-Sync/
 
 # Logs
@@ -30,6 +31,13 @@ backend/instance/
 
 # Node
 node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vitest/
+frontend/playwright-report/
+frontend/test-results/
+frontend/.vite/
+frontend/npm-debug.log*
 
 # OS
 .DS_Store
@@ -69,3 +77,6 @@ google.auth.txt
 *.jks
 *.har
 yt_list_copy/
+
+# VibeCoding
+vibecoding/

@@ -57,7 +57,7 @@ class ChannelCategory(db.Model):
 
     __table_args__ = (
         db.CheckConstraint(
-            "classification_method IN ('youtube_topics', 'tfidf', 'hybrid', 'ollama', 'manual')",
+            "classification_method IN ('youtube_topics', 'tfidf', 'manual')",
             name="ck_classification_method",
         ),
         db.CheckConstraint(
@@ -81,12 +81,13 @@ class ChannelCategory(db.Model):
         }
 
 
-# 14 predefined categories with colors from yt_list
+# Predefined categories seeded into every local database
 PREDEFINED_CATEGORIES = [
     {"name": "Gaming", "display_name_es": "Gaming", "color": "#9c27b0", "icon": "🎮"},
     {"name": "Technology", "display_name_es": "Tecnología", "color": "#2196f3", "icon": "💻"},
     {"name": "Education", "display_name_es": "Educación", "color": "#795548", "icon": "📚"},
     {"name": "Music", "display_name_es": "Música", "color": "#e91e63", "icon": "🎵"},
+    {"name": "Automotive", "display_name_es": "Automoción", "color": "#546e7a", "icon": "🚗"},
     {"name": "Food", "display_name_es": "Cocina", "color": "#ff6f00", "icon": "🍳"},
     {"name": "Fitness", "display_name_es": "Fitness", "color": "#8bc34a", "icon": "💪"},
     {"name": "Travel", "display_name_es": "Viajes", "color": "#00bcd4", "icon": "✈️"},
@@ -96,5 +97,6 @@ PREDEFINED_CATEGORIES = [
     {"name": "Vlogs", "display_name_es": "Vlogs", "color": "#4caf50", "icon": "📹"},
     {"name": "Sports", "display_name_es": "Deportes", "color": "#ff5722", "icon": "⚽"},
     {"name": "Art", "display_name_es": "Arte", "color": "#9c27b0", "icon": "🎨"},
+    {"name": "Animals", "display_name_es": "Animales", "color": "#689f38", "icon": "🐾"},
     {"name": "Science", "display_name_es": "Ciencia", "color": "#3f51b5", "icon": "🔬"},
 ]

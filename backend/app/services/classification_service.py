@@ -1,4 +1,4 @@
-"""Classification service orchestrating multiple classifiers in cascade."""
+"""Precision-first channel classification service."""
 
 from datetime import datetime
 from typing import List, Optional, Tuple
@@ -7,35 +7,17 @@ from app.extensions import db
 from app.logging.logger import get_logger
 from app.models import Category, Channel, ChannelCategory
 
-from .classifiers import (
-    HybridClassifier,
-    OllamaClassifier,
-    TFIDFClassifier,
-    YouTubeTopicsClassifier,
-)
+from .classifiers import TFIDFClassifier, YouTubeTopicsClassifier
 
 logger = get_logger(__name__)
 
 
 class ClassificationService:
-    """
-    Service for classifying channels into categories.
-
-    Uses a cascade of classifiers in priority order:
-    1. YouTube Topics (highest accuracy, fastest)
-    2. TF-IDF (good accuracy, fast)
-    3. Hybrid/Semantic (high accuracy, slower)
-    4. Ollama LLM (highest accuracy, slowest, optional)
-    """
+    """Service for classifying channels with deterministic-first rules."""
 
     def __init__(self):
         """Initialize the classification service with all classifiers."""
-        self.classifiers = [
-            YouTubeTopicsClassifier(),
-            TFIDFClassifier(),
-            HybridClassifier(),
-            OllamaClassifier(),
-        ]
+        self.classifiers = [YouTubeTopicsClassifier(), TFIDFClassifier()]
         self._category_cache = {}
 
     def classify_channel(self, channel: Channel) -> Optional[ChannelCategory]:

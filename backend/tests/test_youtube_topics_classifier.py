@@ -62,7 +62,7 @@ def test_classify_technology_channel():
     assert result is not None
     category, confidence = result
     assert category == "Technology"
-    assert confidence == 1.0
+    assert confidence == 0.95
 
 
 def test_no_topics_returns_none():
@@ -114,22 +114,32 @@ def test_method_name():
 
 
 def test_priority_when_multiple_categories():
-    """Test that priority is applied when topic maps to multiple categories."""
+    """Test that strong evidence beats ambiguous topic mappings."""
     classifier = YouTubeTopicsClassifier()
-    # Topics that could map to multiple categories
     channel = MockChannel(
         yt_channel_id="multi-topics",
-        topic_ids=["/m/0bzvm2", "/m/04rlf"],  # Gaming and Music
+        topic_ids=["/m/0bzvm2", "/m/02jjt"],  # Gaming plus ambiguous sports/entertainment
     )
 
     result = classifier.classify(channel)
 
     assert result is not None
     category, confidence = result
-    # Gaming has higher priority than Music
     assert category == "Gaming"
-    # Confidence reduced for multiple categories
-    assert confidence == 0.9
+    assert confidence >= 0.8
+
+
+def test_ambiguous_topics_abstain():
+    """Ambiguous topics without a clear winner should abstain."""
+    classifier = YouTubeTopicsClassifier()
+    channel = MockChannel(
+        yt_channel_id="ambiguous-only",
+        topic_ids=["/m/019_rr"],  # Entertainment / Fitness / Vlogs
+    )
+
+    result = classifier.classify(channel)
+
+    assert result is None
 
 
 def test_topic_ids_as_list():

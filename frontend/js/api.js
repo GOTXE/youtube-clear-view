@@ -110,6 +110,14 @@ class APIClient {
     return this.get('/api/auth/current');
   }
 
+  getSwitchableAccounts() {
+    return this.get('/api/auth/accounts');
+  }
+
+  switchAccount(userId) {
+    return this.post('/api/auth/switch', { user_id: userId });
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }
@@ -285,6 +293,14 @@ class APIClient {
       payload.channel_id = channelId;
     }
     return this.post('/api/channels/enrich', payload);
+  }
+
+  enrichChannelVideoEvidence(channelId = null, limit = 25, maxResults = 12, onlyUnclassified = true) {
+    const payload = { limit, max_results: maxResults, only_unclassified: onlyUnclassified };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/enrich-video-evidence', payload);
   }
 
   // Settings endpoints

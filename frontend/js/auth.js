@@ -23,8 +23,10 @@
     userSummary: document.querySelector('.user-summary'),
     newUserButton: null,
     switchUserButton: null,
+    accountSwitchButton: null,
     statusMessage: null,
-    modal: null
+    modal: null,
+    accountModal: null
   };
 
   const t = (key, vars) => (
@@ -50,6 +52,10 @@
 
   function isGoogleMode() {
     return authMode === 'google';
+  }
+
+  function getKnownGoogleAccounts() {
+    return Array.isArray(cachedUsers) ? cachedUsers : [];
   }
 
   function resolveLoginUrl(path) {
@@ -111,6 +117,10 @@
 
     if (ui.googleLoginButton) {
       ui.googleLoginButton.hidden = !googleMode || Boolean(currentUser);
+    }
+
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.hidden = !googleMode;
     }
 
     updateSwitchUserLabel();
@@ -219,6 +229,20 @@
       ui.switchUserButton = button;
     }
 
+    if (!ui.accountSwitchButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'switch-google-account-button';
+      button.className = 'menu-item';
+      button.textContent = t('switchAccount');
+      button.hidden = !isGoogleMode();
+      button.addEventListener('click', async () => {
+        await openAccountSwitcherModal();
+      });
+      ui.accountSwitchButton = button;
+      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+    }
+
     if (!ui.statusMessage && ui.userSummary) {
       const status = document.createElement('span');
       status.className = 'caption';
@@ -248,6 +272,9 @@
     }
 
     ui.switchUserButton.textContent = t('signOut');
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.textContent = t('switchAccount');
+    }
   }
 
   function ensureUserSelectorListener() {
@@ -301,10 +328,17 @@
       ui.googleLoginButton.hidden = true;
     }
 
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.hidden = !isGoogleMode();
+    }
+
     updateSwitchUserLabel();
     updateLoginLink();
     setStatusMessage('');
     applyThemePreference(user.theme_preference);
+    if (isGoogleMode()) {
+      loadSwitchableAccounts();
+    }
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
   }
 
@@ -340,6 +374,10 @@
 
     if (ui.googleLoginButton) {
       ui.googleLoginButton.hidden = !googleMode;
+    }
+
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.hidden = !googleMode || getKnownGoogleAccounts().length === 0;
     }
 
     setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
@@ -388,6 +426,200 @@
 
     cachedUsers = response.data || [];
     renderUserOptions(cachedUsers);
+  }
+
+  async function loadSwitchableAccounts() {
+    if (!isGoogleMode()) {
+      return [];
+    }
+
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return [];
+    }
+
+    const response = await api.getSwitchableAccounts();
+    if (!response.ok) {
+      setStatusMessage(t('unableToLoadAccounts'), 'error');
+      return [];
+    }
+
+    cachedUsers = response.data && Array.isArray(response.data.accounts)
+      ? response.data.accounts
+      : [];
+
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.hidden = cachedUsers.length === 0 && !currentUser;
+    }
+
+    return cachedUsers;
+  }
+
+  function buildAccountSwitcherModal() {
+    if (ui.accountModal) {
+      return ui.accountModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay account-switcher-overlay';
+    overlay.id = 'account-switcher-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'account-switcher-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'account-switcher-title';
+    title.className = 'heading-2';
+    title.textContent = t('accountSwitcherTitle');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('accountSwitcherDescription');
+
+    const list = document.createElement('div');
+    list.className = 'field';
+    list.id = 'account-switcher-list';
+
+    body.appendChild(description);
+    body.appendChild(list);
+
+    const footer = document.createElement('footer');
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
+
+    const newLoginButton = document.createElement('button');
+    newLoginButton.type = 'button';
+    newLoginButton.className = 'button account-switcher-modal__primary-action';
+    newLoginButton.textContent = t('addGoogleAccount');
+
+    footer.appendChild(newLoginButton);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closeAccountSwitcherModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closeAccountSwitcherModal();
+      }
+    });
+    newLoginButton.addEventListener('click', () => {
+      closeAccountSwitcherModal();
+      startGoogleLogin();
+    });
+
+    ui.accountModal = overlay;
+    return overlay;
+  }
+
+  function closeAccountSwitcherModal() {
+    if (!ui.accountModal) {
+      return;
+    }
+    ui.accountModal.hidden = true;
+  }
+
+  function renderAccountSwitcherList(accounts) {
+    if (!ui.accountModal) {
+      return;
+    }
+
+    const list = ui.accountModal.querySelector('#account-switcher-list');
+    if (!list) {
+      return;
+    }
+
+    list.innerHTML = '';
+
+    if (!accounts.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = t('noGoogleAccountsYet');
+      list.appendChild(empty);
+      return;
+    }
+
+    accounts.forEach(account => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'menu-item';
+      button.dataset.userId = String(account.id);
+      button.disabled = Boolean(account.is_current);
+      const label = account.display_name || account.username || account.email || `#${account.id}`;
+      const detail = account.email && account.email !== label ? ` (${account.email})` : '';
+      button.textContent = account.is_current
+        ? `${label}${detail} · ${t('currentAccountLabel')}`
+        : `${label}${detail}`;
+
+      button.addEventListener('click', async () => {
+        await switchGoogleAccount(account.id, button);
+      });
+
+      list.appendChild(button);
+    });
+  }
+
+  async function openAccountSwitcherModal() {
+    if (!isGoogleMode()) {
+      return;
+    }
+
+    const modal = buildAccountSwitcherModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+
+    const accounts = await loadSwitchableAccounts();
+    renderAccountSwitcherList(accounts);
+    modal.hidden = false;
+  }
+
+  async function switchGoogleAccount(userId, button = null) {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = await api.switchAccount(userId);
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableSwitchAccount'), 'error');
+      return false;
+    }
+
+    closeAccountSwitcherModal();
+    setAuthenticated(response.data);
+    return true;
   }
 
   function validateUsername(raw) {
@@ -585,6 +817,9 @@
 
     const response = await api.getCurrentUser();
     if (response.ok && response.data && response.data.authenticated) {
+      if (isGoogleMode()) {
+        await loadSwitchableAccounts();
+      }
       setAuthenticated(response.data);
       return response.data;
     }
@@ -594,7 +829,9 @@
     }
 
     setUnauthenticated();
-    if (!isGoogleMode()) {
+    if (isGoogleMode()) {
+      await loadSwitchableAccounts();
+    } else {
       await loadUsers();
     }
     return null;
@@ -615,7 +852,9 @@
     }
 
     setUnauthenticated();
-    if (!isGoogleMode()) {
+    if (isGoogleMode()) {
+      await loadSwitchableAccounts();
+    } else {
       await loadUsers();
     }
 
@@ -629,6 +868,10 @@
   }
 
   async function switchUser() {
+    if (isGoogleMode()) {
+      await openAccountSwitcherModal();
+      return;
+    }
     await performLogout(false);
   }
 
@@ -636,7 +879,9 @@
     setUnauthenticated();
     if (!isGoogleMode()) {
       loadUsers();
+      return;
     }
+    loadSwitchableAccounts();
   }
 
   function setAuthStatus(message, type = 'info') {

@@ -15,6 +15,8 @@ class Video(db.Model):
     channel_id = db.Column(db.Integer, db.ForeignKey("channels.id"), nullable=False, index=True)
     title = db.Column(db.String(255), index=True)
     description = db.Column(db.Text, index=True)
+    video_category_id = db.Column(db.String(20), index=True)
+    tags = db.Column(db.Text)
     thumbnail_url = db.Column(db.String(500))
     published_at = db.Column(db.DateTime)
     duration = db.Column(db.Integer)
@@ -31,6 +33,8 @@ class Video(db.Model):
             "channel_id": self.channel_id,
             "title": self.title,
             "description": self.description,
+            "video_category_id": self.video_category_id,
+            "tags": self.tags,
             "thumbnail_url": self.thumbnail_url,
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "duration": self.duration,

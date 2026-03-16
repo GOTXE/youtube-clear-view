@@ -102,10 +102,7 @@ def test_insufficient_text_returns_none():
 
     result = classifier.classify(channel)
 
-    # May return None or very low confidence
-    if result:
-        _, confidence = result
-        assert confidence < 0.5
+    assert result is None
 
 
 def test_can_classify_with_text():

@@ -1,10 +1,9 @@
 """Tests for Classification service."""
 
 import json
-import pytest
 
 from app.extensions import db
-from app.models import Category, Channel, ChannelCategory
+from app.models import Category, Channel, Video
 from app.services import ClassificationService
 
 
@@ -45,8 +44,7 @@ def test_classify_channel_fallback_to_tfidf(app):
         result = service.classify_channel(channel)
 
         assert result is not None
-        # Should use tfidf since no topics
-        assert result.classification_method in ["tfidf", "hybrid"]
+        assert result.classification_method == "tfidf"
 
 
 def test_batch_classification(app):
@@ -193,8 +191,6 @@ def test_get_classifier_status(app):
 
         assert "youtube_topics" in status
         assert "tfidf" in status
-        assert "hybrid" in status
-        assert "ollama" in status
 
         # Each should have 'available' key
         for name, info in status.items():
@@ -215,8 +211,7 @@ def test_classify_insufficient_data(app):
         service = ClassificationService()
         result = service.classify_channel(channel)
 
-        # May return None or low confidence result
-        # Depending on classifier behavior
+        assert result is None
 
 
 def test_manual_classify_invalid_category(app):
@@ -233,3 +228,132 @@ def test_manual_classify_invalid_category(app):
         result = service.manually_classify(channel, "InvalidCategory")
 
         assert result is None
+
+
+def test_classify_channel_uses_recent_video_evidence(app):
+    """Recent video metadata should help classify channels with weak channel text."""
+    with app.app_context():
+        channel = Channel(
+            yt_channel_id="recent-video-evidence",
+            title="Starter Story",
+            description="Interviews and breakdowns",
+        )
+        db.session.add(channel)
+        db.session.flush()
+
+        db.session.add_all([
+            Video(
+                yt_video_id="recent-video-1",
+                channel_id=channel.id,
+                title="How a founder built a software startup",
+                description="business software startup programming product walkthrough",
+            ),
+            Video(
+                yt_video_id="recent-video-2",
+                channel_id=channel.id,
+                title="Developer tools and app growth",
+                description="technology code developer app startup review",
+            ),
+        ])
+        db.session.commit()
+
+        service = ClassificationService()
+        result = service.classify_channel(channel)
+
+        assert result is not None
+        category = Category.query.filter_by(id=result.category_id).first()
+        assert category.name == "Technology"
+
+
+def test_classify_channel_uses_dominant_video_category_heuristic(app):
+    """Recent YT video categories should classify channels when text is weak."""
+    with app.app_context():
+        channel = Channel(
+            yt_channel_id="video-category-heuristic",
+            title="Arcade Club",
+            description="Weekly uploads",
+        )
+        db.session.add(channel)
+        db.session.flush()
+
+        for idx in range(5):
+            db.session.add(
+                Video(
+                    yt_video_id=f"gaming-evidence-{idx}",
+                    channel_id=channel.id,
+                    title=f"Episode {idx}",
+                    description="Highlights and commentary",
+                    video_category_id="20",
+                )
+            )
+        db.session.commit()
+
+        service = ClassificationService()
+        result = service.classify_channel(channel)
+
+        assert result is not None
+        assert result.classification_method == "tfidf"
+        category = Category.query.filter_by(id=result.category_id).first()
+        assert category.name == "Gaming"
+
+
+def test_classify_channel_uses_automotive_video_category(app):
+    """Direct YouTube Autos & Vehicles evidence should classify as Automotive."""
+    with app.app_context():
+        channel = Channel(
+            yt_channel_id="automotive-evidence",
+            title="Garage Club",
+            description="Weekly uploads",
+        )
+        db.session.add(channel)
+        db.session.flush()
+
+        for idx in range(5):
+            db.session.add(
+                Video(
+                    yt_video_id=f"auto-evidence-{idx}",
+                    channel_id=channel.id,
+                    title=f"Track day {idx}",
+                    description="Cars, tuning and road tests",
+                    video_category_id="2",
+                )
+            )
+        db.session.commit()
+
+        service = ClassificationService()
+        result = service.classify_channel(channel)
+
+        assert result is not None
+        category = Category.query.filter_by(id=result.category_id).first()
+        assert category.name == "Automotive"
+
+
+def test_classify_channel_uses_animals_video_category(app):
+    """Direct YouTube Pets & Animals evidence should classify as Animals."""
+    with app.app_context():
+        channel = Channel(
+            yt_channel_id="animals-evidence",
+            title="Happy Paws",
+            description="Weekly uploads",
+        )
+        db.session.add(channel)
+        db.session.flush()
+
+        for idx in range(5):
+            db.session.add(
+                Video(
+                    yt_video_id=f"animals-evidence-{idx}",
+                    channel_id=channel.id,
+                    title=f"Animal story {idx}",
+                    description="Rescue and pet care episodes",
+                    video_category_id="15",
+                )
+            )
+        db.session.commit()
+
+        service = ClassificationService()
+        result = service.classify_channel(channel)
+
+        assert result is not None
+        category = Category.query.filter_by(id=result.category_id).first()
+        assert category.name == "Animals"

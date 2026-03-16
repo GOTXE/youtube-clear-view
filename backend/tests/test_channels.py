@@ -6,6 +6,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
+from app.migrations import ensure_category_schema
 from app.models import User, Video, WatchedVideo
 
 
@@ -54,6 +55,8 @@ class FakeYTService:
                     "video_id": "vid-1",
                     "title": "Test Video",
                     "description": "Desc",
+                    "video_category_id": "20",
+                    "tags": ["gaming", "walkthrough"],
                     "thumbnail": "http://thumb",
                     "published_at": published_at,
                     "duration": 62,
@@ -70,6 +73,7 @@ def app(monkeypatch):
     with app.app_context():
         db.drop_all()
         db.create_all()
+        ensure_category_schema()
     yield app
     with app.app_context():
         db.session.remove()
@@ -147,3 +151,136 @@ def test_refresh_and_videos(client, app):
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["videos"][0]["watched"] is True
+
+
+def test_refresh_stream_emits_incremental_events(client):
+    _login(client, "erin")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    response = client.get(f"/api/channels/refresh/stream?channel_id={channel_id}")
+    assert response.status_code == 200
+    assert response.mimetype == "text/event-stream"
+
+    body = response.get_data(as_text=True)
+    assert '"type": "stream_opened"' in body
+    assert '"type": "start"' in body
+    assert '"type": "channel_started"' in body
+    assert '"type": "channel_complete"' in body
+    assert '"type": "complete"' in body
+    assert '"channel_new_videos": 1' in body
+
+
+def test_refresh_updates_existing_video_evidence(client, app, monkeypatch):
+    """Refreshing should update evidence on already stored videos."""
+    class StatefulYTService(FakeYTService):
+        def __init__(self, api_key):
+            super().__init__(api_key)
+            self.call_count = 0
+
+        def get_channel_videos(self, channel_id, max_results=50, page_token=None):
+            self.call_count += 1
+            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            if self.call_count == 1:
+                return {
+                    "videos": [
+                        {
+                            "video_id": "vid-1",
+                            "title": "Original Title",
+                            "description": "Original description",
+                            "video_category_id": "20",
+                            "tags": ["gaming"],
+                            "thumbnail": "http://thumb",
+                            "published_at": published_at,
+                            "duration": 62,
+                        }
+                    ],
+                    "next_page_token": None,
+                    "success": True,
+                }
+            return {
+                "videos": [
+                    {
+                        "video_id": "vid-1",
+                        "title": "Updated Title",
+                        "description": "Updated description",
+                        "video_category_id": "27",
+                        "tags": ["education", "tutorial"],
+                        "thumbnail": "http://thumb-2",
+                        "published_at": published_at,
+                        "duration": 70,
+                    }
+                ],
+                "next_page_token": None,
+                "success": True,
+            }
+
+    service = StatefulYTService("test")
+    monkeypatch.setattr("app.routes.channels._get_service", lambda: service)
+
+    _login(client, "frank")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    first_refresh = client.post("/api/channels/refresh", json={"channel_id": channel_id})
+    assert first_refresh.status_code == 200
+    assert first_refresh.get_json()["new_videos"] == 1
+
+    second_refresh = client.post("/api/channels/refresh", json={"channel_id": channel_id})
+    assert second_refresh.status_code == 200
+    assert second_refresh.get_json()["new_videos"] == 0
+
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid-1").first()
+        assert video.title == "Updated Title"
+        assert video.description == "Updated description"
+        assert video.video_category_id == "27"
+        assert video.tags == "education tutorial"
+        assert video.thumbnail_url == "http://thumb-2"
+        assert video.duration == 70
+
+
+def test_enrich_video_evidence_classifies_unclassified_channel(client, app, monkeypatch):
+    """Manual video-evidence enrichment should classify channels without topic metadata."""
+    class EvidenceService(FakeYTService):
+        def get_channel_videos(self, channel_id, max_results=50, page_token=None):
+            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return {
+                "videos": [
+                    {
+                        "video_id": f"gaming-{idx}",
+                        "title": f"Gameplay {idx}",
+                        "description": "Weekly highlights and commentary",
+                        "video_category_id": "20",
+                        "tags": ["gaming", "walkthrough"],
+                        "thumbnail": "http://thumb",
+                        "published_at": published_at,
+                        "duration": 120,
+                    }
+                    for idx in range(5)
+                ],
+                "next_page_token": None,
+                "success": True,
+            }
+
+    monkeypatch.setattr("app.routes.channels._get_service", lambda: EvidenceService("test"))
+
+    _login(client, "grace")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    response = client.post(
+        "/api/channels/enrich-video-evidence",
+        json={"channel_id": channel_id, "max_results": 5},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["channels_processed"] == 1
+    assert data["videos_created"] == 5
+    assert data["classified"] == 1
+
+    with app.app_context():
+        from app.models import ChannelCategory
+
+        channel_category = ChannelCategory.query.first()
+        assert channel_category is not None

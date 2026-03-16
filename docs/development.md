@@ -43,6 +43,10 @@ This baseline is meant to move the app toward:
 
 It does not replace the local developer scripts yet.
 
+Relevant refresh governance knobs in `backend/.env` / `.env.example`:
+- `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`
+- `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`
+
 LAN testing from another device:
 - run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`
 - `DEV_HOST` must be the LAN IP or hostname of the development PC
@@ -108,6 +112,18 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The header keeps the brand block on the left, a centered contextual summary panel, and the hamburger menu on the far right.
 - The centered panel shows a global summary by default and switches to selected-channel context when a sidebar channel is active.
 - Refresh progress is rendered in a detached header status bar below the main header row so it does not compete with the `Videos` title block.
+
+## Refresh Governance
+
+- Manual refresh is now governed by the backend instead of being treated as an unlimited client action.
+- The backend enforces:
+  - a stricter cooldown for full-library refreshes
+  - a lighter cooldown for channel-scoped refreshes
+  - one in-flight manual refresh per user at a time
+- `GET /api/channels/refresh/stream` can now emit a terminal `blocked` event when:
+  - a refresh is already running for that user
+  - the cooldown window is still active
+- The frontend interprets those blocked states and keeps the current UI stable instead of treating them as generic network failures.
 
 ## Channel Classification
 

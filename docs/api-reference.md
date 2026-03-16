@@ -392,6 +392,10 @@ Response:
 ### POST /api/channels/refresh
 
 Refreshes one subscribed channel or all channels for the current user.
+Manual refresh is governed by the backend:
+- full-library refresh has a stricter cooldown
+- channel refresh has a lighter cooldown
+- only one manual refresh may be active per user at a time
 
 Request (optional):
 
@@ -403,10 +407,31 @@ Response:
 
 ```json
 {
+  "status": "accepted",
+  "scope": { "type": "channel", "channel_id": 12 },
   "new_videos": 3,
   "refreshed_at": "2026-03-15T01:46:18.221000"
 }
 ```
+
+Blocked response example:
+
+```json
+{
+  "error": "Refresh cooldown active.",
+  "status": 429,
+  "blocked": true,
+  "reason": "cooldown_active",
+  "scope": { "type": "channel", "channel_id": 12 },
+  "cooldown_seconds": 1800,
+  "last_activity_at": "2026-03-16T22:00:00",
+  "next_allowed_at": "2026-03-16T22:30:00",
+  "retry_after_seconds": 900
+}
+```
+
+Another blocked response reason is `refresh_in_progress`, which returns `409`
+with the active scope metadata.
 
 ### GET /api/channels/refresh/stream
 
@@ -441,30 +466,19 @@ event: refresh
 data: {"type":"complete","new_videos":8,"processed_channels":12,"total_channels":12,"rate_limited":false}
 ```
 
+Blocked event example:
+
+```text
+event: refresh
+data: {"type":"blocked","reason":"cooldown_active","scope":{"type":"all_channels","channel_id":null},"retry_after_seconds":900}
+```
+
 Notes:
 - The backend persists progress per channel, so new videos may become visible
   before the full refresh completes.
 - The frontend should treat SSE as the source of refresh progress and use the
-  final `complete` event as the end-of-run signal.
-
-### POST /api/channels/refresh
-
-Refreshes videos for one channel or all channels.
-
-Request (optional):
-
-```json
-{ "channel_id": 1, "backfill": false }
-```
-
-Notes:
+  final `complete` or `blocked` event as the end-of-run signal.
 - `backfill=true` forces a refresh that ignores `last_refreshed_at` and re-scans within the preset window.
-
-Response:
-
-```json
-{ "new_videos": 5, "refreshed_at": "2026-01-28T18:06:56.357000" }
-```
 
 ### GET /api/channels/<channel_id>/videos
 

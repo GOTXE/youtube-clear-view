@@ -19,6 +19,7 @@ from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
+from app.services.refresh_governance import acquire_manual_refresh, evaluate_manual_refresh
 from app.services.video_ingest import (
     iter_refresh_user_channels,
     refresh_user_channels,
@@ -152,6 +153,48 @@ def _forbidden(message):
     tracking_id = generate_tracking_id()
     logger.warning(message, extra={"tracking_id": tracking_id})
     return jsonify({"error": "Forbidden.", "tracking_id": tracking_id, "status": 403}), 403
+
+
+def _manual_refresh_block_response(decision):
+    """Build a structured JSON response for a blocked manual refresh."""
+    reason = decision.get("reason")
+    if reason == "refresh_in_progress":
+        error_message = "Refresh already in progress."
+    else:
+        error_message = "Refresh cooldown active."
+
+    payload = {
+        "error": error_message,
+        "status": decision.get("status_code", 409),
+        "blocked": True,
+        "reason": reason,
+        "scope": decision.get("scope"),
+        "active_scope": decision.get("active_scope"),
+        "active_started_at": decision.get("active_started_at"),
+        "cooldown_seconds": decision.get("cooldown_seconds"),
+        "last_activity_at": decision.get("last_activity_at"),
+        "next_allowed_at": decision.get("next_allowed_at"),
+        "retry_after_seconds": decision.get("retry_after_seconds", 0),
+    }
+    return jsonify(payload), decision.get("status_code", 409)
+
+
+def _manual_refresh_block_event(decision, refreshed_at):
+    """Build an SSE payload for a blocked manual refresh."""
+    event = {
+        "type": "blocked",
+        "blocked": True,
+        "reason": decision.get("reason"),
+        "scope": decision.get("scope"),
+        "active_scope": decision.get("active_scope"),
+        "active_started_at": decision.get("active_started_at"),
+        "cooldown_seconds": decision.get("cooldown_seconds"),
+        "last_activity_at": decision.get("last_activity_at"),
+        "next_allowed_at": decision.get("next_allowed_at"),
+        "retry_after_seconds": decision.get("retry_after_seconds", 0),
+        "refreshed_at": refreshed_at.isoformat(),
+    }
+    return "event: refresh\ndata: " + json.dumps(event) + "\n\n"
 
 
 def _extract_thumbnail(thumbnails):
@@ -414,16 +457,31 @@ def refresh_channels():
 
     service = _get_service()
     refreshed_at = datetime.utcnow()
-    result = refresh_user_channels(
-        user,
-        settings,
-        service,
-        channel_id=channel_id,
-        ignore_last_refreshed=backfill,
-        now=refreshed_at,
-    )
+    cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
+    if not cooldown_decision.get("allowed"):
+        return _manual_refresh_block_response(cooldown_decision)
 
-    return jsonify({"new_videos": result.get("new_videos", 0), "refreshed_at": refreshed_at.isoformat()})
+    with acquire_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at) as lease:
+        if not lease.get("acquired"):
+            return _manual_refresh_block_response(lease)
+
+        result = refresh_user_channels(
+            user,
+            settings,
+            service,
+            channel_id=channel_id,
+            ignore_last_refreshed=backfill,
+            now=refreshed_at,
+        )
+
+    return jsonify(
+        {
+            "status": "accepted",
+            "scope": cooldown_decision.get("scope"),
+            "new_videos": result.get("new_videos", 0),
+            "refreshed_at": refreshed_at.isoformat(),
+        }
+    )
 
 
 @channels_bp.get("/api/channels/refresh/stream")
@@ -448,6 +506,15 @@ def refresh_channels_stream():
         db.session.commit()
 
     refreshed_at = datetime.utcnow()
+    cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
+    if not cooldown_decision.get("allowed"):
+        def blocked_generate():
+            yield _manual_refresh_block_event(cooldown_decision, refreshed_at)
+
+        response = Response(stream_with_context(blocked_generate()), mimetype="text/event-stream")
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Accel-Buffering"] = "no"
+        return response
 
     def generate():
         stream_user = db.session.get(type(user), user_id)
@@ -458,19 +525,24 @@ def refresh_channels_stream():
             db.session.commit()
 
         service = _get_service()
-        yield "event: refresh\ndata: " + json.dumps(
-            {"type": "stream_opened", "refreshed_at": refreshed_at.isoformat()}
-        ) + "\n\n"
-        for event in iter_refresh_user_channels(
-            stream_user,
-            stream_settings,
-            service,
-            channel_id=channel_id,
-            ignore_last_refreshed=backfill,
-            now=refreshed_at,
-        ):
-            event.setdefault("refreshed_at", refreshed_at.isoformat())
-            yield "event: refresh\ndata: " + json.dumps(event) + "\n\n"
+        with acquire_manual_refresh(user_id, channel_id=channel_id, now=refreshed_at) as lease:
+            if not lease.get("acquired"):
+                yield _manual_refresh_block_event(lease, refreshed_at)
+                return
+
+            yield "event: refresh\ndata: " + json.dumps(
+                {"type": "stream_opened", "refreshed_at": refreshed_at.isoformat()}
+            ) + "\n\n"
+            for event in iter_refresh_user_channels(
+                stream_user,
+                stream_settings,
+                service,
+                channel_id=channel_id,
+                ignore_last_refreshed=backfill,
+                now=refreshed_at,
+            ):
+                event.setdefault("refreshed_at", refreshed_at.isoformat())
+                yield "event: refresh\ndata: " + json.dumps(event) + "\n\n"
 
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
     response.headers["Cache-Control"] = "no-cache"

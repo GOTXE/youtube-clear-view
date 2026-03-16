@@ -930,6 +930,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           setRefreshProgress('');
         }
       }, 2500);
+      return;
+    }
+
+    if (payload.type === 'blocked') {
+      const helper = window.ytcvRefreshGovernance;
+      if (payload.reason === 'refresh_in_progress') {
+        setRefreshProgress(
+          helper ? helper.getBlockedProgressMessage(t, payload) : t('refreshProgressAlreadyRunning'),
+          'warning'
+        );
+      } else {
+        setRefreshProgress(
+          helper ? helper.getBlockedProgressMessage(t, payload) : t('refreshProgressCooldown', { minutes: 1 }),
+          'warning'
+        );
+      }
+      window.setTimeout(() => {
+        if (state.refreshProgress && state.refreshProgress.status === 'warning') {
+          setRefreshProgress('');
+        }
+      }, 4000);
     }
   }
 
@@ -984,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           await onProgress(payload);
         }
 
-        if (payload.type === 'complete') {
+        if (payload.type === 'complete' || payload.type === 'blocked') {
           finished = true;
           close();
           if (typeof onComplete === 'function') {
@@ -1565,9 +1586,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     })
       .then(async payload => {
-        await syncChannelsState();
-        if (keepLoadingState || !state.initialContentReady) {
-          await syncVisibleStateAfterRefresh();
+        if (payload && payload.type === 'complete') {
+          await syncChannelsState();
+          if (keepLoadingState || !state.initialContentReady) {
+            await syncVisibleStateAfterRefresh();
+          }
         }
         if (typeof onComplete === 'function') {
           await onComplete(payload);
@@ -2122,6 +2145,24 @@ document.addEventListener('DOMContentLoaded', async () => {
           },
           onComplete: async payload => {
             reportImportStatus('', 'info');
+            if (!payload) {
+              return;
+            }
+            if (payload.type === 'blocked') {
+              const helper = window.ytcvRefreshGovernance;
+              if (payload.reason === 'refresh_in_progress') {
+                showNotification(
+                  helper ? helper.getBlockedToastMessage(t, payload) : t('refreshAlreadyRunning'),
+                  'info'
+                );
+              } else {
+                showNotification(
+                  helper ? helper.getBlockedToastMessage(t, payload) : t('refreshCooldownActive', { minutes: 1 }),
+                  'warning'
+                );
+              }
+              return;
+            }
             await syncVisibleStateAfterRefresh();
             showNotification(t('newVideosFound', { count: payload.new_videos || 0 }), 'success');
           },
@@ -2215,7 +2256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
       });
-      videoCount = refreshPayload && typeof refreshPayload.new_videos === 'number'
+      videoCount = refreshPayload && refreshPayload.type === 'complete' && typeof refreshPayload.new_videos === 'number'
         ? refreshPayload.new_videos
         : 0;
     } catch (error) {

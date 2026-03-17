@@ -6,7 +6,7 @@ COPY frontend/ ./
 
 RUN cat > config.js <<'EOF'
 const APP_CONFIG = {
-  API_BASE_URL: '/api',
+  API_BASE_URL: '',
   API_VERSION: 'v1',
   REQUEST_TIMEOUT: 30000,
   YT_BASE_URL: 'https://www.youtube.com',

@@ -1,8 +1,11 @@
 // Application configuration
 // All API connections use HTTPS via reverse proxy
 const APP_CONFIG = {
-  // Backend API URL (via reverse proxy, HTTPS only)
-  API_BASE_URL: 'https://api.example.com/api',
+  // Backend API base URL.
+  // Endpoints in the frontend already include the /api prefix, so this should
+  // normally be either an origin (e.g. https://api.example.com) or empty for
+  // same-origin reverse-proxy deployments.
+  API_BASE_URL: 'https://api.example.com',
 
   // API version
   API_VERSION: 'v1',

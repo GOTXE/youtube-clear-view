@@ -7,7 +7,7 @@ from functools import wraps
 from flask import Flask, jsonify, redirect, render_template, request
 from dotenv import load_dotenv
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="/logs/static")
 
 # Load environment variables for local usage.
 load_dotenv()

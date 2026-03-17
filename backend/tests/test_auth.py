@@ -1,5 +1,6 @@
 """Authentication endpoint tests."""
 
+import json
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -9,7 +10,7 @@ from app import create_app
 from app.extensions import db
 from app.migrations import ensure_user_schema
 from app.models import User, UserPasskey
-from app.services.totp_auth import generate_totp_code
+from app.services.totp_auth import generate_totp_code, hash_recovery_codes
 
 
 class TestConfig:
@@ -199,6 +200,65 @@ def test_verify_mfa_challenge_with_recovery_code_consumes_code(client):
 
     with client.session_transaction() as sess:
         assert "mfa_challenge" not in sess
+
+
+def test_fallback_login_with_totp_creates_session(client, app):
+    with app.app_context():
+        user = User(
+            username="fallback-user",
+            display_name="Fallback User",
+            email="fallback@example.com",
+            auth_provider="google",
+            google_auth_status="active",
+        )
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post(
+        "/api/auth/fallback-login",
+        json={
+            "identifier": "fallback@example.com",
+            "method": "totp",
+            "code": generate_totp_code("JBSWY3DPEHPK3PXP"),
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is True
+    assert data["username"] == "fallback-user"
+
+
+def test_fallback_login_with_recovery_code_consumes_code(client, app):
+    with app.app_context():
+        user = User(
+            username="fallback-recovery",
+            display_name="Fallback Recovery",
+            email="fallback-recovery@example.com",
+            auth_provider="google",
+            google_auth_status="active",
+        )
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        user.recovery_codes_hashes = json.dumps(hash_recovery_codes(["RECOVERY-1234"]))
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post(
+        "/api/auth/fallback-login",
+        json={
+            "identifier": "fallback-recovery@example.com",
+            "method": "recovery_code",
+            "code": "RECOVERY-1234",
+        },
+    )
+    assert response.status_code == 200
+    assert response.get_json()["authenticated"] is True
+
+    with app.app_context():
+        user = User.query.filter_by(username="fallback-recovery").first()
+        assert json.loads(user.recovery_codes_hashes) == []
 
 
 def test_auth_provider_defaults_local(client):

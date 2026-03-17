@@ -122,6 +122,9 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - Google OAuth callback
   - Google account switching
 - When a user has TOTP enabled, those primary flows stop at a pending MFA challenge.
+- Returning users now also have a direct recurring fallback login path without repeating Google OAuth:
+  - username/email + current TOTP code
+  - username/email + recovery code
 - The frontend completes that challenge with either:
   - a current TOTP code
   - a recovery code

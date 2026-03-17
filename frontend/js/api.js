@@ -94,6 +94,10 @@ class APIClient {
     return this.post('/api/auth/login', { username });
   }
 
+  fallbackLogin(identifier, code, method) {
+    return this.post('/api/auth/fallback-login', { identifier, code, method });
+  }
+
   logout() {
     return this.post('/api/auth/logout');
   }

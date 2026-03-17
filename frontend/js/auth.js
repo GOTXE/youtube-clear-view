@@ -27,6 +27,7 @@
     accountSwitchButton: null,
     pairingLoginButton: null,
     pairingApproveButton: null,
+    fallbackLoginButton: null,
     passkeyLoginButton: null,
     managePasskeysButton: null,
     manageMfaButton: null,
@@ -36,6 +37,7 @@
     accountModal: null,
     pairingLoginModal: null,
     pairingApproveModal: null,
+    fallbackLoginModal: null,
     passkeyModal: null,
     mfaModal: null,
     adminModal: null,
@@ -166,6 +168,13 @@
       return;
     }
     ui.pairingApproveModal.hidden = true;
+  }
+
+  function closeFallbackLoginModal() {
+    if (!ui.fallbackLoginModal) {
+      return;
+    }
+    ui.fallbackLoginModal.hidden = true;
   }
 
   function closeAdminModal() {
@@ -504,6 +513,20 @@
       ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
     }
 
+    if (!ui.fallbackLoginButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'fallback-login-button';
+      button.className = 'menu-item';
+      button.textContent = t('signInWithTotpOrRecovery');
+      button.hidden = Boolean(currentUser);
+      button.addEventListener('click', async () => {
+        await openFallbackLoginModal();
+      });
+      ui.fallbackLoginButton = button;
+      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+    }
+
     if (!ui.passkeyLoginButton) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -616,6 +639,7 @@
     pendingMfaChallenge = null;
     closeMfaChallengeModal();
     closeAdminModal();
+    closeFallbackLoginModal();
     closePairingLoginModal();
     closePairingApproveModal();
     if (ui.currentUserLabel) {
@@ -660,6 +684,10 @@
 
     if (ui.pairingApproveButton) {
       ui.pairingApproveButton.hidden = false;
+    }
+
+    if (ui.fallbackLoginButton) {
+      ui.fallbackLoginButton.hidden = true;
     }
 
     if (ui.passkeyLoginButton) {
@@ -734,6 +762,10 @@
 
     if (ui.pairingApproveButton) {
       ui.pairingApproveButton.hidden = true;
+    }
+
+    if (ui.fallbackLoginButton) {
+      ui.fallbackLoginButton.hidden = false;
     }
 
     if (ui.passkeyLoginButton) {
@@ -1217,6 +1249,183 @@
 
     closePairingApproveModal();
     setStatusMessage(t('deviceCodeApprovedSuccess'), 'success');
+    return true;
+  }
+
+  function buildFallbackLoginModal() {
+    if (ui.fallbackLoginModal) {
+      return ui.fallbackLoginModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'fallback-login-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'fallback-login-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'fallback-login-title';
+    title.className = 'heading-2';
+    title.textContent = t('fallbackLoginTitle');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('fallbackLoginDescription');
+
+    const identifierField = document.createElement('label');
+    identifierField.className = 'field';
+
+    const identifierLabel = document.createElement('span');
+    identifierLabel.className = 'field__label';
+    identifierLabel.textContent = t('fallbackIdentifierLabel');
+
+    const identifierInput = document.createElement('input');
+    identifierInput.type = 'text';
+    identifierInput.className = 'field__input';
+    identifierInput.id = 'fallback-login-identifier';
+    identifierInput.placeholder = t('fallbackIdentifierPlaceholder');
+    identifierInput.autocomplete = 'username';
+
+    identifierField.appendChild(identifierLabel);
+    identifierField.appendChild(identifierInput);
+
+    const codeField = document.createElement('label');
+    codeField.className = 'field';
+
+    const codeLabel = document.createElement('span');
+    codeLabel.className = 'field__label';
+    codeLabel.textContent = t('fallbackLoginCodeLabel');
+
+    const codeInput = document.createElement('input');
+    codeInput.type = 'text';
+    codeInput.className = 'field__input';
+    codeInput.id = 'fallback-login-code';
+    codeInput.placeholder = t('fallbackLoginCodePlaceholder');
+    codeInput.autocomplete = 'one-time-code';
+
+    codeField.appendChild(codeLabel);
+    codeField.appendChild(codeInput);
+
+    body.appendChild(description);
+    body.appendChild(identifierField);
+    body.appendChild(codeField);
+
+    const footer = document.createElement('footer');
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
+
+    const totpButton = document.createElement('button');
+    totpButton.type = 'button';
+    totpButton.className = 'button account-switcher-modal__primary-action';
+    totpButton.id = 'fallback-login-totp-button';
+    totpButton.textContent = t('signInWithTotp');
+
+    const recoveryButton = document.createElement('button');
+    recoveryButton.type = 'button';
+    recoveryButton.className = 'button button--ghost';
+    recoveryButton.id = 'fallback-login-recovery-button';
+    recoveryButton.textContent = t('signInWithRecoveryCode');
+
+    footer.appendChild(totpButton);
+    footer.appendChild(recoveryButton);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closeFallbackLoginModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closeFallbackLoginModal();
+      }
+    });
+    totpButton.addEventListener('click', async () => {
+      await completeFallbackLogin('totp');
+    });
+    recoveryButton.addEventListener('click', async () => {
+      await completeFallbackLogin('recovery_code');
+    });
+
+    ui.fallbackLoginModal = overlay;
+    return overlay;
+  }
+
+  async function openFallbackLoginModal() {
+    if (currentUser) {
+      return;
+    }
+
+    const modal = buildFallbackLoginModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+
+    const identifierInput = modal.querySelector('#fallback-login-identifier');
+    const codeInput = modal.querySelector('#fallback-login-code');
+    if (identifierInput) {
+      identifierInput.value = '';
+    }
+    if (codeInput) {
+      codeInput.value = '';
+    }
+
+    modal.hidden = false;
+    if (identifierInput) {
+      identifierInput.focus();
+    }
+  }
+
+  async function completeFallbackLogin(method) {
+    const api = getApiClient();
+    if (!api || !ui.fallbackLoginModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const identifierInput = ui.fallbackLoginModal.querySelector('#fallback-login-identifier');
+    const codeInput = ui.fallbackLoginModal.querySelector('#fallback-login-code');
+    const identifier = identifierInput && identifierInput.value ? identifierInput.value.trim() : '';
+    const code = codeInput && codeInput.value ? codeInput.value.trim() : '';
+
+    if (!identifier) {
+      setStatusMessage(t('fallbackIdentifierRequired'), 'error');
+      return false;
+    }
+    if (!code) {
+      setStatusMessage(t('fallbackLoginCodeRequired'), 'error');
+      return false;
+    }
+
+    setStatusMessage(method === 'recovery_code' ? t('signingInWithRecoveryCode') : t('signingInWithTotp'));
+    const response = await api.fallbackLogin(identifier, code, method);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableFallbackLogin'), 'error');
+      return false;
+    }
+
+    closeFallbackLoginModal();
+    setAuthenticated(response.data);
+    setStatusMessage(t('fallbackLoginSuccess'), 'success');
     return true;
   }
 

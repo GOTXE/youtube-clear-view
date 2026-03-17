@@ -200,6 +200,51 @@ Response:
 }
 ```
 
+### POST /api/auth/fallback-login
+
+Recurring login fallback for returning users.
+
+Accepts a username or email plus either:
+- a current TOTP code
+- a recovery code
+
+Request:
+
+```json
+{
+  "identifier": "alice@example.com",
+  "method": "totp",
+  "code": "123456"
+}
+```
+
+`method` can be `totp` or `recovery_code`.
+
+Success response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice@example.com",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_auth_status": "active",
+  "totp_enabled": true
+}
+```
+
+Failure response:
+
+```json
+{
+  "error": "Unauthorized.",
+  "tracking_id": "ERR-20260317-XXXXXX",
+  "status": 401
+}
+```
+
 ### POST /api/auth/logout
 
 Clears the session cookie.
@@ -407,6 +452,9 @@ Response:
   "theme_preference": "dark"
 }
 ```
+
+This endpoint completes the second factor only after a primary auth step has already succeeded.
+For direct recurring fallback login, use `POST /api/auth/fallback-login`.
 
 ### POST /api/auth/pairing/start
 

@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, g, jsonify, redirect, request, session
+from sqlalchemy import or_
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -123,6 +124,16 @@ def _forbidden(message):
     return jsonify({"error": "Forbidden.", "tracking_id": tracking_id, "status": 403}), 403
 
 
+def _unauthorized(message):
+    """Return a generic unauthorized response with a tracking ID."""
+    tracking_id = generate_tracking_id()
+    get_logger(__name__).warning(message, extra={"tracking_id": tracking_id})
+    return (
+        jsonify({"error": "Unauthorized.", "tracking_id": tracking_id, "status": 401}),
+        401,
+    )
+
+
 def _server_error(message):
     """Return a generic server error response with a tracking ID."""
     tracking_id = generate_tracking_id()
@@ -203,6 +214,20 @@ def _serialize_authenticated_user(user):
         "is_admin": is_admin_user(user),
         "theme_preference": user.theme_preference,
     }
+
+
+def _find_user_for_identifier(identifier):
+    """Resolve a user by username or email without exposing which field matched."""
+    normalized = (identifier or "").strip().lower()
+    if not normalized:
+        return None
+
+    return User.query.filter(
+        or_(
+            db.func.lower(User.username) == normalized,
+            db.func.lower(User.email) == normalized,
+        )
+    ).first()
 
 
 def _user_requires_mfa(user):
@@ -363,6 +388,48 @@ def login():
     response = jsonify(
         _serialize_authenticated_user(user) | {"authenticated": True}
     )
+    _set_session_cookie(response, session_token)
+    return response
+
+
+@auth_bp.post("/api/auth/fallback-login")
+@handle_route_errors
+def fallback_login():
+    """Sign in a returning user with identifier plus TOTP or recovery code."""
+    data = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip()
+    method = (data.get("method") or "").strip()
+    code = (data.get("code") or "").strip()
+    if not identifier or method not in {"totp", "recovery_code"} or not code:
+        tracking_id = generate_tracking_id()
+        get_logger(__name__).warning(
+            "Fallback login missing identifier or code.",
+            extra={"tracking_id": tracking_id},
+        )
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    user = _find_user_for_identifier(identifier)
+    if not user or not user.totp_enabled:
+        return _unauthorized("Fallback login failed.")
+
+    if method == "totp":
+        if not user.totp_secret or not verify_totp_code(user.totp_secret, code):
+            return _unauthorized("Fallback login failed.")
+    else:
+        matched, remaining = consume_recovery_code(_load_recovery_hashes(user), code)
+        if not matched:
+            return _unauthorized("Fallback login failed.")
+        user.recovery_codes_hashes = json.dumps(remaining)
+
+    _clear_existing_session_from_cookie()
+    _clear_mfa_challenge()
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
     _set_session_cookie(response, session_token)
     return response
 

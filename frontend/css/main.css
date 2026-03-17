@@ -2060,7 +2060,7 @@ html[data-mode="tv"] .field__input:focus {
 .player-overlay__dialog {
   position: relative;
   z-index: 1;
-  width: min(1200px, calc(100vw - 48px));
+  width: min(1380px, calc(100vw - 36px));
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
@@ -2117,7 +2117,7 @@ html[data-mode="tv"] .field__input:focus {
 
 .player-overlay__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 240px;
   gap: var(--space-4);
   min-height: 0;
 }
@@ -2161,7 +2161,7 @@ html[data-mode="tv"] .field__input:focus {
 }
 
 html[data-mode="tv"] .player-overlay__dialog {
-  width: min(1480px, calc(100vw - 56px));
+  width: min(1640px, calc(100vw - 40px));
   padding: var(--space-5);
 }
 
@@ -2176,7 +2176,7 @@ html[data-mode="tv"] .player-overlay__actions .button {
 }
 
 html[data-mode="tv"] .player-overlay__body {
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 280px;
 }
 
 html.player-overlay-open,

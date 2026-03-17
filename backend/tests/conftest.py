@@ -63,7 +63,9 @@ def client(app):
 
 @pytest.fixture()
 def auth_client(client):
-    client.post("/api/auth/login", json={"username": "tester"})
+    reg = client.post("/api/auth/register", json={"username": "tester", "password": "testpassword123"})
+    if reg.status_code != 201:
+        client.post("/api/auth/login", json={"username": "tester"})
     return client
 
 

@@ -47,7 +47,12 @@ def client(app):
 
 
 def _login(client, username):
-    return client.post("/api/auth/login", json={"username": username})
+    # Try to register (creates + logs in for fresh users).
+    # Fall back to legacy login for users pre-created without a password.
+    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if reg.status_code == 201:
+        return reg
+    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
 
 
 def test_register_and_list_devices(client):
@@ -218,7 +223,7 @@ def test_device_user_isolation(client):
     )
     device_id = response.get_json()["id"]
 
-    client.post("/api/auth/login", json={"username": "frank"})
+    _login(client, "frank")
     response = client.put(
         f"/api/devices/{device_id}/type",
         json={"device_type": "mobile"},

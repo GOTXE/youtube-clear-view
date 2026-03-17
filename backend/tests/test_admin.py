@@ -52,7 +52,12 @@ def client(app):
 
 
 def _login(client, username):
-    return client.post("/api/auth/login", json={"username": username})
+    # Try to register (creates + logs in for fresh users).
+    # Fall back to legacy login for users pre-created without a password.
+    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if reg.status_code == 201:
+        return reg
+    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
 
 
 def test_sqlite_observability_requires_admin(client):
@@ -84,12 +89,12 @@ def test_admin_can_inspect_runtime_state(client):
         "/api/devices/register",
         json={"device_identifier": "runtime-admin", "user_agent": "ua"},
     )
-    client.post("/api/auth/login", json={"username": "alice"})
+    _login(client, "alice")
     client.post(
         "/api/devices/register",
         json={"device_identifier": "runtime-alice", "user_agent": "ua"},
     )
-    client.post("/api/auth/login", json={"username": "admin"})
+    _login(client, "admin")
 
     response = client.get("/api/admin/runtime-state")
     assert response.status_code == 200

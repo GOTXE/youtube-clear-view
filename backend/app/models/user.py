@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from app.extensions import db
 from app.services.auth_security import decrypt_secret, encrypt_secret
 
@@ -23,6 +25,10 @@ class User(db.Model):
     google_token_expires_at = db.Column(db.DateTime)
     _google_scopes = db.Column("google_scopes", db.Text)
     google_auth_status = db.Column(db.String(32), nullable=False, default="not_linked")
+    password_hash = db.Column(db.String(255))
+    setup_completed = db.Column(db.Boolean, nullable=False, default=False)
+    login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    login_locked_until = db.Column(db.DateTime)
     _totp_secret = db.Column("totp_secret", db.String(4096))
     _totp_pending_secret = db.Column("totp_pending_secret", db.String(4096))
     totp_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -108,6 +114,28 @@ class User(db.Model):
         """Persist a pending TOTP secret encrypted at rest."""
         self._totp_pending_secret = encrypt_secret(value)
 
+    def set_password(self, password):
+        """Hash and store a new password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Return True if password matches stored hash."""
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def is_locked(self):
+        """Return True if account is temporarily locked due to failed attempts."""
+        if self.login_locked_until is None:
+            return False
+        return datetime.utcnow() < self.login_locked_until
+
+    @property
+    def has_any_credential(self):
+        """Return True if the user has at least one auth credential set up."""
+        return bool(self.password_hash) or bool(self.passkeys)
+
     def to_dict(self):
         """Serialize the user for JSON responses."""
         return {
@@ -119,6 +147,8 @@ class User(db.Model):
             "google_avatar_url": self.google_avatar_url,
             "google_auth_status": self.google_auth_status,
             "totp_enabled": self.totp_enabled,
+            "setup_completed": self.setup_completed,
+            "has_password": bool(self.password_hash),
             "theme_preference": self.theme_preference,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

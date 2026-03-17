@@ -48,7 +48,12 @@ def client(app):
 
 
 def _login(client, username):
-    return client.post("/api/auth/login", json={"username": username})
+    # Try to register (creates + logs in for fresh users).
+    # Fall back to legacy login for users pre-created without a password.
+    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if reg.status_code == 201:
+        return reg
+    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
 
 
 def _seed_channel(app, username):
@@ -138,6 +143,6 @@ def test_user_isolation(client, app):
     response = client.post("/api/themes", json={"name": "Secret", "color": "#fff"})
     theme_id = response.get_json()["id"]
 
-    client.post("/api/auth/login", json={"username": "frank"})
+    _login(client, "frank")
     response = client.put(f"/api/themes/{theme_id}", json={"name": "Hack"})
     assert response.status_code == 404

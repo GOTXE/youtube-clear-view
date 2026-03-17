@@ -348,21 +348,38 @@ def _serialize_pairing_status(pairing, status):
     }
 
 
+_MAX_LOGIN_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 15
+
+
+def _record_failed_login(user):
+    """Increment failed login counter and lock account if threshold reached."""
+    user.login_attempts = (user.login_attempts or 0) + 1
+    if user.login_attempts >= _MAX_LOGIN_ATTEMPTS:
+        user.login_locked_until = datetime.utcnow() + timedelta(minutes=_LOCKOUT_MINUTES)
+        get_logger(__name__).warning(
+            "Account locked after %s failed attempts: user_id=%s",
+            _MAX_LOGIN_ATTEMPTS,
+            user.id,
+        )
+
+
+def _reset_login_attempts(user):
+    """Clear failed login state on successful authentication."""
+    user.login_attempts = 0
+    user.login_locked_until = None
+
+
 @auth_bp.post("/api/auth/login")
 @handle_route_errors
 def login():
-    """Login or create a user and set a secure session cookie."""
-    if _auth_mode() != "local":
-        return _forbidden("Local login disabled in Google OAuth mode.")
-
+    """Authenticate a local user with username and password."""
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+
     if not username:
         tracking_id = generate_tracking_id()
-        get_logger(__name__).warning(
-            "Login missing username.",
-            extra={"tracking_id": tracking_id},
-        )
         return (
             jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
             400,
@@ -370,8 +387,21 @@ def login():
 
     user = User.query.filter_by(username=username).first()
     if not user:
-        user = User(username=username, display_name=username)
-        db.session.add(user)
+        return _unauthorized("Invalid credentials.")
+
+    if user.is_locked:
+        return (
+            jsonify({"error": "Account temporarily locked. Try again later.", "status": 423}),
+            423,
+        )
+
+    # Legacy users (no password yet) are let through but flagged for setup completion.
+    if user.password_hash:
+        if not user.check_password(password):
+            _record_failed_login(user)
+            db.session.commit()
+            return _unauthorized("Invalid credentials.")
+        _reset_login_attempts(user)
 
     if _user_requires_mfa(user):
         _clear_existing_session_from_cookie()
@@ -385,11 +415,54 @@ def login():
     session_token = _issue_session_for_user(user)
     db.session.commit()
 
-    response = jsonify(
-        _serialize_authenticated_user(user) | {"authenticated": True}
-    )
+    payload = _serialize_authenticated_user(user) | {"authenticated": True}
+    if not user.setup_completed:
+        payload["needs_setup"] = True
+
+    response = jsonify(payload)
     _set_session_cookie(response, session_token)
     return response
+
+
+@auth_bp.post("/api/auth/register")
+@handle_route_errors
+def register():
+    """Create a new local user account with username and password."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    display_name = (data.get("display_name") or "").strip() or None
+
+    if not username or len(username) < 3 or len(username) > 64:
+        return (
+            jsonify({"error": "Username must be between 3 and 64 characters.", "status": 400}),
+            400,
+        )
+    if not password or len(password) < 8:
+        return (
+            jsonify({"error": "Password must be at least 8 characters.", "status": 400}),
+            400,
+        )
+    if User.query.filter_by(username=username).first():
+        return (
+            jsonify({"error": "Username already taken.", "status": 409}),
+            409,
+        )
+
+    user = User(
+        username=username,
+        display_name=display_name or username,
+        auth_provider="local",
+        setup_completed=True,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
+    _set_session_cookie(response, session_token)
+    return response, 201
 
 
 @auth_bp.post("/api/auth/fallback-login")
@@ -794,6 +867,33 @@ def update_profile():
             "theme_preference": user.theme_preference,
         }
     )
+
+
+@auth_bp.post("/api/auth/profile/password")
+@handle_route_errors
+@require_auth
+def change_password():
+    """Change the authenticated user's password."""
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("current_password") or ""
+    new_password = data.get("new_password") or ""
+
+    if not new_password or len(new_password) < 8:
+        return (
+            jsonify({"error": "New password must be at least 8 characters.", "status": 400}),
+            400,
+        )
+
+    user = g.current_user
+    if user.password_hash and not user.check_password(current_password):
+        return _unauthorized("Current password is incorrect.")
+
+    user.set_password(new_password)
+    if not user.setup_completed:
+        user.setup_completed = True
+    db.session.commit()
+
+    return jsonify({"message": "Password updated."})
 
 
 @auth_bp.post("/api/auth/google/unlink")

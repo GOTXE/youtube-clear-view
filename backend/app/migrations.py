@@ -36,6 +36,10 @@ def ensure_user_schema():
                 ("totp_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
                 ("recovery_codes_hashes", "TEXT"),
                 ("session_token_hash", "VARCHAR(64)"),
+                ("password_hash", "VARCHAR(255)"),
+                ("setup_completed", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("login_attempts", "INTEGER NOT NULL DEFAULT 0"),
+                ("login_locked_until", "DATETIME"),
             ]
 
             for name, column_def in additions:

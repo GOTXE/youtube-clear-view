@@ -78,11 +78,18 @@ def client_google(app_google):
     return app_google.test_client()
 
 
-def test_login_creates_user_and_cookie(client):
+def test_login_creates_user_and_cookie(client, app):
+    """Legacy user (no password_hash) can log in; response includes needs_setup: true."""
+    with app.app_context():
+        user = User(username="alice", display_name="Alice")
+        db.session.add(user)
+        db.session.commit()
+
     response = client.post("/api/auth/login", json={"username": "alice"})
     assert response.status_code == 200
     data = response.get_json()
     assert data["username"] == "alice"
+    assert data.get("needs_setup") is True
     assert "session_token" not in data
 
     cookie = response.headers.get("Set-Cookie", "")
@@ -93,6 +100,11 @@ def test_login_creates_user_and_cookie(client):
 
 
 def test_login_persists_hashed_session_only(client, app):
+    with app.app_context():
+        user = User(username="alice", display_name="Alice")
+        db.session.add(user)
+        db.session.commit()
+
     client.post("/api/auth/login", json={"username": "alice"})
 
     with app.app_context():
@@ -141,7 +153,7 @@ def test_login_with_totp_enabled_returns_mfa_challenge(client, app):
 
 
 def test_current_user_returns_profile(client):
-    client.post("/api/auth/login", json={"username": "bob"})
+    client.post("/api/auth/register", json={"username": "bob", "password": "testpassword123"})
     response = client.get("/api/auth/current")
     assert response.status_code == 200
     data = response.get_json()
@@ -150,7 +162,7 @@ def test_current_user_returns_profile(client):
 
 
 def test_current_user_marks_admin_when_configured(client):
-    client.post("/api/auth/login", json={"username": "admin"})
+    client.post("/api/auth/register", json={"username": "admin", "password": "testpassword123"})
     response = client.get("/api/auth/current")
     assert response.status_code == 200
     data = response.get_json()
@@ -179,7 +191,7 @@ def test_verify_mfa_challenge_with_totp_creates_session(client, app):
 
 
 def test_verify_mfa_challenge_with_recovery_code_consumes_code(client):
-    client.post("/api/auth/login", json={"username": "mfa-recovery-login"})
+    client.post("/api/auth/register", json={"username": "mfa-recovery-login", "password": "testpassword123"})
     setup_data = client.post("/api/auth/totp/setup").get_json()
     confirm_data = client.post(
         "/api/auth/totp/confirm",
@@ -188,7 +200,7 @@ def test_verify_mfa_challenge_with_recovery_code_consumes_code(client):
     recovery_code = confirm_data["recovery_codes"][0]
     client.post("/api/auth/logout")
 
-    login_response = client.post("/api/auth/login", json={"username": "mfa-recovery-login"})
+    login_response = client.post("/api/auth/login", json={"username": "mfa-recovery-login", "password": "testpassword123"})
     assert login_response.get_json()["mfa_required"] is True
 
     verify_response = client.post(
@@ -297,7 +309,7 @@ def test_ensure_user_schema_normalizes_legacy_google_status(app_google):
 
 
 def test_list_users(client):
-    client.post("/api/auth/login", json={"username": "carol"})
+    client.post("/api/auth/register", json={"username": "carol", "password": "testpassword123"})
     response = client.get("/api/auth/users")
     assert response.status_code == 200
     data = response.get_json()
@@ -305,7 +317,7 @@ def test_list_users(client):
 
 
 def test_update_profile(client, app):
-    client.post("/api/auth/login", json={"username": "dave"})
+    client.post("/api/auth/register", json={"username": "dave", "password": "testpassword123"})
     response = client.put(
         "/api/auth/profile",
         json={"display_name": "Dave", "theme_preference": "dark"},
@@ -322,7 +334,7 @@ def test_update_profile(client, app):
 
 
 def test_logout_clears_token(client, app):
-    client.post("/api/auth/login", json={"username": "erin"})
+    client.post("/api/auth/register", json={"username": "erin", "password": "testpassword123"})
     response = client.post("/api/auth/logout")
     assert response.status_code == 200
     cookie = response.headers.get("Set-Cookie", "")
@@ -376,7 +388,7 @@ def test_google_tokens_are_encrypted_at_rest(client, app):
 
 
 def test_passkey_registration_persists_credential(client, app, monkeypatch):
-    client.post("/api/auth/login", json={"username": "alice"})
+    client.post("/api/auth/register", json={"username": "alice", "password": "testpassword123"})
 
     response = client.post("/api/auth/passkeys/register/options", json={"label": "Laptop"})
     assert response.status_code == 200
@@ -707,7 +719,7 @@ def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google,
 
 
 def test_totp_enrollment_and_recovery_codes(client, app):
-    client.post("/api/auth/login", json={"username": "mfa-user"})
+    client.post("/api/auth/register", json={"username": "mfa-user", "password": "testpassword123"})
 
     setup_response = client.post("/api/auth/totp/setup")
     assert setup_response.status_code == 200
@@ -739,7 +751,7 @@ def test_totp_enrollment_and_recovery_codes(client, app):
 
 
 def test_recovery_code_can_be_consumed_once(client):
-    client.post("/api/auth/login", json={"username": "recover-user"})
+    client.post("/api/auth/register", json={"username": "recover-user", "password": "testpassword123"})
     setup_data = client.post("/api/auth/totp/setup").get_json()
     confirm_data = client.post(
         "/api/auth/totp/confirm",
@@ -756,7 +768,7 @@ def test_recovery_code_can_be_consumed_once(client):
 
 
 def test_recovery_codes_regenerate_requires_valid_totp(client):
-    client.post("/api/auth/login", json={"username": "rotate-user"})
+    client.post("/api/auth/register", json={"username": "rotate-user", "password": "testpassword123"})
     setup_data = client.post("/api/auth/totp/setup").get_json()
     client.post(
         "/api/auth/totp/confirm",
@@ -772,3 +784,110 @@ def test_recovery_codes_regenerate_requires_valid_totp(client):
     )
     assert good_response.status_code == 200
     assert len(good_response.get_json()["recovery_codes"]) == 8
+
+
+# ---------------------------------------------------------------------------
+# Registration and password-login tests
+# ---------------------------------------------------------------------------
+
+
+def test_register_creates_user_with_password(client):
+    response = client.post("/api/auth/register", json={"username": "newuser", "password": "securepass1"})
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["username"] == "newuser"
+    assert "session_token" not in data
+
+    cookie = response.headers.get("Set-Cookie", "")
+    assert "ytcv_session=" in cookie
+    assert "HttpOnly" in cookie
+
+
+def test_register_duplicate_username_returns_409(client):
+    client.post("/api/auth/register", json={"username": "dupuser", "password": "securepass1"})
+    response = client.post("/api/auth/register", json={"username": "dupuser", "password": "otherpass1"})
+    assert response.status_code == 409
+
+
+def test_register_short_password_returns_400(client):
+    response = client.post("/api/auth/register", json={"username": "shortpw", "password": "abc"})
+    assert response.status_code == 400
+
+
+def test_login_with_password_succeeds(client):
+    client.post("/api/auth/register", json={"username": "pwuser", "password": "correctpass1"})
+    client.post("/api/auth/logout")
+
+    response = client.post("/api/auth/login", json={"username": "pwuser", "password": "correctpass1"})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "pwuser"
+    assert data.get("needs_setup") is not True
+
+    cookie = response.headers.get("Set-Cookie", "")
+    assert "ytcv_session=" in cookie
+
+
+def test_login_with_wrong_password_returns_401(client):
+    client.post("/api/auth/register", json={"username": "wrongpw", "password": "correctpass1"})
+    client.post("/api/auth/logout")
+
+    response = client.post("/api/auth/login", json={"username": "wrongpw", "password": "wrongpass99"})
+    assert response.status_code == 401
+
+
+def test_login_nonexistent_user_returns_401(client):
+    response = client.post("/api/auth/login", json={"username": "nobody", "password": "anypass123"})
+    assert response.status_code == 401
+
+
+def test_login_rate_limiting_locks_account(client):
+    client.post("/api/auth/register", json={"username": "lockme", "password": "correctpass1"})
+    client.post("/api/auth/logout")
+
+    for _ in range(5):
+        client.post("/api/auth/login", json={"username": "lockme", "password": "wrongpass99"})
+
+    response = client.post("/api/auth/login", json={"username": "lockme", "password": "wrongpass99"})
+    assert response.status_code == 423
+
+
+def test_login_legacy_user_without_password_succeeds_with_needs_setup(client, app):
+    with app.app_context():
+        user = User(username="legacy-nopw", display_name="Legacy No Password")
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post("/api/auth/login", json={"username": "legacy-nopw"})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "legacy-nopw"
+    assert data.get("needs_setup") is True
+
+    cookie = response.headers.get("Set-Cookie", "")
+    assert "ytcv_session=" in cookie
+
+
+def test_change_password_requires_auth(client):
+    response = client.post(
+        "/api/auth/profile/password",
+        json={"current_password": "old", "new_password": "newpass123"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_updates_hash(client):
+    client.post("/api/auth/register", json={"username": "changepw", "password": "oldpassword1"})
+
+    response = client.post(
+        "/api/auth/profile/password",
+        json={"current_password": "oldpassword1", "new_password": "newpassword1"},
+    )
+    assert response.status_code == 200
+
+    client.post("/api/auth/logout")
+    login_response = client.post(
+        "/api/auth/login", json={"username": "changepw", "password": "newpassword1"}
+    )
+    assert login_response.status_code == 200
+    assert login_response.get_json()["username"] == "changepw"

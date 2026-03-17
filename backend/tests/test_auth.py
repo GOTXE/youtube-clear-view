@@ -7,6 +7,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
+from app.migrations import ensure_user_schema
 from app.models import User, UserPasskey
 from app.services.totp_auth import generate_totp_code
 
@@ -195,6 +196,34 @@ def test_auth_provider_defaults_local(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["auth_mode"] == "local"
+
+
+def test_ensure_user_schema_normalizes_legacy_google_status(app_google):
+    with app_google.app_context():
+        active_user = User(
+            username="legacy-active",
+            auth_provider="google",
+            google_user_id="google-legacy-active",
+            google_auth_status="not_linked",
+        )
+        active_user.google_refresh_token = "refresh-token"
+
+        revoked_user = User(
+            username="legacy-revoked",
+            auth_provider="google",
+            google_user_id="google-legacy-revoked",
+            google_auth_status="revoked",
+        )
+
+        db.session.add_all([active_user, revoked_user])
+        db.session.commit()
+
+        ensure_user_schema()
+        db.session.refresh(active_user)
+        db.session.refresh(revoked_user)
+
+        assert active_user.google_auth_status == "active"
+        assert revoked_user.google_auth_status == "revoked"
 
 
 def test_list_users(client):

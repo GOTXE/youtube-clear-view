@@ -92,6 +92,7 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - `active`
   - `needs_reauth`
   - `revoked`
+- On startup, SQLite migrations also normalize legacy Google users so older rows with persisted tokens move back to `active` automatically unless they were explicitly `revoked`.
 - `POST /api/auth/google/unlink` revokes local Google linkage and clears stored OAuth credentials for the current user.
 
 ## MFA Enrollment Foundation

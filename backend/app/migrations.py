@@ -57,10 +57,17 @@ def ensure_user_schema():
             conn.execute(
                 text(
                     "UPDATE users SET google_auth_status = CASE "
-                    "WHEN auth_provider = 'google' AND google_refresh_token IS NOT NULL THEN 'active' "
+                    "WHEN google_auth_status = 'revoked' THEN 'revoked' "
+                    "WHEN auth_provider = 'google' "
+                    "AND ((google_refresh_token IS NOT NULL AND google_refresh_token != '') "
+                    "OR (google_access_token IS NOT NULL AND google_access_token != '')) "
+                    "THEN 'active' "
                     "WHEN auth_provider = 'google' THEN 'needs_reauth' "
                     "ELSE 'not_linked' END "
-                    "WHERE google_auth_status IS NULL OR google_auth_status = ''"
+                    "WHERE google_auth_status IS NULL "
+                    "OR google_auth_status = '' "
+                    "OR google_auth_status = 'not_linked' "
+                    "OR google_auth_status = 'needs_reauth'"
                 )
             )
     except Exception as error:

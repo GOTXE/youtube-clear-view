@@ -2060,12 +2060,12 @@ html[data-mode="tv"] .field__input:focus {
 .player-overlay__dialog {
   position: relative;
   z-index: 1;
-  width: min(1380px, calc(100vw - 36px));
-  max-height: calc(100vh - 48px);
+  width: min(1560px, calc(100vw - 20px));
+  max-height: calc(100vh - 24px);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: calc(var(--radius-3) + 4px);
   background: color-mix(in srgb, var(--surface) 94%, rgba(15, 23, 42, 0.9));
@@ -2117,7 +2117,7 @@ html[data-mode="tv"] .field__input:focus {
 
 .player-overlay__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) 190px;
   gap: var(--space-4);
   min-height: 0;
 }
@@ -2161,8 +2161,8 @@ html[data-mode="tv"] .field__input:focus {
 }
 
 html[data-mode="tv"] .player-overlay__dialog {
-  width: min(1640px, calc(100vw - 40px));
-  padding: var(--space-5);
+  width: min(1840px, calc(100vw - 20px));
+  padding: var(--space-4);
 }
 
 html[data-mode="tv"] .player-overlay__title {
@@ -2176,7 +2176,7 @@ html[data-mode="tv"] .player-overlay__actions .button {
 }
 
 html[data-mode="tv"] .player-overlay__body {
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 220px;
 }
 
 html.player-overlay-open,

@@ -40,6 +40,9 @@ def _serialize_device(device):
         "device_type_confirmed": bool(device.device_type_confirmed),
         "frontend_mode": device.frontend_mode,
         "tv_scale": device.tv_scale,
+        "tv_scale_confirmed_at": (
+            device.tv_scale_confirmed_at.isoformat() if device.tv_scale_confirmed_at else None
+        ),
         "screen_size_inches": device.screen_size_inches,
         "viewing_distance_m": device.viewing_distance_m,
         "user_agent": device.user_agent,
@@ -173,6 +176,10 @@ def update_device_preferences(device_id):
     device.tv_scale = tv_scale
     device.screen_size_inches = screen_size_inches
     device.viewing_distance_m = viewing_distance_m
+    if frontend_mode == "tv" and tv_scale:
+        device.tv_scale_confirmed_at = datetime.utcnow()
+    else:
+        device.tv_scale_confirmed_at = None
     db.session.commit()
     return jsonify(_serialize_device(device))
 

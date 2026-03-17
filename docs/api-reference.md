@@ -205,6 +205,7 @@ Response (authenticated):
   "google_avatar_url": "https://...",
   "google_auth_status": "active",
   "totp_enabled": true,
+  "is_admin": false,
   "theme_preference": "dark"
 }
 ```
@@ -1185,6 +1186,24 @@ Lists registered devices.
 Updates device type and marks it as explicitly confirmed for that user/device pair.
 
 ### PUT /api/devices/<device_id>/preferences
+
+Updates frontend mode and TV calibration preferences for the current user's device.
+
+Response example:
+
+```json
+{
+  "id": 7,
+  "device_identifier": "dev-123",
+  "device_type": "tv",
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "tv_scale_confirmed_at": "2026-03-17T12:30:00",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
+}
+```
 
 Updates persisted frontend display preferences for the current user/device pair.
 

@@ -199,7 +199,11 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - the frontend layout mode and TV sizing hints
 - Phone mode now includes a fixed bottom action bar and a subscriptions sheet so the main feed stays single-column while channels and filters remain reachable with one tap.
 - TV mode now exposes a persistent quick-action rail for subscriptions, filters, refresh, and display setup so the most important actions are no longer buried behind the hamburger menu.
-- This slice intentionally stops short of full TV calibration and only establishes the persistence and resolver contract for v0.2.0.
+- The shared `Display setup` modal now also acts as the first TV calibration step:
+  - TV screen size and viewing distance can be stored per device
+  - the UI proposes a recommended TV scale
+  - the modal shows a live TV preview before saving
+  - saving a valid TV setup marks the TV scale as confirmed for that device
 
 ## Subscription Sidebar Search
 

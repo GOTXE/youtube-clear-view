@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+function translate(key, vars = {}) {
+  const messages = {
+    tvScaleRecommendationValue: 'Recommended scale: {scale}'
+  };
+  return (messages[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+}
+
 describe('frontend layout mode system', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -15,9 +22,7 @@ describe('frontend layout mode system', () => {
       REQUEST_TIMEOUT: 5000
     };
 
-    window.ytcvI18n = {
-      t: key => key
-    };
+    window.ytcvI18n = { t: translate };
 
     Object.defineProperty(window, 'innerWidth', {
       value: 1366,
@@ -34,6 +39,7 @@ describe('frontend layout mode system', () => {
             device_type_confirmed: true,
             frontend_mode: 'tv',
             tv_scale: 'L',
+            tv_scale_confirmed_at: '2026-03-17T12:00:00',
             screen_size_inches: 55,
             viewing_distance_m: 2.5
           }
@@ -49,6 +55,9 @@ describe('frontend layout mode system', () => {
             device_type_confirmed: true,
             frontend_mode: preferences.frontend_mode,
             tv_scale: preferences.tv_scale,
+            tv_scale_confirmed_at: preferences.frontend_mode === 'tv' && preferences.tv_scale
+              ? '2026-03-17T12:00:00'
+              : null,
             screen_size_inches: preferences.screen_size_inches ? Number(preferences.screen_size_inches) : null,
             viewing_distance_m: preferences.viewing_distance_m ? Number(preferences.viewing_distance_m) : null
           }
@@ -122,12 +131,17 @@ describe('frontend layout mode system', () => {
 
     const modal = document.getElementById('layout-mode-modal');
     expect(modal).not.toBeNull();
+    expect(modal.querySelector('#tv-scale-recommendation').textContent).toContain('Recommended scale: XL');
 
     modal.querySelector('input[name="device-type"][value="desktop"]').checked = true;
     modal.querySelector('input[name="layout-mode"][value="tv"]').checked = true;
-    modal.querySelector('select').value = 'XXL';
     modal.querySelector('input[type="number"]').value = '65';
+    modal.querySelector('input[type="number"]').dispatchEvent(new Event('input'));
     modal.querySelectorAll('input[type="number"]')[1].value = '3.5';
+    modal.querySelectorAll('input[type="number"]')[1].dispatchEvent(new Event('input'));
+    modal.querySelector('#tv-scale-recommendation-button').click();
+    expect(modal.querySelector('select').value).toBe('XXL');
+    expect(modal.querySelector('#tv-scale-preview').dataset.tvScale).toBe('XXL');
 
     const saveButton = Array.from(modal.querySelectorAll('button')).find(node => node.textContent === 'save');
     saveButton.click();

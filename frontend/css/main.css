@@ -1187,6 +1187,54 @@ select {
   margin-top: var(--space-4);
 }
 
+.layout-mode-modal__recommendation {
+  gap: var(--space-2);
+}
+
+.layout-mode-preview {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.layout-mode-preview__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: var(--radius-2);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
+.layout-mode-preview__title,
+.layout-mode-preview__body,
+.layout-mode-preview__meta {
+  margin: 0;
+}
+
+.layout-mode-preview__meta {
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+
+.layout-mode-preview[data-tv-scale="M"] .layout-mode-preview__card {
+  font-size: 0.95rem;
+}
+
+.layout-mode-preview[data-tv-scale="L"] .layout-mode-preview__card {
+  font-size: 1.05rem;
+}
+
+.layout-mode-preview[data-tv-scale="XL"] .layout-mode-preview__card {
+  font-size: 1.15rem;
+}
+
+.layout-mode-preview[data-tv-scale="XXL"] .layout-mode-preview__card {
+  font-size: 1.28rem;
+}
+
 .spinner {
   width: 32px;
   height: 32px;

@@ -150,8 +150,37 @@ def test_update_device_preferences(client):
     data = response.get_json()
     assert data["frontend_mode"] == "tv"
     assert data["tv_scale"] == "XL"
+    assert data["tv_scale_confirmed_at"] is not None
     assert data["screen_size_inches"] == 55
     assert data["viewing_distance_m"] == 2.8
+
+
+def test_non_tv_preferences_clear_tv_scale_confirmation(client):
+    _login(client, "helen")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs3", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={
+            "frontend_mode": "tv",
+            "tv_scale": "L",
+            "screen_size_inches": 55,
+            "viewing_distance_m": 2.2,
+        },
+    )
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={"frontend_mode": "desktop_tablet", "tv_scale": None},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["frontend_mode"] == "desktop_tablet"
+    assert data["tv_scale_confirmed_at"] is None
 
 
 def test_update_device_preferences_invalid_mode(client):

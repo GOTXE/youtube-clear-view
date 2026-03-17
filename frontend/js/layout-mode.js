@@ -91,6 +91,42 @@
     return 'L';
   }
 
+  function getViewportWidth() {
+    return window.innerWidth || (window.screen ? window.screen.width : 0) || 0;
+  }
+
+  function calculateRecommendedTvScale(screenSizeInches, viewingDistanceM) {
+    const fallback = inferDefaultTvScale();
+    const normalizedSize = Number(screenSizeInches);
+    const normalizedDistance = Number(viewingDistanceM);
+    if (!Number.isFinite(normalizedSize) || normalizedSize <= 0 || !Number.isFinite(normalizedDistance) || normalizedDistance <= 0) {
+      return fallback;
+    }
+
+    let score = TV_SCALES.indexOf(fallback);
+    const distancePerInch = (normalizedDistance * 39.37) / normalizedSize;
+
+    if (normalizedSize >= 75) {
+      score += 1;
+    } else if (normalizedSize <= 43) {
+      score -= 1;
+    }
+
+    if (distancePerInch >= 2.0) {
+      score += 2;
+    } else if (distancePerInch >= 1.5) {
+      score += 1;
+    } else if (distancePerInch <= 0.9) {
+      score -= 1;
+    }
+
+    if (getViewportWidth() >= 3400) {
+      score += 1;
+    }
+
+    return TV_SCALES[Math.max(0, Math.min(TV_SCALES.length - 1, score))];
+  }
+
   function applyMode(mode) {
     currentMode = mode;
     document.documentElement.dataset.mode = mode;
@@ -346,9 +382,56 @@
     distanceLabel.appendChild(distanceCaption);
     distanceLabel.appendChild(distanceInput);
 
+    const recommendation = document.createElement('div');
+    recommendation.className = 'field layout-mode-modal__recommendation';
+
+    const recommendationLabel = document.createElement('span');
+    recommendationLabel.className = 'field__label';
+    recommendationLabel.textContent = t('tvScaleRecommendationLabel');
+
+    const recommendationValue = document.createElement('p');
+    recommendationValue.className = 'body';
+    recommendationValue.id = 'tv-scale-recommendation';
+
+    const recommendationButton = document.createElement('button');
+    recommendationButton.type = 'button';
+    recommendationButton.className = 'button button--ghost';
+    recommendationButton.id = 'tv-scale-recommendation-button';
+    recommendationButton.textContent = t('useRecommendedTvScale');
+
+    recommendation.appendChild(recommendationLabel);
+    recommendation.appendChild(recommendationValue);
+    recommendation.appendChild(recommendationButton);
+
+    const preview = document.createElement('div');
+    preview.className = 'layout-mode-preview';
+    preview.id = 'tv-scale-preview';
+
+    const previewCard = document.createElement('div');
+    previewCard.className = 'layout-mode-preview__card';
+
+    const previewTitle = document.createElement('h3');
+    previewTitle.className = 'heading-3 layout-mode-preview__title';
+    previewTitle.textContent = t('tvScalePreviewTitle');
+
+    const previewBody = document.createElement('p');
+    previewBody.className = 'body layout-mode-preview__body';
+    previewBody.textContent = t('tvScalePreviewBody');
+
+    const previewMeta = document.createElement('div');
+    previewMeta.className = 'layout-mode-preview__meta';
+    previewMeta.textContent = t('tvScalePreviewMeta');
+
+    previewCard.appendChild(previewTitle);
+    previewCard.appendChild(previewBody);
+    previewCard.appendChild(previewMeta);
+    preview.appendChild(previewCard);
+
     tvOptions.appendChild(scaleLabel);
     tvOptions.appendChild(sizeLabel);
     tvOptions.appendChild(distanceLabel);
+    tvOptions.appendChild(recommendation);
+    tvOptions.appendChild(preview);
 
     const actions = document.createElement('div');
     actions.className = 'field__group';
@@ -371,8 +454,23 @@
       tvOptions.hidden = !selectedMode || selectedMode.value !== MODES.TV;
     }
 
+    function updateTvRecommendation() {
+      const recommendedScale = calculateRecommendedTvScale(sizeInput.value, distanceInput.value);
+      recommendationValue.textContent = t('tvScaleRecommendationValue', { scale: recommendedScale });
+      recommendationButton.dataset.scale = recommendedScale;
+      preview.dataset.tvScale = scaleSelect.value || recommendedScale;
+    }
+
     modeFieldset.addEventListener('change', updateTvOptionsVisibility);
+    scaleSelect.addEventListener('change', updateTvRecommendation);
+    sizeInput.addEventListener('input', updateTvRecommendation);
+    distanceInput.addEventListener('input', updateTvRecommendation);
+    recommendationButton.addEventListener('click', () => {
+      scaleSelect.value = recommendationButton.dataset.scale || inferDefaultTvScale();
+      updateTvRecommendation();
+    });
     updateTvOptionsVisibility();
+    updateTvRecommendation();
 
     cancelButton.addEventListener('click', () => {
       closeDisplayModeModal();
@@ -492,6 +590,8 @@
     TV_SCALES,
     initLayoutMode,
     inferModeFromViewport,
+    inferDefaultTvScale,
+    calculateRecommendedTvScale,
     mapDeviceTypeToMode,
     resolveMode,
     resolveTvScale,

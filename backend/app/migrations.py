@@ -271,6 +271,13 @@ def ensure_user_device_schema():
                         "ADD COLUMN tv_scale VARCHAR(8)"
                     )
                 )
+            if "tv_scale_confirmed_at" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN tv_scale_confirmed_at DATETIME"
+                    )
+                )
             if "screen_size_inches" not in columns:
                 conn.execute(
                     text(

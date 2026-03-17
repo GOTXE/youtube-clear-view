@@ -1285,6 +1285,39 @@ def confirm_totp():
     return jsonify({"totp_enabled": True, "recovery_codes": recovery_codes})
 
 
+@auth_bp.delete("/api/auth/totp")
+@handle_route_errors
+@require_auth
+def disable_totp():
+    """Disable TOTP for the current user (requires current TOTP code or password)."""
+    user = g.current_user
+    if not user.totp_enabled:
+        return _forbidden("TOTP is not enabled.")
+
+    data = request.get_json(silent=True) or {}
+    totp_code = data.get("code")
+    password = data.get("password")
+
+    if totp_code:
+        if not verify_totp_code(user.totp_secret, totp_code):
+            tracking_id = generate_tracking_id()
+            return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+    elif password:
+        if not user.check_password(password):
+            tracking_id = generate_tracking_id()
+            return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+    else:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    user.totp_secret = None
+    user.totp_pending_secret = None
+    user.totp_enabled = False
+    user.recovery_codes_hashes = None
+    db.session.commit()
+    return jsonify({"totp_enabled": False})
+
+
 @auth_bp.post("/api/auth/recovery-codes/regenerate")
 @handle_route_errors
 @require_auth

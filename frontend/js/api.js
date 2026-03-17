@@ -85,8 +85,8 @@ class APIClient {
     return this.request(endpoint, 'PUT', body);
   }
 
-  async delete(endpoint) {
-    return this.request(endpoint, 'DELETE');
+  async delete(endpoint, body = null) {
+    return this.request(endpoint, 'DELETE', body);
   }
 
   // Auth endpoints
@@ -185,6 +185,15 @@ class APIClient {
 
   getMfaStatus() {
     return this.get('/api/auth/mfa/status');
+  }
+
+  disableTotp(code, password) {
+    const body = code ? { code } : { password };
+    return this.delete('/api/auth/totp', body);
+  }
+
+  unlinkGoogle() {
+    return this.post('/api/auth/google/unlink');
   }
 
   setupTotp() {

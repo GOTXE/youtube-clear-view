@@ -357,6 +357,10 @@
     return currentDevice;
   }
 
+  function getDeviceIdentifier() {
+    return deviceIdentifier;
+  }
+
   window.initDevice = initDevice;
   window.detectDevice = detectDevice;
   window.registerDevice = registerDevice;
@@ -364,5 +368,6 @@
   window.getDeviceId = getDeviceId;
   window.getCurrentDeviceType = getCurrentDeviceType;
   window.getCurrentDevice = getCurrentDevice;
+  window.getDeviceIdentifier = getDeviceIdentifier;
   window.openDeviceTypeModal = openDeviceTypeModal;
 })();

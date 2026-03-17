@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuCategoryGuide: document.getElementById('menu-category-guide'),
     menuDisplayMode: document.getElementById('menu-display-mode'),
     menuSettings: document.getElementById('menu-settings'),
+    myAccountButton: document.getElementById('my-account-button'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
     filterPanel: document.getElementById('filter-panel'),
@@ -335,6 +336,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.menuSettings) {
       ui.menuSettings.textContent = t('autoUpdatesLabel');
+    }
+    if (ui.myAccountButton) {
+      ui.myAccountButton.textContent = t('myAccount');
     }
     if (ui.importButton) {
       ui.importButton.textContent = t('importSubscriptions');
@@ -2002,7 +2006,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    if (ui.myAccountButton) {
+      ui.myAccountButton.addEventListener('click', () => {
+        setMenuOpen(false);
+        if (window.ytcvAccountPanel) {
+          window.ytcvAccountPanel.open('password');
+        }
+      });
+    }
+
     const updateMenuAuth = user => {
+      if (ui.myAccountButton) {
+        ui.myAccountButton.hidden = !user;
+      }
       if (ui.logoutButton) {
         ui.logoutButton.hidden = !user;
       }
@@ -2485,6 +2501,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function bootstrapAuthenticated() {
     if (typeof window.initDevice === 'function') {
       state.currentDevice = await window.initDevice();
+      if (window.ytcvAccountPanel && typeof window.getDeviceIdentifier === 'function') {
+        window.ytcvAccountPanel.setCurrentDeviceIdentifier(window.getDeviceIdentifier());
+      }
     }
     await initCategorySelector();
     await loadApp();

@@ -402,6 +402,7 @@
     if (response.ok && response.data && response.data.auth_mode) {
       authMode = response.data.auth_mode;
       googleLoginUrl = response.data.google_login_url;
+      window.dispatchEvent(new CustomEvent('auth:provider-loaded', { detail: response.data }));
     }
 
     applyAuthMode();

@@ -2187,3 +2187,232 @@ body.login-page-open #app {
   opacity: 0.65;
 }
 
+/* ── Account panel ───────────────────────────────────────────────────────── */
+
+.account-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.account-panel__card {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--primary) 20%);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.account-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.account-panel__header h2 {
+  margin: 0;
+}
+
+.account-panel__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1.25rem;
+  padding: var(--space-1);
+  line-height: 1;
+}
+
+.account-panel__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.account-panel__tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-2);
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.account-panel__tab:hover {
+  color: var(--text);
+}
+
+.account-panel__tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.account-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.account-panel__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.account-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.account-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.account-panel__inline-field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.account-panel__msg {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.account-panel__msg--error {
+  color: var(--error);
+}
+
+.account-panel__msg--success {
+  color: var(--success);
+}
+
+.account-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.account-panel__row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-panel__row-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.account-panel__row-meta {
+  opacity: 0.65;
+}
+
+.account-panel__badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--primary);
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  margin-left: var(--space-2);
+}
+
+.account-panel__empty {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0;
+}
+
+.account-panel__totp-line {
+  margin: 0;
+}
+
+.account-panel__totp-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.account-panel__totp-secret {
+  word-break: break-all;
+  font-family: monospace;
+  background: var(--bg-secondary);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin: 0;
+}
+
+.account-panel__qr {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
+
+.account-panel__recovery-codes {
+  margin-top: var(--space-2);
+}
+
+.account-panel__code-block {
+  font-family: monospace;
+  font-size: 0.875rem;
+  background: var(--bg-secondary);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: var(--space-1) 0 0;
+}
+
+.account-panel__youtube-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.button--sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8125rem;
+}
+

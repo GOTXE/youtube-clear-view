@@ -1,5 +1,6 @@
 """Authentication routes using httpOnly cookies."""
 
+import json
 import secrets
 from datetime import datetime
 
@@ -18,6 +19,14 @@ from app.services.google_oauth import (
     exchange_code_for_tokens,
     fetch_user_info,
     revoke_google_tokens,
+)
+from app.services.totp_auth import (
+    build_totp_uri,
+    consume_recovery_code,
+    generate_recovery_codes,
+    generate_totp_secret,
+    hash_recovery_codes,
+    verify_totp_code,
 )
 
 auth_bp = Blueprint("auth", __name__)
@@ -200,6 +209,7 @@ def login():
             "email": user.email,
             "google_avatar_url": user.google_avatar_url,
             "google_auth_status": user.google_auth_status,
+            "totp_enabled": user.totp_enabled,
             "theme_preference": user.theme_preference,
         }
     )
@@ -300,6 +310,7 @@ def switch_account():
             "auth_provider": user.auth_provider,
             "google_avatar_url": user.google_avatar_url,
             "google_auth_status": user.google_auth_status,
+            "totp_enabled": user.totp_enabled,
             "theme_preference": user.theme_preference,
         }
     )
@@ -447,6 +458,7 @@ def current_user():
             "auth_provider": user.auth_provider,
             "google_avatar_url": user.google_avatar_url,
             "google_auth_status": user.google_auth_status,
+            "totp_enabled": user.totp_enabled,
             "theme_preference": user.theme_preference,
         }
     )
@@ -513,3 +525,116 @@ def unlink_google_account():
             "google_auth_status": user.google_auth_status,
         }
     )
+
+
+def _load_recovery_hashes(user):
+    """Load persisted recovery code hashes for a user."""
+    if not user.recovery_codes_hashes:
+        return []
+    try:
+        data = json.loads(user.recovery_codes_hashes)
+    except (TypeError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+@auth_bp.get("/api/auth/mfa/status")
+@handle_route_errors
+@require_auth
+def mfa_status():
+    """Return current MFA enrollment state for the authenticated user."""
+    user = g.current_user
+    return jsonify(
+        {
+            "totp_enabled": user.totp_enabled,
+            "totp_pending": bool(user.totp_pending_secret),
+            "recovery_codes_remaining": len(_load_recovery_hashes(user)),
+        }
+    )
+
+
+@auth_bp.post("/api/auth/totp/setup")
+@handle_route_errors
+@require_auth
+def setup_totp():
+    """Create a pending TOTP secret for the current user."""
+    user = g.current_user
+    secret = generate_totp_secret()
+    account_name = user.email or user.username or f"user-{user.id}"
+    user.totp_pending_secret = secret
+    db.session.commit()
+
+    return jsonify({"secret": secret, "otpauth_url": build_totp_uri(secret, account_name)})
+
+
+@auth_bp.post("/api/auth/totp/confirm")
+@handle_route_errors
+@require_auth
+def confirm_totp():
+    """Confirm TOTP setup and issue new recovery codes."""
+    user = g.current_user
+    if not user.totp_pending_secret:
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    data = request.get_json(silent=True) or {}
+    if not verify_totp_code(user.totp_pending_secret, data.get("code")):
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    recovery_codes = generate_recovery_codes()
+    user.totp_secret = user.totp_pending_secret
+    user.totp_pending_secret = None
+    user.totp_enabled = True
+    user.recovery_codes_hashes = json.dumps(hash_recovery_codes(recovery_codes))
+    db.session.commit()
+
+    return jsonify({"totp_enabled": True, "recovery_codes": recovery_codes})
+
+
+@auth_bp.post("/api/auth/recovery-codes/regenerate")
+@handle_route_errors
+@require_auth
+def regenerate_recovery_codes():
+    """Regenerate recovery codes after confirming the current TOTP code."""
+    user = g.current_user
+    if not user.totp_enabled or not user.totp_secret:
+        return _forbidden("TOTP is not enabled.")
+
+    data = request.get_json(silent=True) or {}
+    if not verify_totp_code(user.totp_secret, data.get("code")):
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    recovery_codes = generate_recovery_codes()
+    user.recovery_codes_hashes = json.dumps(hash_recovery_codes(recovery_codes))
+    db.session.commit()
+    return jsonify({"recovery_codes": recovery_codes})
+
+
+@auth_bp.post("/api/auth/recovery-codes/consume")
+@handle_route_errors
+@require_auth
+def consume_recovery_code_route():
+    """Consume one recovery code for the authenticated user."""
+    user = g.current_user
+    matched, remaining = consume_recovery_code(_load_recovery_hashes(user), (request.get_json(silent=True) or {}).get("code"))
+    if not matched:
+        tracking_id = generate_tracking_id()
+        return (
+            jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}),
+            400,
+        )
+
+    user.recovery_codes_hashes = json.dumps(remaining)
+    db.session.commit()
+    return jsonify({"accepted": True, "recovery_codes_remaining": len(remaining)})

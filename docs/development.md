@@ -94,6 +94,22 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - `revoked`
 - `POST /api/auth/google/unlink` revokes local Google linkage and clears stored OAuth credentials for the current user.
 
+## MFA Enrollment Foundation
+
+- Auth v2 now has a backend foundation for TOTP and recovery codes.
+- New authenticated endpoints:
+  - `GET /api/auth/mfa/status`
+  - `POST /api/auth/totp/setup`
+  - `POST /api/auth/totp/confirm`
+  - `POST /api/auth/recovery-codes/regenerate`
+  - `POST /api/auth/recovery-codes/consume`
+- Current scope:
+  - enroll TOTP
+  - confirm TOTP with a real one-time code
+  - generate and rotate recovery codes
+  - consume recovery codes once
+- This slice does not yet enforce MFA during sign-in. That will be wired into the login flow in a later auth v2 slice.
+
 ## Device Type Persistence
 
 - Device state is stored per `user_id + device_identifier` in `user_devices`.

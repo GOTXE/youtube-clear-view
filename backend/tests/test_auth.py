@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.models import User
+from app.services.totp_auth import generate_totp_code
 
 
 class TestConfig:
@@ -316,3 +317,71 @@ def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google,
         assert user.google_access_token is None
         assert user.google_refresh_token is None
         assert user.google_auth_status == "revoked"
+
+
+def test_totp_enrollment_and_recovery_codes(client, app):
+    client.post("/api/auth/login", json={"username": "mfa-user"})
+
+    setup_response = client.post("/api/auth/totp/setup")
+    assert setup_response.status_code == 200
+    setup_data = setup_response.get_json()
+    assert setup_data["secret"]
+    assert setup_data["otpauth_url"].startswith("otpauth://totp/")
+
+    confirm_response = client.post(
+        "/api/auth/totp/confirm",
+        json={"code": generate_totp_code(setup_data["secret"])},
+    )
+    assert confirm_response.status_code == 200
+    confirm_data = confirm_response.get_json()
+    assert confirm_data["totp_enabled"] is True
+    assert len(confirm_data["recovery_codes"]) == 8
+
+    status_response = client.get("/api/auth/mfa/status")
+    assert status_response.status_code == 200
+    status_data = status_response.get_json()
+    assert status_data["totp_enabled"] is True
+    assert status_data["totp_pending"] is False
+    assert status_data["recovery_codes_remaining"] == 8
+
+    with app.app_context():
+        user = User.query.filter_by(username="mfa-user").first()
+        assert user.totp_enabled is True
+        assert user.totp_secret == setup_data["secret"]
+        assert user._totp_secret != setup_data["secret"]
+
+
+def test_recovery_code_can_be_consumed_once(client):
+    client.post("/api/auth/login", json={"username": "recover-user"})
+    setup_data = client.post("/api/auth/totp/setup").get_json()
+    confirm_data = client.post(
+        "/api/auth/totp/confirm",
+        json={"code": generate_totp_code(setup_data["secret"])},
+    ).get_json()
+    recovery_code = confirm_data["recovery_codes"][0]
+
+    consume_response = client.post("/api/auth/recovery-codes/consume", json={"code": recovery_code})
+    assert consume_response.status_code == 200
+    assert consume_response.get_json()["recovery_codes_remaining"] == 7
+
+    second_response = client.post("/api/auth/recovery-codes/consume", json={"code": recovery_code})
+    assert second_response.status_code == 400
+
+
+def test_recovery_codes_regenerate_requires_valid_totp(client):
+    client.post("/api/auth/login", json={"username": "rotate-user"})
+    setup_data = client.post("/api/auth/totp/setup").get_json()
+    client.post(
+        "/api/auth/totp/confirm",
+        json={"code": generate_totp_code(setup_data["secret"])},
+    )
+
+    bad_response = client.post("/api/auth/recovery-codes/regenerate", json={"code": "000000"})
+    assert bad_response.status_code == 400
+
+    good_response = client.post(
+        "/api/auth/recovery-codes/regenerate",
+        json={"code": generate_totp_code(setup_data["secret"])},
+    )
+    assert good_response.status_code == 200
+    assert len(good_response.get_json()["recovery_codes"]) == 8

@@ -159,6 +159,7 @@ Response:
   "email": null,
   "google_avatar_url": null,
   "google_auth_status": "not_linked",
+  "totp_enabled": false,
   "theme_preference": "light"
 }
 ```
@@ -201,6 +202,7 @@ Response (authenticated):
   "auth_provider": "google",
   "google_avatar_url": "https://...",
   "google_auth_status": "active",
+  "totp_enabled": true,
   "theme_preference": "dark"
 }
 ```
@@ -269,6 +271,7 @@ Response:
   "auth_provider": "google",
   "google_avatar_url": null,
   "google_auth_status": "active",
+  "totp_enabled": true,
   "theme_preference": "dark"
 }
 ```
@@ -319,6 +322,91 @@ Response:
   "user_id": 1,
   "auth_provider": "google",
   "google_auth_status": "revoked"
+}
+```
+
+### GET /api/auth/mfa/status
+
+Requires an authenticated session.
+
+Response:
+
+```json
+{
+  "totp_enabled": true,
+  "totp_pending": false,
+  "recovery_codes_remaining": 8
+}
+```
+
+### POST /api/auth/totp/setup
+
+Requires an authenticated session.
+
+Creates a pending TOTP secret for the current user.
+
+Response:
+
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP...",
+  "otpauth_url": "otpauth://totp/YT%20Clear%20View:alice%40example.com?secret=..."
+}
+```
+
+### POST /api/auth/totp/confirm
+
+Requires an authenticated session.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+Response:
+
+```json
+{
+  "totp_enabled": true,
+  "recovery_codes": ["ABCD-EFGH", "JKMN-PQRS"]
+}
+```
+
+### POST /api/auth/recovery-codes/regenerate
+
+Requires an authenticated session with TOTP enabled.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+Response:
+
+```json
+{
+  "recovery_codes": ["ABCD-EFGH", "JKMN-PQRS"]
+}
+```
+
+### POST /api/auth/recovery-codes/consume
+
+Requires an authenticated session.
+
+Request:
+
+```json
+{ "code": "ABCD-EFGH" }
+```
+
+Response:
+
+```json
+{
+  "accepted": true,
+  "recovery_codes_remaining": 7
 }
 ```
 

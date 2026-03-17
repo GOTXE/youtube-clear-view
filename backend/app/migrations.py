@@ -31,6 +31,10 @@ def ensure_user_schema():
                 ("google_token_expires_at", "DATETIME"),
                 ("google_scopes", "TEXT"),
                 ("google_auth_status", "VARCHAR(32) NOT NULL DEFAULT 'not_linked'"),
+                ("totp_secret", "VARCHAR(4096)"),
+                ("totp_pending_secret", "VARCHAR(4096)"),
+                ("totp_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("recovery_codes_hashes", "TEXT"),
                 ("session_token_hash", "VARCHAR(64)"),
             ]
 

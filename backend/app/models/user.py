@@ -23,6 +23,10 @@ class User(db.Model):
     google_token_expires_at = db.Column(db.DateTime)
     _google_scopes = db.Column("google_scopes", db.Text)
     google_auth_status = db.Column(db.String(32), nullable=False, default="not_linked")
+    _totp_secret = db.Column("totp_secret", db.String(4096))
+    _totp_pending_secret = db.Column("totp_pending_secret", db.String(4096))
+    totp_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    recovery_codes_hashes = db.Column(db.Text)
     theme_preference = db.Column(db.String(20), nullable=False, default="light")
     _legacy_session_token = db.Column("session_token", db.String(255), index=True)
     session_token_hash = db.Column(db.String(64), index=True)
@@ -82,6 +86,26 @@ class User(db.Model):
         """Allow clearing or reading the legacy raw session token field."""
         self._legacy_session_token = value
 
+    @property
+    def totp_secret(self):
+        """Return the decrypted active TOTP secret."""
+        return decrypt_secret(self._totp_secret)
+
+    @totp_secret.setter
+    def totp_secret(self, value):
+        """Persist the active TOTP secret encrypted at rest."""
+        self._totp_secret = encrypt_secret(value)
+
+    @property
+    def totp_pending_secret(self):
+        """Return the decrypted pending TOTP secret."""
+        return decrypt_secret(self._totp_pending_secret)
+
+    @totp_pending_secret.setter
+    def totp_pending_secret(self, value):
+        """Persist a pending TOTP secret encrypted at rest."""
+        self._totp_pending_secret = encrypt_secret(value)
+
     def to_dict(self):
         """Serialize the user for JSON responses."""
         return {
@@ -92,6 +116,7 @@ class User(db.Model):
             "auth_provider": self.auth_provider,
             "google_avatar_url": self.google_avatar_url,
             "google_auth_status": self.google_auth_status,
+            "totp_enabled": self.totp_enabled,
             "theme_preference": self.theme_preference,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

@@ -18,8 +18,8 @@ const APP_CONFIG = {
 
   // Pagination configuration (for infinite carousel)
   DEFAULT_PAGE_SIZE: 20,
-  VIDEOS_PER_LOAD: 20,  // Videos loaded per infinite scroll trigger
-  INITIAL_LOAD_COUNT: 50,  // Initial video load count
+  VIDEOS_PER_LOAD: 8,  // Videos loaded per infinite scroll trigger
+  INITIAL_LOAD_COUNT: 8,  // Initial video load count
 
   // UI configuration
   NOTIFICATION_DURATION: 3000,

@@ -229,6 +229,21 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The centered panel shows a global summary by default and switches to selected-channel context when a sidebar channel is active.
 - Refresh progress is rendered in a detached header status bar below the main header row so it does not compete with the `Videos` title block.
 
+## Embedded Player Overlay
+
+- Desktop/tablet and TV modes now keep video playback inside the app with an embedded player overlay.
+- Clicking a video card in `desktop_tablet` or `tv` opens a blurred overlay with:
+  - the embedded player
+  - video metadata
+  - `Mark watched`
+  - `Open on YouTube`
+- `phone` mode intentionally keeps the external YouTube behavior.
+- The overlay closes with:
+  - the close button
+  - `Esc`
+  - backdrop click
+- Marking watched from the overlay updates the existing watched-state flow without requiring a backend schema change.
+
 ## Refresh Governance
 
 - Manual refresh is now governed by the backend instead of being treated as an unlimited client action.

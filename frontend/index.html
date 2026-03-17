@@ -323,6 +323,39 @@
         </div>
       </section>
 
+      <section id="player-overlay" class="player-overlay" hidden>
+        <div id="player-overlay-backdrop" class="player-overlay__backdrop"></div>
+        <div class="player-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="player-overlay-title">
+          <header class="player-overlay__header">
+            <div class="player-overlay__header-copy">
+              <p id="player-overlay-eyebrow" class="caption player-overlay__eyebrow"></p>
+              <h2 id="player-overlay-title" class="heading-2 player-overlay__title"></h2>
+              <p id="player-overlay-meta" class="caption player-overlay__meta"></p>
+            </div>
+            <button id="player-overlay-close" class="player-overlay__close" type="button" aria-label="Close">✕</button>
+          </header>
+          <div class="player-overlay__body">
+            <div class="player-overlay__frame-wrap">
+              <iframe
+                id="player-overlay-frame"
+                class="player-overlay__frame"
+                title="Embedded video player"
+                src="about:blank"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <aside class="player-overlay__sidebar">
+              <p id="player-overlay-description" class="body player-overlay__description"></p>
+              <div class="player-overlay__actions">
+                <button id="player-overlay-mark-watched" class="button" type="button">Mark watched</button>
+                <button id="player-overlay-open-youtube" class="button button--ghost" type="button">Open on YouTube</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
       <footer class="app-footer" role="contentinfo">
         <p class="caption">GOTXE + ❤️ + IA 🤖</p>
         <div class="footer-links">
@@ -352,6 +385,7 @@
     <script src="js/desktop-shell.js"></script>
     <script src="js/phone-shell.js"></script>
     <script src="js/tv-shell.js"></script>
+    <script src="js/player-overlay.js"></script>
     <script src="js/refresh-governance.js"></script>
     <script src="js/theme-switcher.js"></script>
     <script src="js/carousel.js"></script>

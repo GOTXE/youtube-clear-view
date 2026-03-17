@@ -349,10 +349,26 @@ class Carousel {
     const handleActivate = () => {
       const videoId = video.yt_video_id;
       if (videoId) {
-        const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YT_BASE_URL
-          ? window.APP_CONFIG.YT_BASE_URL
-          : 'https://www.youtube.com';
-        const url = `${baseUrl}/watch?v=${videoId}`;
+        const overlay = window.ytcvPlayerOverlay;
+        if (overlay && typeof overlay.openVideoOverlay === 'function') {
+          const openedInOverlay = overlay.openVideoOverlay({
+            video,
+            channel,
+            watched,
+            origin: card,
+            onMarkWatched: async () => {
+              await this.markWatched(video, card, details, Boolean(durationText));
+            }
+          });
+
+          if (openedInOverlay) {
+            return;
+          }
+        }
+
+        const url = typeof window.getYTVideoUrl === 'function'
+          ? window.getYTVideoUrl(videoId)
+          : `https://www.youtube.com/watch?v=${videoId}`;
         window.open(url, '_blank', 'noopener');
       }
 

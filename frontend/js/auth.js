@@ -18,7 +18,8 @@
     currentUserName: document.getElementById('current-user-name'),
     sessionInfo: document.querySelector('.session-info'),
     appRoot: document.getElementById('app'),
-    headerActions: document.querySelector('.header-actions'),
+    accountActions: document.getElementById('menu-account-actions') || document.querySelector('.header-actions'),
+    systemActions: document.getElementById('menu-system-actions'),
     logoutButton: document.getElementById('logout-button'),
     googleLoginButton,
     userSummary: document.querySelector('.user-summary'),
@@ -439,7 +440,7 @@
   }
 
   function ensureButtons() {
-    if (!ui.headerActions) {
+    if (!ui.accountActions) {
       return;
     }
 
@@ -453,7 +454,7 @@
         openCreateUserModal();
       });
       ui.newUserButton = button;
-      ui.headerActions.insertBefore(button, ui.userSummary || null);
+      ui.accountActions.appendChild(button);
     }
 
     if (!ui.switchUserButton) {
@@ -462,7 +463,7 @@
       if (!ui.logoutButton) {
         button.id = 'logout-button';
         button.className = 'menu-item';
-        ui.headerActions.insertBefore(button, ui.userSummary || null);
+        ui.accountActions.appendChild(button);
       }
       button.textContent = t('signOut');
       button.addEventListener('click', async () => {
@@ -482,7 +483,7 @@
         await openAccountSwitcherModal();
       });
       ui.accountSwitchButton = button;
-      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
     }
 
     if (!ui.pairingLoginButton) {
@@ -496,7 +497,7 @@
         await openPairingLoginModal();
       });
       ui.pairingLoginButton = button;
-      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.googleLoginButton || null);
     }
 
     if (!ui.pairingApproveButton) {
@@ -510,7 +511,7 @@
         await openPairingApproveModal();
       });
       ui.pairingApproveButton = button;
-      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
     }
 
     if (!ui.fallbackLoginButton) {
@@ -524,7 +525,7 @@
         await openFallbackLoginModal();
       });
       ui.fallbackLoginButton = button;
-      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.googleLoginButton || null);
     }
 
     if (!ui.passkeyLoginButton) {
@@ -538,7 +539,7 @@
         await signInWithPasskey();
       });
       ui.passkeyLoginButton = button;
-      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.googleLoginButton || null);
     }
 
     if (!ui.managePasskeysButton) {
@@ -552,7 +553,7 @@
         await openPasskeyModal();
       });
       ui.managePasskeysButton = button;
-      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
     }
 
     if (!ui.manageMfaButton) {
@@ -566,7 +567,7 @@
         await openMfaModal();
       });
       ui.manageMfaButton = button;
-      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
     }
 
     if (!ui.manageAdminButton) {
@@ -580,7 +581,11 @@
         await openAdminModal();
       });
       ui.manageAdminButton = button;
-      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+      if (ui.systemActions) {
+        ui.systemActions.appendChild(button);
+      } else {
+        ui.accountActions.insertBefore(button, ui.switchUserButton || null);
+      }
     }
 
     if (!ui.statusMessage && ui.userSummary) {

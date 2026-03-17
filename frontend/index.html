@@ -64,26 +64,32 @@
             </button>
             <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
               <div class="menu-panel__section">
+                <p class="menu-panel__heading">Account</p>
+                <div class="user-summary" aria-live="polite"></div>
+                <div id="menu-account-actions" class="menu-panel__actions">
+                  <button id="google-login-button" class="menu-item" type="button" hidden>
+                    Sign in with Google
+                  </button>
+                  <button id="import-subscriptions-button" class="menu-item" type="button" hidden>
+                    Import subscriptions
+                  </button>
+                  <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
+                </div>
+              </div>
+              <div class="menu-panel__section">
+                <p class="menu-panel__heading">Viewing</p>
                 <button id="menu-filters" class="menu-item" type="button">Filters</button>
                 <button id="menu-category-guide" class="menu-item" type="button">Category guide</button>
                 <button id="menu-display-mode" class="menu-item" type="button" hidden>Display setup</button>
                 <button id="menu-settings" class="menu-item" type="button">Auto updates</button>
+                <button id="refresh-videos" class="menu-item" type="button">Refresh</button>
                 <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
                   <span class="button__label">Toggle theme</span>
                 </button>
               </div>
-              <div class="menu-panel__section header-actions">
-                <button id="google-login-button" class="menu-item" type="button" hidden>
-                  Sign in with Google
-                </button>
-                <button id="import-subscriptions-button" class="menu-item" type="button" hidden>
-                  Import subscriptions
-                </button>
-                <button id="refresh-videos" class="menu-item" type="button">Refresh</button>
-                <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
-                <div class="user-summary" aria-live="polite"></div>
-              </div>
               <div class="menu-panel__section">
+                <p class="menu-panel__heading">System</p>
+                <div id="menu-system-actions" class="menu-panel__actions"></div>
                 <div class="menu-language" aria-label="Language selector">
                   <button class="menu-language__button" type="button" data-lang="es">🇪🇸 ES</button>
                   <button class="menu-language__button" type="button" data-lang="en">🇺🇸 EN</button>

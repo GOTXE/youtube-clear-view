@@ -530,6 +530,21 @@ select {
   gap: var(--space-2);
 }
 
+.menu-panel__heading {
+  margin: 0;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.menu-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .menu-item {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
@@ -577,17 +592,14 @@ select {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
 .user-summary {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
 
 .app-main {

@@ -197,6 +197,10 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   3. mapped device type (`tv` -> `tv`, `mobile` -> `phone`, everything else -> `desktop_tablet`)
   4. viewport fallback
 - The hamburger menu exposes a single `Display setup` action for authenticated users.
+- The hamburger menu is now grouped into:
+  - `Account`
+  - `Viewing`
+  - `System`
 - That shared modal lets users adjust both:
   - the confirmed device type (`tv`, `tablet`, `mobile`, `desktop`)
   - the frontend layout mode and TV sizing hints

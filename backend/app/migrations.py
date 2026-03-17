@@ -30,6 +30,8 @@ def ensure_user_schema():
                 ("google_refresh_token", "VARCHAR(2048)"),
                 ("google_token_expires_at", "DATETIME"),
                 ("google_scopes", "TEXT"),
+                ("google_auth_status", "VARCHAR(32) NOT NULL DEFAULT 'not_linked'"),
+                ("session_token_hash", "VARCHAR(64)"),
             ]
 
             for name, column_def in additions:
@@ -40,9 +42,21 @@ def ensure_user_schema():
                 text("CREATE INDEX IF NOT EXISTS ix_users_email ON users (email)")
             )
             conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_users_session_token_hash ON users (session_token_hash)")
+            )
+            conn.execute(
                 text(
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_user_id "
                     "ON users (google_user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE users SET google_auth_status = CASE "
+                    "WHEN auth_provider = 'google' AND google_refresh_token IS NOT NULL THEN 'active' "
+                    "WHEN auth_provider = 'google' THEN 'needs_reauth' "
+                    "ELSE 'not_linked' END "
+                    "WHERE google_auth_status IS NULL OR google_auth_status = ''"
                 )
             )
     except Exception as error:

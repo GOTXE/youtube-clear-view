@@ -6,7 +6,7 @@ from flask import g, jsonify, request
 
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
-from app.models import User
+from app.services.auth_security import find_user_by_session_token
 
 COOKIE_NAME = "ytcv_session"
 
@@ -28,7 +28,7 @@ def require_auth(func):
                 401,
             )
 
-        user = User.query.filter_by(session_token=token).first()
+        user = find_user_by_session_token(token)
         if not user:
             tracking_id = generate_tracking_id()
             get_logger(__name__).warning(

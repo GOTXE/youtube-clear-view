@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from app.extensions import db
+from app.services.auth_security import decrypt_secret, encrypt_secret
 
 
 class User(db.Model):
@@ -17,12 +18,14 @@ class User(db.Model):
     auth_provider = db.Column(db.String(50), nullable=False, default="local")
     google_user_id = db.Column(db.String(255), unique=True, index=True)
     google_avatar_url = db.Column(db.String(500))
-    google_access_token = db.Column(db.String(2048))
-    google_refresh_token = db.Column(db.String(2048))
+    _google_access_token = db.Column("google_access_token", db.String(4096))
+    _google_refresh_token = db.Column("google_refresh_token", db.String(4096))
     google_token_expires_at = db.Column(db.DateTime)
-    google_scopes = db.Column(db.Text)
+    _google_scopes = db.Column("google_scopes", db.Text)
+    google_auth_status = db.Column(db.String(32), nullable=False, default="not_linked")
     theme_preference = db.Column(db.String(20), nullable=False, default="light")
-    session_token = db.Column(db.String(255), index=True)
+    _legacy_session_token = db.Column("session_token", db.String(255), index=True)
+    session_token_hash = db.Column(db.String(64), index=True)
     session_created_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -39,6 +42,46 @@ class User(db.Model):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def google_access_token(self):
+        """Return the decrypted Google access token."""
+        return decrypt_secret(self._google_access_token)
+
+    @google_access_token.setter
+    def google_access_token(self, value):
+        """Persist the Google access token encrypted at rest."""
+        self._google_access_token = encrypt_secret(value)
+
+    @property
+    def google_refresh_token(self):
+        """Return the decrypted Google refresh token."""
+        return decrypt_secret(self._google_refresh_token)
+
+    @google_refresh_token.setter
+    def google_refresh_token(self, value):
+        """Persist the Google refresh token encrypted at rest."""
+        self._google_refresh_token = encrypt_secret(value)
+
+    @property
+    def google_scopes(self):
+        """Return the decrypted Google scopes payload."""
+        return decrypt_secret(self._google_scopes)
+
+    @google_scopes.setter
+    def google_scopes(self, value):
+        """Persist OAuth scopes encrypted at rest."""
+        self._google_scopes = encrypt_secret(value)
+
+    @property
+    def session_token(self):
+        """Expose the legacy raw session token column for compatibility only."""
+        return self._legacy_session_token
+
+    @session_token.setter
+    def session_token(self, value):
+        """Allow clearing or reading the legacy raw session token field."""
+        self._legacy_session_token = value
+
     def to_dict(self):
         """Serialize the user for JSON responses."""
         return {
@@ -48,6 +91,7 @@ class User(db.Model):
             "email": self.email,
             "auth_provider": self.auth_provider,
             "google_avatar_url": self.google_avatar_url,
+            "google_auth_status": self.google_auth_status,
             "theme_preference": self.theme_preference,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

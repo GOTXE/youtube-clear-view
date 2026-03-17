@@ -12,6 +12,7 @@ from app.logging.tracking import generate_tracking_id
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
 logger = get_logger(__name__)
 
@@ -106,6 +107,7 @@ def apply_token_response(user, token_data):
     scope = token_data.get("scope") or current_app.config.get("GOOGLE_OAUTH_SCOPES")
     if scope:
         user.google_scopes = scope
+    user.google_auth_status = "active"
 
     expires_in = token_data.get("expires_in")
     if expires_in:
@@ -136,9 +138,37 @@ def ensure_access_token(user, leeway_seconds=60):
     token_data = refresh_access_token(user.google_refresh_token)
     if not token_data:
         return None
+    if token_data.get("error") == "invalid_grant":
+        user.google_auth_status = "needs_reauth"
+        return None
+    if not token_data.get("access_token"):
+        return None
 
     apply_token_response(user, token_data)
     return user.google_access_token
+
+
+def revoke_google_tokens(refresh_token):
+    """Revoke a stored Google refresh token."""
+    if not refresh_token:
+        return False
+
+    try:
+        response = requests.post(
+            GOOGLE_REVOKE_URL,
+            data={"token": refresh_token},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+    except requests.RequestException as error:
+        logger.warning(
+            "Google OAuth revoke request failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return False
+
+    return response.ok
 
 
 def _post_token(payload, action):
@@ -161,6 +191,9 @@ def _post_token(payload, action):
             response.status_code,
             extra={"tracking_id": generate_tracking_id()},
         )
-        return None
+        try:
+            return response.json()
+        except ValueError:
+            return None
 
     return response.json()

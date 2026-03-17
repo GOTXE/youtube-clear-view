@@ -29,6 +29,8 @@ Notes:
 - Cookies are scoped to the `/api` path.
 - `AUTH_MODE` controls which login methods are available (`local` or `google`).
 - In Google mode, the backend also remembers browser-known Google accounts in the signed Flask session so the UI can switch accounts without a manual logout.
+- Newly issued sessions are stored in the database as a hash of the cookie token, not the raw token.
+- Stored Google access tokens, refresh tokens, and OAuth scopes are encrypted at rest.
 
 ### Auth modes
 
@@ -156,6 +158,7 @@ Response:
   "auth_provider": "local",
   "email": null,
   "google_avatar_url": null,
+  "google_auth_status": "not_linked",
   "theme_preference": "light"
 }
 ```
@@ -197,6 +200,7 @@ Response (authenticated):
   "email": "alice@example.com",
   "auth_provider": "google",
   "google_avatar_url": "https://...",
+  "google_auth_status": "active",
   "theme_preference": "dark"
 }
 ```
@@ -225,6 +229,7 @@ Response:
       "email": "alice@gmail.com",
       "auth_provider": "google",
       "google_avatar_url": "https://...",
+      "google_auth_status": "active",
       "is_current": true
     },
     {
@@ -234,6 +239,7 @@ Response:
       "email": "bob@gmail.com",
       "auth_provider": "google",
       "google_avatar_url": "https://...",
+      "google_auth_status": "active",
       "is_current": false
     }
   ]
@@ -262,6 +268,7 @@ Response:
   "email": "bob@gmail.com",
   "auth_provider": "google",
   "google_avatar_url": null,
+  "google_auth_status": "active",
   "theme_preference": "dark"
 }
 ```
@@ -298,6 +305,22 @@ OAuth callback endpoint. Google redirects here after user consent.
 On success, the backend sets a session cookie, remembers that Google account for this browser, and redirects the browser to `FRONTEND_URL`.
 
 If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
+
+### POST /api/auth/google/unlink
+
+Requires an authenticated Google session.
+
+Clears stored Google OAuth credentials for the current user and marks the link as revoked.
+
+Response:
+
+```json
+{
+  "user_id": 1,
+  "auth_provider": "google",
+  "google_auth_status": "revoked"
+}
+```
 
 ---
 

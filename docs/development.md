@@ -49,6 +49,7 @@ Relevant refresh governance knobs in `backend/.env` / `.env.example`:
 - `ADMIN_USERNAMES`
 - `SQLITE_METRICS_ENABLED`
 - `SQLITE_METRICS_SLOW_WRITE_MS`
+- `AUTH_TOKEN_ENCRYPTION_KEY`
 
 LAN testing from another device:
 - run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`
@@ -79,6 +80,19 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The hamburger menu opens a switch-account modal that lists those known accounts.
 - Selecting an existing account switches the backend session and reloads channels, videos, watched state, and settings for that user.
 - Choosing a new account starts the normal Google OAuth flow and adds that account to the browser-known list after callback.
+
+## Auth Storage Foundation
+
+- API sessions are now stored as a hashed token in the database; the raw cookie value is never persisted for new sessions.
+- Existing legacy session rows are migrated lazily on first successful use.
+- Stored Google access token, refresh token, and OAuth scopes are encrypted at rest.
+- `AUTH_TOKEN_ENCRYPTION_KEY` can be set explicitly; otherwise the app derives a stable encryption key from `FLASK_SECRET_KEY`.
+- Google auth state is tracked in `google_auth_status` with values such as:
+  - `not_linked`
+  - `active`
+  - `needs_reauth`
+  - `revoked`
+- `POST /api/auth/google/unlink` revokes local Google linkage and clears stored OAuth credentials for the current user.
 
 ## Device Type Persistence
 

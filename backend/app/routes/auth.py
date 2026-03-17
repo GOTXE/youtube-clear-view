@@ -11,11 +11,13 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import User
+from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
     apply_token_response,
     build_auth_url,
     exchange_code_for_tokens,
     fetch_user_info,
+    revoke_google_tokens,
 )
 
 auth_bp = Blueprint("auth", __name__)
@@ -148,6 +150,7 @@ def _serialize_switchable_user(user, current_user_id=None):
         "email": user.email,
         "auth_provider": user.auth_provider,
         "google_avatar_url": user.google_avatar_url,
+        "google_auth_status": user.google_auth_status,
         "is_current": bool(current_user_id and user.id == current_user_id),
     }
 
@@ -155,7 +158,7 @@ def _serialize_switchable_user(user, current_user_id=None):
 def _issue_session_for_user(user):
     """Create and persist a fresh server-side session token for a user."""
     session_token = secrets.token_urlsafe(32)
-    user.session_token = session_token
+    bind_session_token(user, session_token)
     user.session_created_at = datetime.utcnow()
     return session_token
 
@@ -196,6 +199,7 @@ def login():
             "auth_provider": user.auth_provider,
             "email": user.email,
             "google_avatar_url": user.google_avatar_url,
+            "google_auth_status": user.google_auth_status,
             "theme_preference": user.theme_preference,
         }
     )
@@ -209,10 +213,9 @@ def logout():
     """Clear the session cookie and invalidate the server token."""
     token = request.cookies.get(COOKIE_NAME)
     if token:
-        user = User.query.filter_by(session_token=token).first()
+        user = find_user_by_session_token(token)
         if user:
-            user.session_token = None
-            user.session_created_at = None
+            clear_session_token(user)
             db.session.commit()
 
     response = jsonify({"message": "Logged out"})
@@ -232,7 +235,7 @@ def list_switchable_accounts():
         return jsonify({"accounts": [], "current_user_id": None})
 
     token = request.cookies.get(COOKIE_NAME)
-    current_user = User.query.filter_by(session_token=token).first() if token else None
+    current_user = find_user_by_session_token(token) if token else None
     users = (
         User.query.filter(User.id.in_(known_ids), User.auth_provider == "google")
         .order_by(User.display_name.asc(), User.username.asc())
@@ -296,6 +299,7 @@ def switch_account():
             "email": user.email,
             "auth_provider": user.auth_provider,
             "google_avatar_url": user.google_avatar_url,
+            "google_auth_status": user.google_auth_status,
             "theme_preference": user.theme_preference,
         }
     )
@@ -401,6 +405,7 @@ def google_callback():
     user.auth_provider = "google"
     user.google_user_id = google_user_id
     user.google_avatar_url = avatar_url
+    user.google_auth_status = "active"
     if email:
         user.email = email
     if display_name and not user.display_name:
@@ -426,7 +431,7 @@ def current_user():
     if not token:
         return jsonify({"authenticated": False})
 
-    user = User.query.filter_by(session_token=token).first()
+    user = find_user_by_session_token(token)
     if not user:
         response = jsonify({"authenticated": False})
         _clear_session_cookie(response)
@@ -441,6 +446,7 @@ def current_user():
             "email": user.email,
             "auth_provider": user.auth_provider,
             "google_avatar_url": user.google_avatar_url,
+            "google_auth_status": user.google_auth_status,
             "theme_preference": user.theme_preference,
         }
     )
@@ -476,5 +482,34 @@ def update_profile():
             "username": user.username,
             "display_name": user.display_name,
             "theme_preference": user.theme_preference,
+        }
+    )
+
+
+@auth_bp.post("/api/auth/google/unlink")
+@handle_route_errors
+@require_auth
+def unlink_google_account():
+    """Unlink Google OAuth tokens from the current user."""
+    user = g.current_user
+    if user.auth_provider != "google":
+        return _forbidden("Google account not linked.")
+
+    refresh_token = user.google_refresh_token
+    if refresh_token:
+        revoke_google_tokens(refresh_token)
+
+    user.google_access_token = None
+    user.google_refresh_token = None
+    user.google_scopes = None
+    user.google_token_expires_at = None
+    user.google_auth_status = "revoked"
+    db.session.commit()
+
+    return jsonify(
+        {
+            "user_id": user.id,
+            "auth_provider": user.auth_provider,
+            "google_auth_status": user.google_auth_status,
         }
     )

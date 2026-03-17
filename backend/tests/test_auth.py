@@ -82,6 +82,15 @@ def test_login_creates_user_and_cookie(client):
     assert "SameSite=Lax" in cookie
 
 
+def test_login_persists_hashed_session_only(client, app):
+    client.post("/api/auth/login", json={"username": "alice"})
+
+    with app.app_context():
+        user = User.query.filter_by(username="alice").first()
+        assert user.session_token is None
+        assert user.session_token_hash
+
+
 def test_login_requires_username_tracking_id(client):
     response = client.post("/api/auth/login", json={"username": ""})
     assert response.status_code == 400
@@ -147,6 +156,48 @@ def test_logout_clears_token(client, app):
     with app.app_context():
         user = User.query.filter_by(username="erin").first()
         assert user.session_token is None
+        assert user.session_token_hash is None
+
+
+def test_current_user_migrates_legacy_session_token(client, app):
+    with app.app_context():
+        user = User(username="legacy", display_name="Legacy", session_token="legacy-token")
+        db.session.add(user)
+        db.session.commit()
+
+    client.set_cookie("ytcv_session", "legacy-token")
+    response = client.get("/api/auth/current")
+
+    assert response.status_code == 200
+    assert response.get_json()["authenticated"] is True
+
+    with app.app_context():
+        user = User.query.filter_by(username="legacy").first()
+        assert user.session_token is None
+        assert user.session_token_hash
+
+
+def test_google_tokens_are_encrypted_at_rest(client, app):
+    with app.app_context():
+        user = User(
+            username="secure@gmail.com",
+            display_name="Secure",
+            email="secure@gmail.com",
+            auth_provider="google",
+        )
+        user.google_access_token = "access-token"
+        user.google_refresh_token = "refresh-token"
+        user.google_scopes = "openid email profile"
+        db.session.add(user)
+        db.session.commit()
+
+        stored = User.query.filter_by(username="secure@gmail.com").first()
+        assert stored._google_access_token != "access-token"
+        assert stored._google_refresh_token != "refresh-token"
+        assert stored._google_scopes != "openid email profile"
+        assert stored.google_access_token == "access-token"
+        assert stored.google_refresh_token == "refresh-token"
+        assert stored.google_scopes == "openid email profile"
 
 
 def test_google_accounts_returns_known_accounts_for_browser(client_google, app_google):
@@ -158,6 +209,7 @@ def test_google_accounts_returns_known_accounts_for_browser(client_google, app_g
             auth_provider="google",
             google_user_id="sub-alice",
             session_token="token-alice",
+            google_auth_status="active",
         )
         user_b = User(
             username="bob@gmail.com",
@@ -165,6 +217,7 @@ def test_google_accounts_returns_known_accounts_for_browser(client_google, app_g
             email="bob@gmail.com",
             auth_provider="google",
             google_user_id="sub-bob",
+            google_auth_status="active",
         )
         db.session.add_all([user_a, user_b])
         db.session.commit()
@@ -194,6 +247,7 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
             email="alice@gmail.com",
             auth_provider="google",
             google_user_id="sub-alice",
+            google_auth_status="active",
         )
         user_b = User(
             username="bob@gmail.com",
@@ -201,6 +255,7 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
             email="bob@gmail.com",
             auth_provider="google",
             google_user_id="sub-bob",
+            google_auth_status="active",
         )
         db.session.add_all([user_a, user_b])
         db.session.commit()
@@ -220,4 +275,44 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
 
     with app_google.app_context():
         user_b = User.query.filter_by(id=bob_id).first()
-        assert user_b.session_token
+        assert user_b.session_token is None
+        assert user_b.session_token_hash
+
+
+def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google, monkeypatch):
+    with app_google.app_context():
+        user = User(
+            username="unlink@gmail.com",
+            display_name="Unlink",
+            email="unlink@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-unlink",
+            google_auth_status="active",
+        )
+        user.google_access_token = "access-token"
+        user.google_refresh_token = "refresh-token"
+        db.session.add(user)
+        db.session.commit()
+        user_id = user.id
+
+    monkeypatch.setattr("app.routes.auth.revoke_google_tokens", lambda token: True)
+
+    response = client_google.post("/api/auth/switch", json={"user_id": user_id})
+    assert response.status_code == 403
+
+    with client_google.session_transaction() as sess:
+        sess["known_google_user_ids"] = [user_id]
+
+    response = client_google.post("/api/auth/switch", json={"user_id": user_id})
+    assert response.status_code == 200
+
+    response = client_google.post("/api/auth/google/unlink")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["google_auth_status"] == "revoked"
+
+    with app_google.app_context():
+        user = User.query.filter_by(id=user_id).first()
+        assert user.google_access_token is None
+        assert user.google_refresh_token is None
+        assert user.google_auth_status == "revoked"

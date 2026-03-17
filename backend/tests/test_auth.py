@@ -32,6 +32,7 @@ class TestConfig:
     FRONTEND_URL = "http://localhost"
     PASSKEY_RP_ID = "localhost"
     PASSKEY_ORIGIN = "http://localhost"
+    ADMIN_USERNAMES = "admin"
 
     @staticmethod
     def validate():
@@ -145,6 +146,15 @@ def test_current_user_returns_profile(client):
     data = response.get_json()
     assert data["username"] == "bob"
     assert data["authenticated"] is True
+
+
+def test_current_user_marks_admin_when_configured(client):
+    client.post("/api/auth/login", json={"username": "admin"})
+    response = client.get("/api/auth/current")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "admin"
+    assert data["is_admin"] is True
 
 
 def test_verify_mfa_challenge_with_totp_creates_session(client, app):

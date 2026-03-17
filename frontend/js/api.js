@@ -178,6 +178,14 @@ class APIClient {
     return this.post('/api/auth/mfa/verify', { code, method });
   }
 
+  getAdminSqliteObservability() {
+    return this.get('/api/admin/observability/sqlite');
+  }
+
+  updateAdminSqliteObservability(enabled) {
+    return this.put('/api/admin/observability/sqlite', { enabled });
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }

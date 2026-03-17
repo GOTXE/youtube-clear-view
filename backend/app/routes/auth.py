@@ -20,6 +20,7 @@ from app.services.google_oauth import (
     fetch_user_info,
     revoke_google_tokens,
 )
+from app.services.admin_access import is_admin_user
 from app.services.passkey_auth import (
     build_authentication_options,
     build_challenge_payload,
@@ -199,6 +200,7 @@ def _serialize_authenticated_user(user):
         "google_avatar_url": user.google_avatar_url,
         "google_auth_status": user.google_auth_status,
         "totp_enabled": user.totp_enabled,
+        "is_admin": is_admin_user(user),
         "theme_preference": user.theme_preference,
     }
 

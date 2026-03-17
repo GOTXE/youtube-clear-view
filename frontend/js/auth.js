@@ -30,6 +30,7 @@
     passkeyLoginButton: null,
     managePasskeysButton: null,
     manageMfaButton: null,
+    manageAdminButton: null,
     statusMessage: null,
     modal: null,
     accountModal: null,
@@ -37,6 +38,7 @@
     pairingApproveModal: null,
     passkeyModal: null,
     mfaModal: null,
+    adminModal: null,
     mfaChallengeModal: null
   };
 
@@ -50,6 +52,10 @@
   const pairingState = {
     current: null,
     claimTimerId: null
+  };
+
+  const adminState = {
+    metrics: null
   };
 
   const t = (key, vars) => (
@@ -83,6 +89,10 @@
       && typeof window.ytcvPasskeys.isSupported === 'function'
       && window.ytcvPasskeys.isSupported()
     );
+  }
+
+  function isAdminUser() {
+    return Boolean(currentUser && currentUser.is_admin);
   }
 
   function getKnownGoogleAccounts() {
@@ -155,6 +165,13 @@
       return;
     }
     ui.pairingApproveModal.hidden = true;
+  }
+
+  function closeAdminModal() {
+    if (!ui.adminModal) {
+      return;
+    }
+    ui.adminModal.hidden = true;
   }
 
   function closeMfaChallengeModal() {
@@ -284,6 +301,7 @@
   function setPendingMfaChallenge(challenge) {
     currentUser = null;
     pendingMfaChallenge = challenge;
+    closeAdminModal();
     const modal = buildMfaChallengeModal();
     if (!modal.parentNode) {
       document.body.appendChild(modal);
@@ -331,6 +349,10 @@
 
     if (ui.manageMfaButton) {
       ui.manageMfaButton.hidden = !currentUser;
+    }
+
+    if (ui.manageAdminButton) {
+      ui.manageAdminButton.hidden = !isAdminUser();
     }
 
     updateSwitchUserLabel();
@@ -523,6 +545,20 @@
       ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
     }
 
+    if (!ui.manageAdminButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'manage-admin-button';
+      button.className = 'menu-item';
+      button.textContent = t('adminObservability');
+      button.hidden = true;
+      button.addEventListener('click', async () => {
+        await openAdminModal();
+      });
+      ui.manageAdminButton = button;
+      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+    }
+
     if (!ui.statusMessage && ui.userSummary) {
       const status = document.createElement('span');
       status.className = 'caption';
@@ -578,6 +614,7 @@
     currentUser = user;
     pendingMfaChallenge = null;
     closeMfaChallengeModal();
+    closeAdminModal();
     closePairingLoginModal();
     closePairingApproveModal();
     if (ui.currentUserLabel) {
@@ -636,6 +673,10 @@
       ui.manageMfaButton.hidden = false;
     }
 
+    if (ui.manageAdminButton) {
+      ui.manageAdminButton.hidden = !isAdminUser();
+    }
+
     updateSwitchUserLabel();
     updateLoginLink();
     setStatusMessage('');
@@ -648,6 +689,7 @@
 
   function setUnauthenticated() {
     currentUser = null;
+    closeAdminModal();
     closePairingApproveModal();
     if (ui.currentUserLabel) {
       ui.currentUserLabel.textContent = t('notSignedIn');
@@ -703,6 +745,10 @@
 
     if (ui.manageMfaButton) {
       ui.manageMfaButton.hidden = true;
+    }
+
+    if (ui.manageAdminButton) {
+      ui.manageAdminButton.hidden = true;
     }
 
     if (pendingMfaChallenge) {
@@ -1304,6 +1350,245 @@
 
     mfaState.status = response.data;
     return response.data;
+  }
+
+  async function loadAdminObservability() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return null;
+    }
+
+    const response = await api.getAdminSqliteObservability();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadAdminObservability'), 'error');
+      return null;
+    }
+
+    adminState.metrics = response.data;
+    return response.data;
+  }
+
+  function buildAdminModal() {
+    if (ui.adminModal) {
+      return ui.adminModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'admin-observability-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal admin-observability-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'admin-observability-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'admin-observability-title';
+    title.className = 'heading-2';
+    title.textContent = t('adminObservability');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body admin-observability-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('adminObservabilityDescription');
+
+    const controls = document.createElement('div');
+    controls.className = 'field__group admin-observability-modal__controls';
+
+    const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
+    toggleButton.className = 'button';
+    toggleButton.id = 'admin-observability-toggle';
+
+    const refreshButton = document.createElement('button');
+    refreshButton.type = 'button';
+    refreshButton.className = 'button button--ghost';
+    refreshButton.id = 'admin-observability-refresh';
+    refreshButton.textContent = t('refreshAdminObservability');
+
+    controls.appendChild(toggleButton);
+    controls.appendChild(refreshButton);
+
+    const metrics = document.createElement('dl');
+    metrics.className = 'admin-observability-metrics';
+    metrics.id = 'admin-observability-metrics';
+
+    const recent = document.createElement('div');
+    recent.className = 'field admin-observability-recent';
+    recent.id = 'admin-observability-recent';
+
+    body.appendChild(description);
+    body.appendChild(controls);
+    body.appendChild(metrics);
+    body.appendChild(recent);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closeAdminModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closeAdminModal();
+      }
+    });
+    refreshButton.addEventListener('click', async () => {
+      await refreshAdminModal();
+    });
+    toggleButton.addEventListener('click', async () => {
+      await toggleAdminObservability(toggleButton);
+    });
+
+    ui.adminModal = overlay;
+    return overlay;
+  }
+
+  function renderAdminObservability() {
+    if (!ui.adminModal || !adminState.metrics) {
+      return;
+    }
+
+    const metricsNode = ui.adminModal.querySelector('#admin-observability-metrics');
+    const recentNode = ui.adminModal.querySelector('#admin-observability-recent');
+    const toggleButton = ui.adminModal.querySelector('#admin-observability-toggle');
+    if (!metricsNode || !recentNode || !toggleButton) {
+      return;
+    }
+
+    toggleButton.textContent = adminState.metrics.enabled
+      ? t('disableAdminObservability')
+      : t('enableAdminObservability');
+
+    metricsNode.innerHTML = '';
+    recentNode.innerHTML = '';
+
+    const entries = [
+      ['adminMetricsEnabled', adminState.metrics.enabled ? t('yes') : t('no')],
+      ['adminMetricsThreshold', String(adminState.metrics.slow_write_threshold_ms ?? '--')],
+      ['adminMetricsWriteCount', String(adminState.metrics.write_count ?? 0)],
+      ['adminMetricsWriteAvg', String(adminState.metrics.write_time_ms_avg ?? 0)],
+      ['adminMetricsWriteMax', String(adminState.metrics.write_time_ms_max ?? 0)],
+      ['adminMetricsSlowWrites', String(adminState.metrics.slow_write_count ?? 0)],
+      ['adminMetricsLockErrors', String(adminState.metrics.lock_error_count ?? 0)],
+      ['adminMetricsActiveRefreshes', String((adminState.metrics.active_manual_refreshes || []).length)]
+    ];
+
+    entries.forEach(([labelKey, value]) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'admin-observability-metrics__item';
+
+      const term = document.createElement('dt');
+      term.className = 'caption admin-observability-metrics__label';
+      term.textContent = t(labelKey);
+
+      const description = document.createElement('dd');
+      description.className = 'body admin-observability-metrics__value';
+      description.textContent = value;
+
+      wrapper.appendChild(term);
+      wrapper.appendChild(description);
+      metricsNode.appendChild(wrapper);
+    });
+
+    const recentLabel = document.createElement('span');
+    recentLabel.className = 'field__label';
+    recentLabel.textContent = t('adminRecentWrites');
+    recentNode.appendChild(recentLabel);
+
+    const recentWrites = Array.isArray(adminState.metrics.recent_writes)
+      ? adminState.metrics.recent_writes
+      : [];
+    if (!recentWrites.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = t('adminNoRecentWrites');
+      recentNode.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'admin-observability-recent__list';
+    recentWrites.slice(0, 8).forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'field__group';
+      row.textContent = `${entry.statement || 'WRITE'} · ${entry.duration_ms || 0}ms`;
+      list.appendChild(row);
+    });
+    recentNode.appendChild(list);
+  }
+
+  async function refreshAdminModal() {
+    const metrics = await loadAdminObservability();
+    if (!metrics) {
+      return false;
+    }
+    renderAdminObservability();
+    setStatusMessage(t('adminObservabilityRefreshed'), 'success');
+    return true;
+  }
+
+  async function toggleAdminObservability(button = null) {
+    const api = getApiClient();
+    if (!api || !adminState.metrics) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = await api.updateAdminSqliteObservability(!adminState.metrics.enabled);
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableToggleAdminObservability'), 'error');
+      return false;
+    }
+
+    adminState.metrics = response.data;
+    renderAdminObservability();
+    setStatusMessage(t('adminObservabilityUpdated'), 'success');
+    return true;
+  }
+
+  async function openAdminModal() {
+    if (!isAdminUser()) {
+      return;
+    }
+
+    const modal = buildAdminModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+
+    const metrics = await loadAdminObservability();
+    if (!metrics) {
+      return;
+    }
+
+    renderAdminObservability();
+    modal.hidden = false;
   }
 
   function buildMfaModal() {

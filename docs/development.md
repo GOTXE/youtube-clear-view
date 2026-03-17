@@ -230,6 +230,11 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 
 - Admin-only runtime access is configured with `ADMIN_USERNAMES` in `backend/.env`.
 - SQLite observability is process-local and intentionally lightweight for the current single-node deployment target.
+- Admin users now get an `Admin observability` action in the app menu.
+- The admin modal can:
+  - inspect current SQLite write and lock metrics
+  - inspect currently active manual refresh leases
+  - toggle detailed recent-write capture on the current backend node
 - Admin endpoints now expose:
   - SQLite write counters
   - slow write counters

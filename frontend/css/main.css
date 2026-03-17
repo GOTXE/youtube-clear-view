@@ -736,6 +736,10 @@ select {
   display: none;
 }
 
+.tv-action-bar {
+  display: none;
+}
+
 .channel-item:hover {
   background: var(--bg-secondary);
 }
@@ -1347,17 +1351,59 @@ html[data-mode="tv"] .app {
   padding: var(--space-10);
 }
 
+html[data-mode="tv"] .header-row {
+  grid-template-columns: minmax(420px, 520px) minmax(420px, 1fr) auto;
+}
+
+html[data-mode="tv"] .app-layout {
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-8);
+}
+
+html[data-mode="tv"] .channel-sidebar {
+  padding: var(--space-5);
+}
+
+html[data-mode="tv"] .channel-item {
+  padding: var(--space-3);
+}
+
+html[data-mode="tv"] .channel-list {
+  gap: var(--space-3);
+}
+
+html[data-mode="tv"] .tv-action-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+html[data-mode="tv"] .tv-action-bar__button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--text);
+  padding: var(--space-4) var(--space-5);
+  font-weight: 700;
+  text-align: center;
+}
+
+html[data-mode="tv"] .tv-action-bar__button:focus {
+  outline: 4px solid var(--primary);
+  outline-offset: 3px;
+}
+
 html[data-mode="tv"] .carousel-track {
   gap: var(--space-6);
 }
 
 html[data-mode="tv"] .video-card {
-  flex: 0 0 320px;
-  max-width: 320px;
+  flex: 0 0 360px;
+  max-width: 360px;
 }
 
 html[data-mode="tv"] .video-card__thumb {
-  min-height: 225px;
+  min-height: 250px;
 }
 
 html[data-mode="tv"] .button:focus,

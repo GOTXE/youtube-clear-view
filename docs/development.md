@@ -198,6 +198,7 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - the confirmed device type (`tv`, `tablet`, `mobile`, `desktop`)
   - the frontend layout mode and TV sizing hints
 - Phone mode now includes a fixed bottom action bar and a subscriptions sheet so the main feed stays single-column while channels and filters remain reachable with one tap.
+- TV mode now exposes a persistent quick-action rail for subscriptions, filters, refresh, and display setup so the most important actions are no longer buried behind the hamburger menu.
 - This slice intentionally stops short of full TV calibration and only establishes the persistence and resolver contract for v0.2.0.
 
 ## Subscription Sidebar Search

@@ -95,6 +95,12 @@
         <div class="header-status" aria-live="polite" aria-atomic="true">
           <p id="refresh-progress" class="refresh-progress" hidden></p>
         </div>
+        <nav id="tv-action-bar" class="tv-action-bar" aria-label="TV quick actions" hidden>
+          <button id="tv-action-channels" class="tv-action-bar__button" type="button">Subscriptions</button>
+          <button id="tv-action-filters" class="tv-action-bar__button" type="button">Filters</button>
+          <button id="tv-action-refresh" class="tv-action-bar__button" type="button">Refresh</button>
+          <button id="tv-action-display" class="tv-action-bar__button" type="button">Display setup</button>
+        </nav>
       </header>
 
       <main class="app-main" role="main">
@@ -338,6 +344,7 @@
     <script src="js/device.js"></script>
     <script src="js/layout-mode.js"></script>
     <script src="js/phone-shell.js"></script>
+    <script src="js/tv-shell.js"></script>
     <script src="js/refresh-governance.js"></script>
     <script src="js/theme-switcher.js"></script>
     <script src="js/carousel.js"></script>

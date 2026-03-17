@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     channelSidebar: document.querySelector('.channel-sidebar'),
     channelSidebarBackdrop: document.getElementById('channel-sidebar-backdrop'),
     phoneNav: document.getElementById('phone-nav'),
+    tvActionBar: document.getElementById('tv-action-bar'),
     themeToggle: document.getElementById('theme-toggle'),
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
@@ -434,6 +435,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const phoneMenu = document.getElementById('phone-nav-menu');
     if (phoneMenu) {
       phoneMenu.textContent = t('menu');
+    }
+    const tvActionBar = ui.tvActionBar;
+    if (tvActionBar) {
+      tvActionBar.setAttribute('aria-label', t('tvQuickActionsLabel'));
+    }
+    const tvChannels = document.getElementById('tv-action-channels');
+    if (tvChannels) {
+      tvChannels.textContent = t('subscriptions');
+    }
+    const tvFilters = document.getElementById('tv-action-filters');
+    if (tvFilters) {
+      tvFilters.textContent = t('filters');
+    }
+    const tvRefresh = document.getElementById('tv-action-refresh');
+    if (tvRefresh) {
+      tvRefresh.textContent = t('refresh');
+    }
+    const tvDisplay = document.getElementById('tv-action-display');
+    if (tvDisplay) {
+      tvDisplay.textContent = t('displayModeMenuLabel');
     }
     const sidebarClose = document.getElementById('channel-sidebar-close');
     if (sidebarClose) {
@@ -2474,6 +2495,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         openMenu: () => {
           if (typeof state.setMenuOpen === 'function') {
             state.setMenuOpen(true);
+          }
+        }
+      });
+    }
+    if (window.ytcvTvShell && typeof window.ytcvTvShell.initTvShell === 'function') {
+      window.ytcvTvShell.initTvShell({
+        focusChannels: () => {
+          if (ui.channelSearchInput) {
+            ui.channelSearchInput.focus();
+            return;
+          }
+          if (ui.channelList) {
+            const firstItem = ui.channelList.querySelector('.channel-item');
+            if (firstItem) {
+              firstItem.focus();
+            }
+          }
+        },
+        openFilters: openFilterPanel,
+        triggerRefresh: () => {
+          if (ui.refreshButton) {
+            ui.refreshButton.click();
+          }
+        },
+        openDisplaySetup: () => {
+          if (ui.menuDisplayMode) {
+            ui.menuDisplayMode.click();
           }
         }
       });

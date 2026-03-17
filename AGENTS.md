@@ -18,7 +18,7 @@ This repo uses a local overlay in `vibecoding/`.
 
 Before working on code changes:
 1. Read `vibecoding/project.yaml`
-2. Read `vibecoding/docs/ia/00_core/00_index_maestro_ia.spec`
+2. Read `vibecoding/system/docs/ia/00_core/00_index_maestro_ia.spec`
 3. Load only the profiles and documents needed for the task
 
 Operational flow:
@@ -27,7 +27,7 @@ Operational flow:
 - persist evidence in `vibecoding/runs/<task-id>/`
 
 Runner:
-- `./vibecoding/orchestration/runner/vibecoding_runner.sh`
+- `./vibecoding/system/orchestration/runner/vibecoding_runner.sh`
 
 ## Build, Test, and Development Commands
 

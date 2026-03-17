@@ -73,7 +73,7 @@
     if (stored === 'false') {
       return false;
     }
-    return isWideDesktop();
+    return false;
   }
 
   function renderDockButton(docked) {

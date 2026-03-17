@@ -24,19 +24,19 @@ describe('desktop shell', () => {
     localStorage.clear();
   });
 
-  it('auto-docks the floating filters on wide desktop mode', async () => {
+  it('keeps the floating filters closed until the user docks them', async () => {
     await import('../js/desktop-shell.js');
     window.ytcvDesktopShell.initDesktopShell();
 
     const panel = document.getElementById('filter-panel');
     const dockButton = document.getElementById('filters-dock-toggle');
 
-    expect(panel.hidden).toBe(false);
-    expect(panel.classList.contains('is-docked')).toBe(true);
-    expect(dockButton.textContent).toBe('undockFilters');
+    expect(panel.hidden).toBe(true);
+    expect(panel.classList.contains('is-docked')).toBe(false);
+    expect(dockButton.textContent).toBe('dockFilters');
   });
 
-  it('persists manual undock decisions', async () => {
+  it('persists manual dock decisions', async () => {
     await import('../js/desktop-shell.js');
     window.ytcvDesktopShell.initDesktopShell();
 
@@ -44,9 +44,10 @@ describe('desktop shell', () => {
     const dockButton = document.getElementById('filters-dock-toggle');
     dockButton.click();
 
-    expect(panel.classList.contains('is-docked')).toBe(false);
-    expect(localStorage.getItem('ytcv_desktop_filters_docked')).toBe('false');
-    expect(dockButton.textContent).toBe('dockFilters');
+    expect(panel.classList.contains('is-docked')).toBe(true);
+    expect(panel.hidden).toBe(false);
+    expect(localStorage.getItem('ytcv_desktop_filters_docked')).toBe('true');
+    expect(dockButton.textContent).toBe('undockFilters');
   });
 
   it('hides the panel when leaving desktop/tablet mode', async () => {

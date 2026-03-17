@@ -90,6 +90,8 @@
   "adminRuntimeState": "Sesiones y dispositivos",
   "adminRuntimeUserSummary": "Dispositivos: {devices} · Sesion activa: {session}",
   "adminNoRuntimeUsers": "No se encontraron sesiones activas ni dispositivos.",
+  "dockFilters": "Acoplar filtros",
+  "undockFilters": "Desacoplar filtros",
   "yes": "Si",
   "no": "No",
   "passkeyModalDescription": "Registra una nueva passkey en este dispositivo o elimina una existente.",

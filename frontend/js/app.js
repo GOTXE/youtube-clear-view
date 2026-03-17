@@ -2072,6 +2072,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (event.button !== 0) {
           return;
         }
+        if (event.target && typeof event.target.closest === 'function' && event.target.closest('button')) {
+          return;
+        }
         isDragging = true;
         const rect = panel.getBoundingClientRect();
         startX = event.clientX;
@@ -2489,6 +2492,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupSearch();
     setupMenu();
     setupFilterPanel();
+    if (window.ytcvDesktopShell && typeof window.ytcvDesktopShell.initDesktopShell === 'function') {
+      window.ytcvDesktopShell.initDesktopShell();
+    }
     if (window.ytcvPhoneShell && typeof window.ytcvPhoneShell.initPhoneShell === 'function') {
       window.ytcvPhoneShell.initPhoneShell({
         openFilters: openFilterPanel,

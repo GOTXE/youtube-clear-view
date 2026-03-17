@@ -198,6 +198,10 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - the confirmed device type (`tv`, `tablet`, `mobile`, `desktop`)
   - the frontend layout mode and TV sizing hints
 - Phone mode now includes a fixed bottom action bar and a subscriptions sheet so the main feed stays single-column while channels and filters remain reachable with one tap.
+- Desktop/tablet mode now owns the floating filters surface explicitly:
+  - wide layouts dock it open by default
+  - the dock state is stored locally per browser
+  - the panel can still be undocked and moved freely
 - TV mode now exposes a persistent quick-action rail for subscriptions, filters, refresh, and display setup so the most important actions are no longer buried behind the hamburger menu.
 - The shared `Display setup` modal now also acts as the first TV calibration step:
   - TV screen size and viewing distance can be stored per device

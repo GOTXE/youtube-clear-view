@@ -74,6 +74,15 @@ def ensure_user_schema():
                     "OR google_auth_status = 'needs_reauth'"
                 )
             )
+            # 5.1: mark existing established users as setup_completed to avoid
+            # forcing the wizard on users who already had working accounts.
+            conn.execute(
+                text(
+                    "UPDATE users SET setup_completed = 1 "
+                    "WHERE setup_completed = 0 "
+                    "AND (google_user_id IS NOT NULL OR password_hash IS NOT NULL)"
+                )
+            )
     except Exception as error:
         logger.warning(
             "User schema migration skipped: %s",

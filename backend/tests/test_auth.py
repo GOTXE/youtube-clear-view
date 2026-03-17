@@ -34,6 +34,8 @@ class TestConfig:
     PASSKEY_RP_ID = "localhost"
     PASSKEY_ORIGIN = "http://localhost"
     ADMIN_USERNAMES = "admin"
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
 
     @staticmethod
     def validate():
@@ -968,3 +970,151 @@ def test_auth_provider_returns_google_urls_when_configured(client, app):
     app.config.pop("GOOGLE_CLIENT_ID", None)
     app.config.pop("GOOGLE_CLIENT_SECRET", None)
     app.config.pop("GOOGLE_REDIRECT_URI", None)
+
+
+# ── Fase 5: hardening ─────────────────────────────────────────────────────────
+
+def test_auth_provider_returns_csrf_token(client):
+    """provider endpoint includes a csrf_token in the response."""
+    response = client.get("/api/auth/provider")
+    data = response.get_json()
+    assert "csrf_token" in data
+    assert isinstance(data["csrf_token"], str)
+    assert len(data["csrf_token"]) > 0
+
+
+def test_csrf_blocks_login_when_enabled(client, app):
+    """login must be rejected when CSRF is enabled and no token is provided."""
+    app.config["CSRF_ENABLED"] = True
+    try:
+        # Register first without CSRF check (not yet enabled at register time here)
+        app.config["CSRF_ENABLED"] = False
+        client.post("/api/auth/register", json={"username": "csrf_test", "password": "pass12345"})
+        app.config["CSRF_ENABLED"] = True
+
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "csrf_test", "password": "pass12345"},
+        )
+        assert response.status_code == 400
+    finally:
+        app.config["CSRF_ENABLED"] = False
+
+
+def test_csrf_allows_login_with_valid_token(client, app):
+    """login must succeed when a valid CSRF token is provided."""
+    app.config["CSRF_ENABLED"] = True
+    try:
+        app.config["CSRF_ENABLED"] = False
+        client.post("/api/auth/register", json={"username": "csrf_ok", "password": "pass12345"})
+        provider_resp = client.get("/api/auth/provider")
+        csrf_token = provider_resp.get_json()["csrf_token"]
+        app.config["CSRF_ENABLED"] = True
+
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "csrf_ok", "password": "pass12345"},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["authenticated"] is True
+    finally:
+        app.config["CSRF_ENABLED"] = False
+
+
+def test_register_rate_limit(client, app):
+    """Register endpoint must return 429 after exceeding the rate limit."""
+    from app.middleware.rate_limiter import reset_rate_limit
+    ip = "127.0.0.1"
+    reset_rate_limit(f"register:{ip}")
+
+    import app.routes.auth as auth_module
+    original_max = auth_module._REGISTER_RATE_MAX
+    auth_module._REGISTER_RATE_MAX = 3
+    app.config["RATE_LIMIT_ENABLED"] = True
+    try:
+        for i in range(3):
+            client.post("/api/auth/register", json={"username": f"rl_user_{i}", "password": "pass12345"})
+        # Next one should be rate limited
+        response = client.post("/api/auth/register", json={"username": "rl_user_blocked", "password": "pass12345"})
+        assert response.status_code == 429
+    finally:
+        auth_module._REGISTER_RATE_MAX = original_max
+        app.config["RATE_LIMIT_ENABLED"] = False
+        reset_rate_limit(f"register:{ip}")
+
+
+def test_disable_totp_with_valid_code(client, app):
+    """DELETE /api/auth/totp must disable TOTP when given a valid code."""
+    from unittest.mock import patch
+
+    client.post("/api/auth/register", json={"username": "totp_disable", "password": "pass12345"})
+    with app.app_context():
+        user = User.query.filter_by(username="totp_disable").first()
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.commit()
+
+    with patch("app.routes.auth.verify_totp_code", return_value=True):
+        response = client.delete("/api/auth/totp", json={"code": "123456"})
+    assert response.status_code == 200
+    assert response.get_json()["totp_enabled"] is False
+
+    with app.app_context():
+        user = User.query.filter_by(username="totp_disable").first()
+        assert not user.totp_enabled
+        assert user.totp_secret is None
+
+
+def test_disable_totp_with_invalid_code(client, app):
+    """DELETE /api/auth/totp must reject an invalid TOTP code."""
+    from unittest.mock import patch
+
+    client.post("/api/auth/register", json={"username": "totp_bad_code", "password": "pass12345"})
+    with app.app_context():
+        user = User.query.filter_by(username="totp_bad_code").first()
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.commit()
+
+    with patch("app.routes.auth.verify_totp_code", return_value=False):
+        response = client.delete("/api/auth/totp", json={"code": "000000"})
+    assert response.status_code == 400
+
+
+def test_disable_totp_with_password(client, app):
+    """DELETE /api/auth/totp must accept the account password as alternative."""
+    client.post("/api/auth/register", json={"username": "totp_pass_disable", "password": "pass12345"})
+    with app.app_context():
+        user = User.query.filter_by(username="totp_pass_disable").first()
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.commit()
+
+    response = client.delete("/api/auth/totp", json={"password": "pass12345"})
+    assert response.status_code == 200
+    assert response.get_json()["totp_enabled"] is False
+
+
+def test_disable_totp_requires_auth(client):
+    """DELETE /api/auth/totp must require an active session."""
+    response = client.delete("/api/auth/totp", json={"code": "123456"})
+    assert response.status_code == 401
+
+
+def test_setup_completed_migration_marks_established_users(app):
+    """Migration must set setup_completed=True for users with google_user_id."""
+    from app.migrations import ensure_user_schema
+
+    with app.app_context():
+        # Create a "legacy" Google user with setup_completed=False
+        user = User(username="legacy_google", display_name="Legacy", setup_completed=False)
+        user.google_user_id = "google-123"
+        db.session.add(user)
+        db.session.commit()
+
+    # Re-run the migration
+    with app.app_context():
+        ensure_user_schema()
+        user = User.query.filter_by(username="legacy_google").first()
+        assert user.setup_completed is True

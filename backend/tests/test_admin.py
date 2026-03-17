@@ -27,6 +27,9 @@ class TestConfig:
     ADMIN_USERNAMES = "admin"
     SQLITE_METRICS_ENABLED = False
 
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
+
     @staticmethod
     def validate():
         return None

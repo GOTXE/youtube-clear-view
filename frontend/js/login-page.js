@@ -242,6 +242,10 @@
       const resp = await api.getAuthProvider();
       if (resp.ok && resp.data) {
         authProviderData = resp.data;
+        // Store CSRF token in the API client for subsequent auth requests
+        if (resp.data.csrf_token && typeof api.setCsrfToken === 'function') {
+          api.setCsrfToken(resp.data.csrf_token);
+        }
       }
     } catch (_) { /* ignore */ }
     applyAuthProviderButtons();

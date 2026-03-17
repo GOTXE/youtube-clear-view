@@ -38,6 +38,9 @@ class TestConfig:
     LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
 
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
+
     @staticmethod
     def validate():
         return None

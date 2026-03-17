@@ -30,6 +30,9 @@ class TestConfig:
     MANUAL_REFRESH_FULL_COOLDOWN_SECONDS = 0
     MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS = 0
 
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
+
     @staticmethod
     def validate():
         return None

@@ -12,6 +12,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
+from app.middleware.rate_limiter import check_rate_limit, reset_rate_limit
 from app.models import LoginPairing, User, UserPasskey
 from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
@@ -52,6 +53,37 @@ PASSKEY_AUTHENTICATION_KEY = "passkey_authentication"
 MFA_CHALLENGE_KEY = "mfa_challenge"
 MFA_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
 PAIRING_CODE_TTL_MINUTES = 10
+
+# Rate limiting: register / passkey-verify
+_REGISTER_RATE_MAX = 10       # max 10 register attempts
+_REGISTER_RATE_WINDOW = 3600  # per hour per IP
+_PASSKEY_RATE_MAX = 20        # max 20 passkey verifications
+_PASSKEY_RATE_WINDOW = 3600   # per hour per IP
+
+# CSRF
+CSRF_SESSION_KEY = "ytcv_csrf_token"
+CSRF_HEADER = "X-CSRF-Token"
+
+
+def _get_or_create_csrf_token() -> str:
+    """Return the current session CSRF token, creating one if absent."""
+    token = session.get(CSRF_SESSION_KEY)
+    if not token:
+        token = secrets.token_hex(32)
+        session[CSRF_SESSION_KEY] = token
+        session.modified = True
+    return token
+
+
+def _validate_csrf() -> bool:
+    """Return True if CSRF validation is disabled or token matches."""
+    if not current_app.config.get("CSRF_ENABLED", True):
+        return True
+    expected = session.get(CSRF_SESSION_KEY)
+    if not expected:
+        return False
+    received = request.headers.get(CSRF_HEADER, "")
+    return secrets.compare_digest(expected, received)
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -380,6 +412,10 @@ def _reset_login_attempts(user):
 @handle_route_errors
 def login():
     """Authenticate a local user with username and password."""
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
@@ -434,6 +470,17 @@ def login():
 @handle_route_errors
 def register():
     """Create a new local user account with username and password."""
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    ip = request.remote_addr or "unknown"
+    if not check_rate_limit(f"register:{ip}", _REGISTER_RATE_MAX, _REGISTER_RATE_WINDOW):
+        return (
+            jsonify({"error": "Too many requests. Try again later.", "status": 429}),
+            429,
+        )
+
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
@@ -643,6 +690,7 @@ def auth_provider():
         "auth_mode": mode,
         "google_login_url": "/api/auth/google" if google_configured else None,
         "google_link_url": "/api/auth/google/link" if google_configured else None,
+        "csrf_token": _get_or_create_csrf_token(),
     })
 
 
@@ -1157,6 +1205,13 @@ def passkey_authentication_options():
 @handle_route_errors
 def passkey_authentication_verify():
     """Verify a passkey assertion and issue a session."""
+    ip = request.remote_addr or "unknown"
+    if not check_rate_limit(f"passkey_verify:{ip}", _PASSKEY_RATE_MAX, _PASSKEY_RATE_WINDOW):
+        return (
+            jsonify({"error": "Too many requests. Try again later.", "status": 429}),
+            429,
+        )
+
     pending = session.get(PASSKEY_AUTHENTICATION_KEY)
     if not challenge_is_valid(pending):
         tracking_id = generate_tracking_id()

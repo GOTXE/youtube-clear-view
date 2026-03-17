@@ -5,23 +5,31 @@ class APIClient {
     this.baseURL = baseURL || '';
     this.timeout = timeout || 30000;
     this.maxRetries = 3;
+    this._csrfToken = null;
+  }
+
+  setCsrfToken(token) {
+    this._csrfToken = token || null;
   }
 
   async request(endpoint, method = 'GET', body = null, headers = {}, attempt = 0) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
     const url = `${this.baseURL}${endpoint}`;
+    const mergedHeaders = { ...headers };
+    // Attach CSRF token to state-changing requests
+    if (this._csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      mergedHeaders['X-CSRF-Token'] = this._csrfToken;
+    }
     const options = {
       method,
       credentials: 'include',
       signal: controller.signal,
-      headers: {
-        ...headers
-      }
+      headers: mergedHeaders
     };
 
     if (body !== null) {
-      options.headers['Content-Type'] = 'application/json';
+      mergedHeaders['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
     }
 

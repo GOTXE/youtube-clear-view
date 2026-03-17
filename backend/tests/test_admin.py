@@ -78,6 +78,27 @@ def test_admin_can_read_and_toggle_sqlite_observability(client):
     assert toggled["enabled"] is True
 
 
+def test_admin_can_inspect_runtime_state(client):
+    _login(client, "admin")
+    client.post(
+        "/api/devices/register",
+        json={"device_identifier": "runtime-admin", "user_agent": "ua"},
+    )
+    client.post("/api/auth/login", json={"username": "alice"})
+    client.post(
+        "/api/devices/register",
+        json={"device_identifier": "runtime-alice", "user_agent": "ua"},
+    )
+    client.post("/api/auth/login", json={"username": "admin"})
+
+    response = client.get("/api/admin/runtime-state")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "users" in data
+    assert any(user["username"] == "admin" for user in data["users"])
+    assert any(user["device_count"] >= 1 for user in data["users"])
+
+
 def test_sqlite_observability_rejects_invalid_toggle_payload(client):
     _login(client, "admin")
     response = client.put("/api/admin/observability/sqlite", json={"enabled": "yes"})

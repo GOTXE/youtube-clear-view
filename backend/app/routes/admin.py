@@ -34,6 +34,31 @@ def _require_admin():
     return None
 
 
+def _serialize_runtime_user(user):
+    devices = sorted(
+        user.devices,
+        key=lambda device: (
+            (device.last_used_at or device.created_at).timestamp()
+            if (device.last_used_at or device.created_at)
+            else 0
+        ),
+        reverse=True,
+    )
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "google_auth_status": user.google_auth_status,
+        "totp_enabled": bool(user.totp_enabled),
+        "has_active_session": bool(user.session_token_hash),
+        "session_created_at": user.session_created_at.isoformat() if user.session_created_at else None,
+        "device_count": len(devices),
+        "devices": [device.to_dict() for device in devices],
+    }
+
+
 @admin_bp.get("/api/admin/observability/sqlite")
 @handle_route_errors
 @require_auth
@@ -66,3 +91,23 @@ def update_sqlite_observability():
     metrics = get_sqlite_metrics_snapshot()
     metrics["active_manual_refreshes"] = list_active_refreshes()
     return jsonify(metrics)
+
+
+@admin_bp.get("/api/admin/runtime-state")
+@handle_route_errors
+@require_auth
+def get_runtime_state():
+    """Return admin-visible session and device state."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    from app.models import User
+
+    users = User.query.order_by(User.username.asc()).all()
+    payload = [
+        _serialize_runtime_user(user)
+        for user in users
+        if user.session_token_hash or user.devices
+    ]
+    return jsonify({"users": payload})

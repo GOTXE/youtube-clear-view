@@ -76,6 +76,28 @@ describe('admin observability UI', () => {
         recent_writes: [{ statement: 'UPDATE', duration_ms: 3.2 }]
       }
     }));
+    const getAdminRuntimeStateMock = vi.fn(async () => ({
+      ok: true,
+      data: {
+        users: [
+          {
+            id: 1,
+            username: 'admin',
+            display_name: 'Admin',
+            has_active_session: true,
+            device_count: 1,
+            devices: [
+              {
+                id: 7,
+                device_identifier: 'dev-admin',
+                device_type: 'tv',
+                frontend_mode: 'tv'
+              }
+            ]
+          }
+        ]
+      }
+    }));
 
     window.APIClient = class APIClient {
       async getAuthProvider() {
@@ -107,6 +129,10 @@ describe('admin observability UI', () => {
         return getAdminSqliteObservabilityMock();
       }
 
+      async getAdminRuntimeState() {
+        return getAdminRuntimeStateMock();
+      }
+
       async updateAdminSqliteObservability(enabled) {
         return updateAdminSqliteObservabilityMock(enabled);
       }
@@ -128,9 +154,12 @@ describe('admin observability UI', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(getAdminSqliteObservabilityMock).toHaveBeenCalledTimes(1);
+    expect(getAdminRuntimeStateMock).toHaveBeenCalledTimes(1);
     expect(document.getElementById('admin-observability-modal').hidden).toBe(false);
     expect(document.getElementById('admin-observability-modal').textContent).toContain('adminMetricsWriteCount');
     expect(document.getElementById('admin-observability-modal').textContent).toContain('UPDATE');
+    expect(document.getElementById('admin-observability-modal').textContent).toContain('adminRuntimeState');
+    expect(document.getElementById('admin-observability-modal').textContent).toContain('dev-admin');
 
     document.getElementById('admin-observability-toggle').click();
     await new Promise(resolve => setTimeout(resolve, 0));

@@ -186,6 +186,10 @@ class APIClient {
     return this.put('/api/admin/observability/sqlite', { enabled });
   }
 
+  getAdminRuntimeState() {
+    return this.get('/api/admin/runtime-state');
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }

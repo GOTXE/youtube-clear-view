@@ -136,6 +136,40 @@ Response:
 
 Returns the same payload shape as `GET /api/admin/observability/sqlite`.
 
+### GET /api/admin/runtime-state
+
+Returns the admin-visible runtime state for current sessions and registered devices.
+
+Response example:
+
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "display_name": "Admin",
+      "email": "admin@example.com",
+      "auth_provider": "google",
+      "google_auth_status": "active",
+      "totp_enabled": true,
+      "has_active_session": true,
+      "session_created_at": "2026-03-17T12:40:00",
+      "device_count": 1,
+      "devices": [
+        {
+          "id": 7,
+          "device_identifier": "dev-admin",
+          "device_type": "tv",
+          "frontend_mode": "tv",
+          "tv_scale": "XL"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ---
 
 ## Authentication

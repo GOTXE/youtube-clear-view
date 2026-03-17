@@ -55,7 +55,8 @@
   };
 
   const adminState = {
-    metrics: null
+    metrics: null,
+    runtimeState: null
   };
 
   const t = (key, vars) => (
@@ -1369,6 +1370,23 @@
     return response.data;
   }
 
+  async function loadAdminRuntimeState() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return null;
+    }
+
+    const response = await api.getAdminRuntimeState();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadAdminRuntimeState'), 'error');
+      return null;
+    }
+
+    adminState.runtimeState = response.data;
+    return response.data;
+  }
+
   function buildAdminModal() {
     if (ui.adminModal) {
       return ui.adminModal;
@@ -1434,10 +1452,15 @@
     recent.className = 'field admin-observability-recent';
     recent.id = 'admin-observability-recent';
 
+    const runtime = document.createElement('div');
+    runtime.className = 'field admin-runtime-state';
+    runtime.id = 'admin-runtime-state';
+
     body.appendChild(description);
     body.appendChild(controls);
     body.appendChild(metrics);
     body.appendChild(recent);
+    body.appendChild(runtime);
 
     modal.appendChild(header);
     modal.appendChild(body);
@@ -1467,8 +1490,9 @@
 
     const metricsNode = ui.adminModal.querySelector('#admin-observability-metrics');
     const recentNode = ui.adminModal.querySelector('#admin-observability-recent');
+    const runtimeNode = ui.adminModal.querySelector('#admin-runtime-state');
     const toggleButton = ui.adminModal.querySelector('#admin-observability-toggle');
-    if (!metricsNode || !recentNode || !toggleButton) {
+    if (!metricsNode || !recentNode || !runtimeNode || !toggleButton) {
       return;
     }
 
@@ -1532,11 +1556,69 @@
       list.appendChild(row);
     });
     recentNode.appendChild(list);
+
+    runtimeNode.innerHTML = '';
+    const runtimeLabel = document.createElement('span');
+    runtimeLabel.className = 'field__label';
+    runtimeLabel.textContent = t('adminRuntimeState');
+    runtimeNode.appendChild(runtimeLabel);
+
+    const users = adminState.runtimeState && Array.isArray(adminState.runtimeState.users)
+      ? adminState.runtimeState.users
+      : [];
+    if (!users.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = t('adminNoRuntimeUsers');
+      runtimeNode.appendChild(empty);
+      return;
+    }
+
+    const runtimeList = document.createElement('div');
+    runtimeList.className = 'admin-runtime-state__list';
+    users.forEach(user => {
+      const userCard = document.createElement('article');
+      userCard.className = 'admin-runtime-state__card';
+
+      const heading = document.createElement('h3');
+      heading.className = 'heading-3';
+      heading.textContent = user.display_name || user.username || user.email || `#${user.id}`;
+
+      const summary = document.createElement('p');
+      summary.className = 'caption';
+      summary.textContent = t('adminRuntimeUserSummary', {
+        devices: user.device_count || 0,
+        session: user.has_active_session ? t('yes') : t('no')
+      });
+
+      userCard.appendChild(heading);
+      userCard.appendChild(summary);
+
+      const devices = Array.isArray(user.devices) ? user.devices : [];
+      if (devices.length) {
+        const deviceList = document.createElement('div');
+        deviceList.className = 'admin-runtime-state__devices';
+        devices.forEach(device => {
+          const item = document.createElement('div');
+          item.className = 'field__group';
+          const mode = device.frontend_mode || '--';
+          item.textContent = `${device.device_type} · ${mode} · ${device.device_identifier}`;
+          deviceList.appendChild(item);
+        });
+        userCard.appendChild(deviceList);
+      }
+
+      runtimeList.appendChild(userCard);
+    });
+    runtimeNode.appendChild(runtimeList);
   }
 
   async function refreshAdminModal() {
-    const metrics = await loadAdminObservability();
-    if (!metrics) {
+    const [metrics, runtimeState] = await Promise.all([
+      loadAdminObservability(),
+      loadAdminRuntimeState()
+    ]);
+    if (!metrics || !runtimeState) {
       return false;
     }
     renderAdminObservability();
@@ -1582,8 +1664,11 @@
       document.body.appendChild(modal);
     }
 
-    const metrics = await loadAdminObservability();
-    if (!metrics) {
+    const [metrics, runtimeState] = await Promise.all([
+      loadAdminObservability(),
+      loadAdminRuntimeState()
+    ]);
+    if (!metrics || !runtimeState) {
       return;
     }
 

@@ -238,6 +238,7 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - The admin modal can:
   - inspect current SQLite write and lock metrics
   - inspect currently active manual refresh leases
+  - inspect active sessions and registered devices
   - toggle detailed recent-write capture on the current backend node
 - Admin endpoints now expose:
   - SQLite write counters

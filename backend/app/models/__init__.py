@@ -3,6 +3,7 @@
 from .category import Category, ChannelCategory, PREDEFINED_CATEGORIES
 from .channel import Channel, UserChannel
 from .device import UserDevice
+from .passkey import UserPasskey
 from .theme import Theme, ThemeChannel
 from .user import User
 from .user_settings import UserSettings
@@ -21,4 +22,5 @@ __all__ = [
     "Video",
     "WatchedVideo",
     "UserDevice",
+    "UserPasskey",
 ]

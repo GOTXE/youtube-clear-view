@@ -286,6 +286,61 @@ def ensure_user_device_schema():
         )
 
 
+def ensure_user_passkey_schema():
+    """Ensure user_passkeys table exists for WebAuthn credentials."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_passkeys)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_passkeys (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        label VARCHAR(200),
+                        credential_id VARCHAR(512) NOT NULL,
+                        public_key TEXT NOT NULL,
+                        sign_count INTEGER NOT NULL DEFAULT 0,
+                        transports TEXT,
+                        aaguid VARCHAR(64),
+                        credential_device_type VARCHAR(32),
+                        credential_backed_up BOOLEAN NOT NULL DEFAULT 0,
+                        last_used_at DATETIME,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(user_id) REFERENCES users(id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_passkeys_credential_id "
+                    "ON user_passkeys (credential_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_user_passkeys_user_id "
+                    "ON user_passkeys (user_id)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User passkey schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_category_schema():
     """Ensure categories table exists and is seeded with predefined categories."""
     engine = db.engine

@@ -1,10 +1,12 @@
 """Authentication endpoint tests."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import User
+from app.models import User, UserPasskey
 from app.services.totp_auth import generate_totp_code
 
 
@@ -25,6 +27,9 @@ class TestConfig:
     LOG_VIEWER_PASSWORD = "test"
     LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    FRONTEND_URL = "http://localhost"
+    PASSKEY_RP_ID = "localhost"
+    PASSKEY_ORIGIN = "http://localhost"
 
     @staticmethod
     def validate():
@@ -199,6 +204,119 @@ def test_google_tokens_are_encrypted_at_rest(client, app):
         assert stored.google_access_token == "access-token"
         assert stored.google_refresh_token == "refresh-token"
         assert stored.google_scopes == "openid email profile"
+
+
+def test_passkey_registration_persists_credential(client, app, monkeypatch):
+    client.post("/api/auth/login", json={"username": "alice"})
+
+    response = client.post("/api/auth/passkeys/register/options", json={"label": "Laptop"})
+    assert response.status_code == 200
+    assert "publicKey" in response.get_json()
+
+    def fake_verify_registration(credential, expected_challenge):
+        assert expected_challenge
+        return SimpleNamespace(
+            credential_id=b"credential-1",
+            credential_public_key=b"public-key-1",
+            sign_count=1,
+            aaguid="aaguid-1",
+            credential_device_type=SimpleNamespace(value="single_device"),
+            credential_backed_up=False,
+        )
+
+    monkeypatch.setattr("app.routes.auth.verify_registration_credential", fake_verify_registration)
+
+    verify_response = client.post(
+        "/api/auth/passkeys/register/verify",
+        json={"credential": {"id": "ignored"}, "transports": ["internal"]},
+    )
+    assert verify_response.status_code == 200
+    data = verify_response.get_json()
+    assert data["passkey"]["label"] == "Laptop"
+    assert data["passkey"]["transports"] == ["internal"]
+
+    with app.app_context():
+        user = User.query.filter_by(username="alice").first()
+        assert len(user.passkeys) == 1
+        assert user.passkeys[0].credential_id
+
+
+def test_passkey_authentication_creates_session(client, app, monkeypatch):
+    with app.app_context():
+        user = User(username="passkey-user", display_name="Passkey User")
+        passkey = UserPasskey(
+            user=user,
+            label="Phone",
+            credential_id="credential-1",
+            public_key="cHVibGljLWtleS0x",
+            sign_count=7,
+        )
+        db.session.add_all([user, passkey])
+        db.session.commit()
+
+    options_response = client.post("/api/auth/passkeys/authenticate/options")
+    assert options_response.status_code == 200
+    assert "publicKey" in options_response.get_json()
+
+    def fake_verify_authentication(credential, passkey, expected_challenge):
+        assert credential["id"] == "credential-1"
+        assert expected_challenge
+        return SimpleNamespace(
+            credential_id=b"credential-1",
+            new_sign_count=8,
+            credential_device_type=SimpleNamespace(value="single_device"),
+            credential_backed_up=True,
+            user_verified=True,
+        )
+
+    monkeypatch.setattr("app.routes.auth.verify_authentication_credential", fake_verify_authentication)
+
+    verify_response = client.post(
+        "/api/auth/passkeys/authenticate/verify",
+        json={"credential": {"id": "credential-1"}},
+    )
+    assert verify_response.status_code == 200
+    data = verify_response.get_json()
+    assert data["authenticated"] is True
+    assert data["username"] == "passkey-user"
+    assert "ytcv_session=" in verify_response.headers.get("Set-Cookie", "")
+
+    with app.app_context():
+        stored_passkey = UserPasskey.query.filter_by(credential_id="credential-1").first()
+        assert stored_passkey.sign_count == 8
+        assert stored_passkey.credential_backed_up is True
+        assert stored_passkey.last_used_at is not None
+
+
+def test_list_and_delete_passkeys(client, app):
+    with app.app_context():
+        user = User(username="owner", display_name="Owner")
+        db.session.add(user)
+        db.session.commit()
+        passkey = UserPasskey(
+            user_id=user.id,
+            label="Tablet",
+            credential_id="credential-abc",
+            public_key="cHVibGljLWtleQ",
+            sign_count=0,
+        )
+        db.session.add(passkey)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "owner"})
+
+    list_response = client.get("/api/auth/passkeys")
+    assert list_response.status_code == 200
+    payload = list_response.get_json()
+    assert len(payload["passkeys"]) == 1
+    passkey_id = payload["passkeys"][0]["id"]
+
+    delete_response = client.delete(f"/api/auth/passkeys/{passkey_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()["deleted"] is True
+
+    with app.app_context():
+        assert UserPasskey.query.filter_by(id=passkey_id).first() is None
 
 
 def test_google_accounts_returns_known_accounts_for_browser(client_google, app_google):

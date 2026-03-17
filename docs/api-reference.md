@@ -325,6 +325,164 @@ Response:
 }
 ```
 
+### GET /api/auth/passkeys
+
+Requires an authenticated session.
+
+Response:
+
+```json
+{
+  "passkeys": [
+    {
+      "id": 1,
+      "label": "MacBook Pro",
+      "credential_id": "base64url-credential-id",
+      "transports": ["internal"],
+      "aaguid": "00000000-0000-0000-0000-000000000000",
+      "credential_device_type": "single_device",
+      "credential_backed_up": false,
+      "last_used_at": "2026-03-17T10:08:00.000000",
+      "created_at": "2026-03-17T10:05:00.000000",
+      "updated_at": "2026-03-17T10:08:00.000000"
+    }
+  ]
+}
+```
+
+### POST /api/auth/passkeys/register/options
+
+Requires an authenticated session.
+
+Starts passkey registration for the current user and returns WebAuthn creation options.
+
+Request:
+
+```json
+{ "label": "MacBook Pro" }
+```
+
+Response:
+
+```json
+{
+  "publicKey": {
+    "challenge": "...",
+    "rp": { "name": "YT Clear View", "id": "localhost" },
+    "user": { "name": "alice@example.com", "displayName": "Alice", "id": "MQ" }
+  }
+}
+```
+
+### POST /api/auth/passkeys/register/verify
+
+Requires an authenticated session.
+
+Verifies the browser registration response and persists the passkey.
+
+Request:
+
+```json
+{
+  "credential": {
+    "id": "base64url-credential-id",
+    "rawId": "base64url-credential-id",
+    "response": {
+      "clientDataJSON": "...",
+      "attestationObject": "..."
+    },
+    "type": "public-key"
+  },
+  "label": "MacBook Pro",
+  "transports": ["internal"]
+}
+```
+
+Response:
+
+```json
+{
+  "passkey": {
+    "id": 1,
+    "label": "MacBook Pro",
+    "credential_id": "base64url-credential-id"
+  }
+}
+```
+
+### DELETE /api/auth/passkeys/<id>
+
+Requires an authenticated session.
+
+Deletes one passkey owned by the current user.
+
+Response:
+
+```json
+{
+  "deleted": true,
+  "passkey_id": 1
+}
+```
+
+### POST /api/auth/passkeys/authenticate/options
+
+Public endpoint.
+
+Returns WebAuthn request options for a discoverable passkey authentication ceremony.
+
+Response:
+
+```json
+{
+  "publicKey": {
+    "challenge": "...",
+    "rpId": "localhost",
+    "userVerification": "preferred"
+  }
+}
+```
+
+### POST /api/auth/passkeys/authenticate/verify
+
+Public endpoint.
+
+Verifies a passkey assertion, creates a backend session, and returns the authenticated user payload.
+
+Request:
+
+```json
+{
+  "credential": {
+    "id": "base64url-credential-id",
+    "rawId": "base64url-credential-id",
+    "response": {
+      "authenticatorData": "...",
+      "clientDataJSON": "...",
+      "signature": "...",
+      "userHandle": "..."
+    },
+    "type": "public-key"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_auth_status": "active",
+  "totp_enabled": true,
+  "theme_preference": "dark"
+}
+```
+
 ### GET /api/auth/mfa/status
 
 Requires an authenticated session.

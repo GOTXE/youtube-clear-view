@@ -110,6 +110,30 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - consume recovery codes once
 - This slice does not yet enforce MFA during sign-in. That will be wired into the login flow in a later auth v2 slice.
 
+## Passkey Foundation
+
+- Auth v2 now also has a backend WebAuthn/passkey foundation.
+- New endpoints:
+  - `GET /api/auth/passkeys`
+  - `POST /api/auth/passkeys/register/options`
+  - `POST /api/auth/passkeys/register/verify`
+  - `DELETE /api/auth/passkeys/<id>`
+  - `POST /api/auth/passkeys/authenticate/options`
+  - `POST /api/auth/passkeys/authenticate/verify`
+- Current scope:
+  - persist passkey credentials per user
+  - generate registration/authentication WebAuthn options
+  - verify browser ceremonies and issue a backend session on successful assertion
+- Current non-goals:
+  - no frontend passkey UX yet
+  - no enforced MFA step after passkey sign-in yet
+  - no TV pairing integration yet
+- Relevant config:
+  - `PASSKEY_RP_NAME`
+  - `PASSKEY_RP_ID`
+  - `PASSKEY_ORIGIN`
+  - `PASSKEY_ALLOWED_ORIGINS`
+
 ## Device Type Persistence
 
 - Device state is stored per `user_id + device_identifier` in `user_devices`.

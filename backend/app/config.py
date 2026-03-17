@@ -66,6 +66,10 @@ class Config:
         "openid email profile https://www.googleapis.com/auth/youtube.readonly",
     )
     FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+    PASSKEY_RP_NAME = os.getenv("PASSKEY_RP_NAME", "YT Clear View")
+    PASSKEY_RP_ID = os.getenv("PASSKEY_RP_ID", "")
+    PASSKEY_ORIGIN = os.getenv("PASSKEY_ORIGIN", "")
+    PASSKEY_ALLOWED_ORIGINS = os.getenv("PASSKEY_ALLOWED_ORIGINS", "")
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False

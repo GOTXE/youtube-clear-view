@@ -11,7 +11,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import User
+from app.models import User, UserPasskey
 from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
     apply_token_response,
@@ -19,6 +19,16 @@ from app.services.google_oauth import (
     exchange_code_for_tokens,
     fetch_user_info,
     revoke_google_tokens,
+)
+from app.services.passkey_auth import (
+    build_authentication_options,
+    build_challenge_payload,
+    build_registration_options,
+    challenge_is_valid,
+    decode_b64url,
+    encode_b64url,
+    verify_authentication_credential,
+    verify_registration_credential,
 )
 from app.services.totp_auth import (
     build_totp_uri,
@@ -35,6 +45,8 @@ COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 STATE_COOKIE_NAME = "ytcv_oauth_state"
 STATE_COOKIE_MAX_AGE = 10 * 60
 KNOWN_GOOGLE_USERS_KEY = "known_google_user_ids"
+PASSKEY_REGISTRATION_KEY = "passkey_registration"
+PASSKEY_AUTHENTICATION_KEY = "passkey_authentication"
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -172,6 +184,22 @@ def _issue_session_for_user(user):
     return session_token
 
 
+def _serialize_authenticated_user(user):
+    """Serialize the authenticated user payload consistently."""
+    return {
+        "authenticated": True,
+        "user_id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "google_avatar_url": user.google_avatar_url,
+        "google_auth_status": user.google_auth_status,
+        "totp_enabled": user.totp_enabled,
+        "theme_preference": user.theme_preference,
+    }
+
+
 @auth_bp.post("/api/auth/login")
 @handle_route_errors
 def login():
@@ -201,17 +229,7 @@ def login():
     db.session.commit()
 
     response = jsonify(
-        {
-            "user_id": user.id,
-            "username": user.username,
-            "display_name": user.display_name,
-            "auth_provider": user.auth_provider,
-            "email": user.email,
-            "google_avatar_url": user.google_avatar_url,
-            "google_auth_status": user.google_auth_status,
-            "totp_enabled": user.totp_enabled,
-            "theme_preference": user.theme_preference,
-        }
+        _serialize_authenticated_user(user) | {"authenticated": True}
     )
     _set_session_cookie(response, session_token)
     return response
@@ -301,18 +319,7 @@ def switch_account():
     db.session.commit()
 
     response = jsonify(
-        {
-            "authenticated": True,
-            "user_id": user.id,
-            "username": user.username,
-            "display_name": user.display_name,
-            "email": user.email,
-            "auth_provider": user.auth_provider,
-            "google_avatar_url": user.google_avatar_url,
-            "google_auth_status": user.google_auth_status,
-            "totp_enabled": user.totp_enabled,
-            "theme_preference": user.theme_preference,
-        }
+        _serialize_authenticated_user(user)
     )
     _set_session_cookie(response, session_token)
     return response
@@ -449,18 +456,7 @@ def current_user():
         return response
 
     return jsonify(
-        {
-            "authenticated": True,
-            "user_id": user.id,
-            "username": user.username,
-            "display_name": user.display_name,
-            "email": user.email,
-            "auth_provider": user.auth_provider,
-            "google_avatar_url": user.google_avatar_url,
-            "google_auth_status": user.google_auth_status,
-            "totp_enabled": user.totp_enabled,
-            "theme_preference": user.theme_preference,
-        }
+        _serialize_authenticated_user(user)
     )
 
 
@@ -536,6 +532,158 @@ def _load_recovery_hashes(user):
     except (TypeError, ValueError):
         return []
     return data if isinstance(data, list) else []
+
+
+def _normalize_passkey_label(label):
+    """Normalize an optional passkey label."""
+    cleaned = (label or "").strip()
+    return cleaned[:200] if cleaned else None
+
+
+def _extract_credential_id(credential):
+    """Extract a credential ID from a WebAuthn payload."""
+    if not isinstance(credential, dict):
+        return None
+
+    for key in ("id", "rawId"):
+        value = credential.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+@auth_bp.get("/api/auth/passkeys")
+@handle_route_errors
+@require_auth
+def list_passkeys():
+    """Return registered passkeys for the current user."""
+    user = g.current_user
+    passkeys = (
+        UserPasskey.query.filter_by(user_id=user.id)
+        .order_by(UserPasskey.created_at.asc(), UserPasskey.id.asc())
+        .all()
+    )
+    return jsonify({"passkeys": [passkey.to_dict() for passkey in passkeys]})
+
+
+@auth_bp.post("/api/auth/passkeys/register/options")
+@handle_route_errors
+@require_auth
+def passkey_registration_options():
+    """Generate passkey registration options for the current user."""
+    user = g.current_user
+    label = _normalize_passkey_label((request.get_json(silent=True) or {}).get("label"))
+    options, challenge = build_registration_options(user, user.passkeys or [])
+    session[PASSKEY_REGISTRATION_KEY] = build_challenge_payload(challenge, user_id=user.id, label=label)
+    session.modified = True
+    return jsonify({"publicKey": options})
+
+
+@auth_bp.post("/api/auth/passkeys/register/verify")
+@handle_route_errors
+@require_auth
+def passkey_registration_verify():
+    """Verify a passkey registration response and persist it."""
+    user = g.current_user
+    pending = session.get(PASSKEY_REGISTRATION_KEY)
+    if not challenge_is_valid(pending, expected_user_id=user.id):
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    data = request.get_json(silent=True) or {}
+    credential = data.get("credential")
+    verified = verify_registration_credential(credential, pending["challenge"])
+
+    credential_id = encode_b64url(verified.credential_id)
+    existing = UserPasskey.query.filter_by(credential_id=credential_id).first()
+    if existing:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Conflict.", "tracking_id": tracking_id, "status": 409}), 409
+
+    transports = []
+    if isinstance(data.get("transports"), list):
+        transports = [str(item) for item in data["transports"] if item]
+
+    passkey = UserPasskey(
+        user_id=user.id,
+        label=_normalize_passkey_label(data.get("label")) or pending.get("label"),
+        credential_id=credential_id,
+        public_key=encode_b64url(verified.credential_public_key),
+        sign_count=verified.sign_count,
+        transports=",".join(transports) if transports else None,
+        aaguid=verified.aaguid,
+        credential_device_type=str(verified.credential_device_type.value),
+        credential_backed_up=verified.credential_backed_up,
+    )
+    db.session.add(passkey)
+    db.session.commit()
+
+    session.pop(PASSKEY_REGISTRATION_KEY, None)
+    session.modified = True
+    return jsonify({"passkey": passkey.to_dict()})
+
+
+@auth_bp.delete("/api/auth/passkeys/<int:passkey_id>")
+@handle_route_errors
+@require_auth
+def delete_passkey(passkey_id):
+    """Delete a passkey owned by the current user."""
+    user = g.current_user
+    passkey = UserPasskey.query.filter_by(id=passkey_id, user_id=user.id).first()
+    if not passkey:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
+
+    db.session.delete(passkey)
+    db.session.commit()
+    return jsonify({"deleted": True, "passkey_id": passkey_id})
+
+
+@auth_bp.post("/api/auth/passkeys/authenticate/options")
+@handle_route_errors
+def passkey_authentication_options():
+    """Generate authentication options for discoverable passkeys."""
+    options, challenge = build_authentication_options()
+    session[PASSKEY_AUTHENTICATION_KEY] = build_challenge_payload(challenge)
+    session.modified = True
+    return jsonify({"publicKey": options})
+
+
+@auth_bp.post("/api/auth/passkeys/authenticate/verify")
+@handle_route_errors
+def passkey_authentication_verify():
+    """Verify a passkey assertion and issue a session."""
+    pending = session.get(PASSKEY_AUTHENTICATION_KEY)
+    if not challenge_is_valid(pending):
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    data = request.get_json(silent=True) or {}
+    credential = data.get("credential")
+    credential_id = _extract_credential_id(credential)
+    if not credential_id:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    passkey = UserPasskey.query.filter_by(credential_id=credential_id).first()
+    if not passkey:
+        return _forbidden("Passkey not available.")
+
+    verified = verify_authentication_credential(credential, passkey, pending["challenge"])
+    passkey.sign_count = verified.new_sign_count
+    passkey.last_used_at = datetime.utcnow()
+    passkey.credential_device_type = str(verified.credential_device_type.value)
+    passkey.credential_backed_up = verified.credential_backed_up
+
+    user = passkey.user
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    session.pop(PASSKEY_AUTHENTICATION_KEY, None)
+    session.modified = True
+    response = jsonify(_serialize_authenticated_user(user))
+    _set_session_cookie(response, session_token)
+    return response
 
 
 @auth_bp.get("/api/auth/mfa/status")

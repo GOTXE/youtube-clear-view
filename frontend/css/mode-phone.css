@@ -119,3 +119,22 @@ html[data-mode="phone"] .phone-nav__button.is-active {
 html[data-mode="phone"] .menu-wrapper {
   display: none;
 }
+
+html[data-mode="phone"] .header-context {
+  justify-self: stretch;
+}
+
+html[data-mode="phone"] .header-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+html[data-mode="phone"] .category-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+html[data-mode="phone"] .category-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}

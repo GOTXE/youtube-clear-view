@@ -1166,16 +1166,6 @@ select {
   line-height: 1.4;
 }
 
-@media (max-width: 1024px) {
-  .app-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .channel-sidebar {
-    max-height: 320px;
-  }
-}
-
 .toast {
   position: fixed;
   bottom: var(--space-6);
@@ -1498,24 +1488,6 @@ select {
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-@media (max-width: 767px) {
-  .category-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .category-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-}
-
-@media (min-width: 1920px) {
-  .category-option {
-    min-height: 60px;
-  }
 }
 
 .category-modal-overlay {

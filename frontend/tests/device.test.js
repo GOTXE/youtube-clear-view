@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('device rehydration after user switch', () => {
   beforeEach(() => {
@@ -6,7 +6,6 @@ describe('device rehydration after user switch', () => {
     localStorage.clear();
     document.body.innerHTML = `
       <div id="device-type"></div>
-      <button id="menu-device-type" class="menu-item" type="button" hidden></button>
     `;
 
     window.APP_CONFIG = {
@@ -29,7 +28,6 @@ describe('device rehydration after user switch', () => {
         if (key === 'deviceTypeTablet') return 'TABLET';
         if (key === 'deviceTypeMobile') return 'MOBILE';
         if (key === 'deviceTypeDesktop') return 'DESKTOP';
-        if (key === 'deviceTypeMenuLabel') return 'Device type';
         if (key === 'confirmDeviceTitle') return 'Confirm device';
         if (key === 'confirmDeviceMessage') return `Detected ${vars.device}`;
         if (key === 'confirmDeviceLegend') return 'Choose';
@@ -78,6 +76,20 @@ describe('device rehydration after user switch', () => {
     window.getCurrentUser = () => ({ id: 1, username: 'alice' });
   });
 
+  afterEach(() => {
+    delete window.APIClient;
+    delete window.appApiClient;
+    delete window.getCurrentUser;
+    delete window.initDevice;
+    delete window.detectDevice;
+    delete window.registerDevice;
+    delete window.confirmDeviceType;
+    delete window.getDeviceId;
+    delete window.getCurrentDeviceType;
+    delete window.getCurrentDevice;
+    delete window.openDeviceTypeModal;
+  });
+
   it('reuses the current user device type without reopening confirmation when ids change', async () => {
     localStorage.setItem('ytcv_device_id', '11');
 
@@ -91,7 +103,7 @@ describe('device rehydration after user switch', () => {
     expect(document.getElementById('device-type-modal')).toBeNull();
   });
 
-  it('opens the device modal from the hamburger menu action', async () => {
+  it('opens the device modal automatically when the device is still unconfirmed', async () => {
     window.APIClient = class APIClient {
       async detectDevice() {
         return {
@@ -118,11 +130,6 @@ describe('device rehydration after user switch', () => {
 
     await import('../js/device.js');
     await window.initDevice();
-
-    const button = document.getElementById('menu-device-type');
-    expect(button.hidden).toBe(false);
-
-    button.click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(document.getElementById('device-type-modal')).not.toBeNull();

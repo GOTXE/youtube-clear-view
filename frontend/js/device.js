@@ -23,8 +23,7 @@
   let modal = null;
 
   const ui = {
-    deviceLabel: document.getElementById('device-type'),
-    menuDeviceType: document.getElementById('menu-device-type')
+    deviceLabel: document.getElementById('device-type')
   };
 
   const t = (key, vars) => (
@@ -185,7 +184,7 @@
     window.dispatchEvent(new CustomEvent('device:changed', {
       detail: { device: currentDevice }
     }));
-    return true;
+    return currentDevice;
   }
 
   function buildDeviceModal(suggestedType) {
@@ -352,28 +351,6 @@
     return registration;
   }
 
-  function setupMenuDeviceType() {
-    if (!ui.menuDeviceType) {
-      return;
-    }
-
-    ui.menuDeviceType.hidden = typeof window.getCurrentUser !== 'function' || !window.getCurrentUser();
-
-    if (ui.menuDeviceType.dataset.listenerAttached === 'true') {
-      return;
-    }
-
-    ui.menuDeviceType.addEventListener('click', async () => {
-      await openDeviceTypeModal();
-    });
-    ui.menuDeviceType.dataset.listenerAttached = 'true';
-
-    window.addEventListener('auth:changed', event => {
-      const user = event.detail ? event.detail.user : null;
-      ui.menuDeviceType.hidden = !user;
-    });
-  }
-
   function getCurrentDeviceType() {
     return currentDeviceType;
   }
@@ -390,5 +367,4 @@
   window.getCurrentDeviceType = getCurrentDeviceType;
   window.getCurrentDevice = getCurrentDevice;
   window.openDeviceTypeModal = openDeviceTypeModal;
-  setupMenuDeviceType();
 })();

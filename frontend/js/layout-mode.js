@@ -199,9 +199,10 @@
   }
 
   function buildModal() {
-    if (modal) {
-      return modal;
+    if (modal && modal.parentNode) {
+      modal.parentNode.removeChild(modal);
     }
+    modal = null;
 
     const overlay = document.createElement('div');
     overlay.className = 'modal';
@@ -214,11 +215,48 @@
 
     const title = document.createElement('h2');
     title.className = 'heading-2';
-    title.textContent = t('displayModeTitle');
+    title.textContent = t('displaySetupTitle');
 
     const intro = document.createElement('p');
     intro.className = 'body';
-    intro.textContent = t('displayModeDescription');
+    intro.textContent = t('displaySetupDescription');
+
+    const deviceFieldset = document.createElement('fieldset');
+    deviceFieldset.className = 'field';
+
+    const deviceLegend = document.createElement('span');
+    deviceLegend.className = 'field__label';
+    deviceLegend.textContent = t('confirmDeviceLegend');
+    deviceFieldset.appendChild(deviceLegend);
+
+    const currentDeviceType = (currentDevice && currentDevice.device_type) || (
+      typeof window.getCurrentDeviceType === 'function' ? window.getCurrentDeviceType() : null
+    ) || 'desktop';
+
+    [
+      ['tv', t('deviceTypeTv')],
+      ['tablet', t('deviceTypeTablet')],
+      ['mobile', t('deviceTypeMobile')],
+      ['desktop', t('deviceTypeDesktop')]
+    ].forEach(([value, labelText]) => {
+      const label = document.createElement('label');
+      label.className = 'checkbox';
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'device-type';
+      input.value = value;
+      if (value === currentDeviceType) {
+        input.checked = true;
+      }
+
+      const text = document.createElement('span');
+      text.textContent = labelText;
+
+      label.appendChild(input);
+      label.appendChild(text);
+      deviceFieldset.appendChild(label);
+    });
 
     const modeFieldset = document.createElement('fieldset');
     modeFieldset.className = 'field';
@@ -341,7 +379,9 @@
     });
 
     saveButton.addEventListener('click', async () => {
+      const selectedDeviceType = overlay.querySelector('input[name="device-type"]:checked');
       const selectedMode = overlay.querySelector('input[name="layout-mode"]:checked');
+      const deviceType = selectedDeviceType ? selectedDeviceType.value : currentDeviceType;
       const frontendMode = selectedMode ? selectedMode.value : currentMode || inferModeFromViewport();
       const payload = {
         frontend_mode: frontendMode,
@@ -351,7 +391,19 @@
       };
 
       saveButton.disabled = true;
-      const ok = await persistPreferences(payload);
+      let ok = true;
+      if (
+        typeof window.confirmDeviceType === 'function'
+        && currentDevice
+        && currentDevice.id
+        && deviceType
+        && deviceType !== currentDeviceType
+      ) {
+        ok = Boolean(await window.confirmDeviceType(deviceType));
+      }
+      if (ok) {
+        ok = await persistPreferences(payload);
+      }
       saveButton.disabled = false;
       if (ok) {
         closeDisplayModeModal();
@@ -366,6 +418,7 @@
 
     content.appendChild(title);
     content.appendChild(intro);
+    content.appendChild(deviceFieldset);
     content.appendChild(modeFieldset);
     content.appendChild(tvOptions);
     content.appendChild(actions);
@@ -386,6 +439,7 @@
       return;
     }
     modal.parentNode.removeChild(modal);
+    modal = null;
   }
 
   function setupMenuDisplayMode() {

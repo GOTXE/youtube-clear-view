@@ -25,6 +25,21 @@ describe('frontend layout mode system', () => {
     });
 
     window.APIClient = class APIClient {
+      async setDeviceType(_deviceId, deviceType) {
+        return {
+          ok: true,
+          data: {
+            id: 7,
+            device_type: deviceType,
+            device_type_confirmed: true,
+            frontend_mode: 'tv',
+            tv_scale: 'L',
+            screen_size_inches: 55,
+            viewing_distance_m: 2.5
+          }
+        };
+      }
+
       async updateDevicePreferences(_deviceId, preferences) {
         return {
           ok: true,
@@ -51,6 +66,8 @@ describe('frontend layout mode system', () => {
     delete window.getCurrentUser;
     delete window.appApiClient;
     delete window.ytcvLayoutMode;
+    delete window.confirmDeviceType;
+    delete window.getCurrentDeviceType;
   });
 
   it('applies saved mode and tv scale on initialization', async () => {
@@ -81,6 +98,12 @@ describe('frontend layout mode system', () => {
 
   it('opens the display mode modal and persists tv preferences', async () => {
     await import('../js/layout-mode.js');
+    window.confirmDeviceType = vi.fn(async deviceType => ({
+      id: 7,
+      device_type: deviceType,
+      device_type_confirmed: true
+    }));
+    window.getCurrentDeviceType = () => 'tv';
 
     window.ytcvLayoutMode.syncFromDevice({
       id: 7,
@@ -100,6 +123,7 @@ describe('frontend layout mode system', () => {
     const modal = document.getElementById('layout-mode-modal');
     expect(modal).not.toBeNull();
 
+    modal.querySelector('input[name="device-type"][value="desktop"]').checked = true;
     modal.querySelector('input[name="layout-mode"][value="tv"]').checked = true;
     modal.querySelector('select').value = 'XXL';
     modal.querySelector('input[type="number"]').value = '65';
@@ -109,6 +133,7 @@ describe('frontend layout mode system', () => {
     saveButton.click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
+    expect(window.confirmDeviceType).toHaveBeenCalledWith('desktop');
     expect(document.documentElement.dataset.mode).toBe('tv');
     expect(document.documentElement.dataset.tvScale).toBe('XXL');
     expect(localStorage.getItem('ytcv_frontend_mode')).toBe('tv');

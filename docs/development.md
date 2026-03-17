@@ -177,7 +177,8 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - Device state is stored per `user_id + device_identifier` in `user_devices`.
 - The frontend keeps only the latest device row id in local storage; the confirmed device type remains authoritative in the backend.
 - The device modal now auto-opens only when the current user's device is not yet confirmed.
-- The hamburger menu also exposes a manual `Device type` action that reopens the same modal on demand.
+- The hamburger menu no longer exposes a separate `Device type` action.
+- Manual device classification now lives inside the shared `Display setup` modal so hardware type and layout stay in one place.
 
 ## Frontend Mode System
 
@@ -192,7 +193,10 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   2. persisted device preferences from the backend
   3. mapped device type (`tv` -> `tv`, `mobile` -> `phone`, everything else -> `desktop_tablet`)
   4. viewport fallback
-- The hamburger menu exposes a `Display mode` action for authenticated users.
+- The hamburger menu exposes a single `Display setup` action for authenticated users.
+- That shared modal lets users adjust both:
+  - the confirmed device type (`tv`, `tablet`, `mobile`, `desktop`)
+  - the frontend layout mode and TV sizing hints
 - This slice intentionally stops short of full TV calibration and only establishes the persistence and resolver contract for v0.2.0.
 
 ## Subscription Sidebar Search

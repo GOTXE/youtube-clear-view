@@ -244,6 +244,15 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - backdrop click
 - Marking watched from the overlay updates the existing watched-state flow without requiring a backend schema change.
 
+## CSS Organization (Mode-First)
+
+- `frontend/css/main.css` is shared tokens + components only.
+- Mode-specific selectors must live in:
+  - `frontend/css/mode-desktop-tablet.css`
+  - `frontend/css/mode-tv.css`
+  - `frontend/css/mode-phone.css`
+- Guardrail: `main.css` must not contain selectors starting with `html[data-mode=...`.
+
 ## Refresh Governance
 
 - Manual refresh is now governed by the backend instead of being treated as an unlimited client action.

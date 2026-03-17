@@ -109,6 +109,17 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - generate and rotate recovery codes
   - consume recovery codes once
 - This slice does not yet enforce MFA during sign-in. That will be wired into the login flow in a later auth v2 slice.
+- The authenticated frontend now exposes a `Manage MFA` action in the hamburger menu.
+- Current UI scope:
+  - load MFA status for the current user
+  - start TOTP setup
+  - confirm setup with a real 6-digit code
+  - render newly issued recovery codes
+  - regenerate recovery codes after validating a current TOTP code
+- Current non-goals:
+  - enforcing MFA during sign-in
+  - disabling TOTP from the UI
+  - TV pairing integration
 
 ## Passkey Foundation
 

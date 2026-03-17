@@ -142,6 +142,22 @@ class APIClient {
     return this.post('/api/auth/passkeys/authenticate/verify', payload);
   }
 
+  getMfaStatus() {
+    return this.get('/api/auth/mfa/status');
+  }
+
+  setupTotp() {
+    return this.post('/api/auth/totp/setup');
+  }
+
+  confirmTotp(code) {
+    return this.post('/api/auth/totp/confirm', { code });
+  }
+
+  regenerateRecoveryCodes(code) {
+    return this.post('/api/auth/recovery-codes/regenerate', { code });
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }

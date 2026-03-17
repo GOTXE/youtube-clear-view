@@ -26,10 +26,19 @@
     accountSwitchButton: null,
     passkeyLoginButton: null,
     managePasskeysButton: null,
+    manageMfaButton: null,
     statusMessage: null,
     modal: null,
     accountModal: null,
-    passkeyModal: null
+    passkeyModal: null,
+    mfaModal: null
+  };
+
+  const mfaState = {
+    status: null,
+    setupSecret: null,
+    otpauthUrl: null,
+    recoveryCodes: []
   };
 
   const t = (key, vars) => (
@@ -140,6 +149,10 @@
 
     if (ui.managePasskeysButton) {
       ui.managePasskeysButton.hidden = !currentUser || !passkeysSupported();
+    }
+
+    if (ui.manageMfaButton) {
+      ui.manageMfaButton.hidden = !currentUser;
     }
 
     updateSwitchUserLabel();
@@ -290,6 +303,20 @@
       ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
     }
 
+    if (!ui.manageMfaButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'manage-mfa-button';
+      button.className = 'menu-item';
+      button.textContent = t('manageMfa');
+      button.hidden = true;
+      button.addEventListener('click', async () => {
+        await openMfaModal();
+      });
+      ui.manageMfaButton = button;
+      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+    }
+
     if (!ui.statusMessage && ui.userSummary) {
       const status = document.createElement('span');
       status.className = 'caption';
@@ -387,6 +414,10 @@
       ui.managePasskeysButton.hidden = !passkeysSupported();
     }
 
+    if (ui.manageMfaButton) {
+      ui.manageMfaButton.hidden = false;
+    }
+
     updateSwitchUserLabel();
     updateLoginLink();
     setStatusMessage('');
@@ -441,6 +472,10 @@
 
     if (ui.managePasskeysButton) {
       ui.managePasskeysButton.hidden = true;
+    }
+
+    if (ui.manageMfaButton) {
+      ui.manageMfaButton.hidden = true;
     }
 
     if (passkeysSupported()) {
@@ -721,6 +756,357 @@
       return;
     }
     ui.passkeyModal.hidden = true;
+  }
+
+  async function loadMfaStatus() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return null;
+    }
+
+    const response = await api.getMfaStatus();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadMfaStatus'), 'error');
+      return null;
+    }
+
+    mfaState.status = response.data;
+    return response.data;
+  }
+
+  function buildMfaModal() {
+    if (ui.mfaModal) {
+      return ui.mfaModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'mfa-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'mfa-modal-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'mfa-modal-title';
+    title.className = 'heading-2';
+    title.textContent = t('manageMfa');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('mfaModalDescription');
+
+    const status = document.createElement('div');
+    status.className = 'field';
+    status.id = 'mfa-status-panel';
+
+    const setup = document.createElement('div');
+    setup.className = 'field';
+    setup.id = 'mfa-setup-panel';
+
+    const recovery = document.createElement('div');
+    recovery.className = 'field';
+    recovery.id = 'mfa-recovery-panel';
+
+    body.appendChild(description);
+    body.appendChild(status);
+    body.appendChild(setup);
+    body.appendChild(recovery);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closeMfaModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closeMfaModal();
+      }
+    });
+
+    ui.mfaModal = overlay;
+    return overlay;
+  }
+
+  function closeMfaModal() {
+    if (!ui.mfaModal) {
+      return;
+    }
+    ui.mfaModal.hidden = true;
+  }
+
+  function renderRecoveryCodes(container) {
+    if (!mfaState.recoveryCodes.length) {
+      return;
+    }
+
+    const label = document.createElement('span');
+    label.className = 'field__label';
+    label.textContent = t('recoveryCodesHeading');
+    container.appendChild(label);
+
+    const list = document.createElement('div');
+    list.className = 'field';
+    list.id = 'mfa-recovery-codes';
+    mfaState.recoveryCodes.forEach(code => {
+      const item = document.createElement('div');
+      item.className = 'field__group';
+      item.textContent = code;
+      list.appendChild(item);
+    });
+    container.appendChild(list);
+  }
+
+  function renderMfaModal() {
+    if (!ui.mfaModal || !mfaState.status) {
+      return;
+    }
+
+    const statusPanel = ui.mfaModal.querySelector('#mfa-status-panel');
+    const setupPanel = ui.mfaModal.querySelector('#mfa-setup-panel');
+    const recoveryPanel = ui.mfaModal.querySelector('#mfa-recovery-panel');
+    if (!statusPanel || !setupPanel || !recoveryPanel) {
+      return;
+    }
+
+    statusPanel.innerHTML = '';
+    setupPanel.innerHTML = '';
+    recoveryPanel.innerHTML = '';
+
+    const statusLabel = document.createElement('span');
+    statusLabel.className = 'field__label';
+    statusLabel.textContent = t('mfaStatusHeading');
+    statusPanel.appendChild(statusLabel);
+
+    const enabled = document.createElement('p');
+    enabled.className = 'body';
+    enabled.textContent = mfaState.status.totp_enabled ? t('mfaEnabledYes') : t('mfaEnabledNo');
+    statusPanel.appendChild(enabled);
+
+    const pending = document.createElement('p');
+    pending.className = 'caption';
+    pending.textContent = mfaState.status.totp_pending ? t('mfaPendingYes') : t('mfaPendingNo');
+    statusPanel.appendChild(pending);
+
+    const remaining = document.createElement('p');
+    remaining.className = 'caption';
+    remaining.textContent = t('recoveryCodesRemaining', { count: mfaState.status.recovery_codes_remaining || 0 });
+    statusPanel.appendChild(remaining);
+
+    if (!mfaState.status.totp_enabled) {
+      const startButton = document.createElement('button');
+      startButton.type = 'button';
+      startButton.className = 'button';
+      startButton.id = 'mfa-start-setup-button';
+      startButton.textContent = t('startTotpSetup');
+      startButton.addEventListener('click', async () => {
+        await startTotpSetup();
+      });
+      setupPanel.appendChild(startButton);
+
+      if (mfaState.setupSecret) {
+        const secretLabel = document.createElement('span');
+        secretLabel.className = 'field__label';
+        secretLabel.textContent = t('totpSecretLabel');
+        setupPanel.appendChild(secretLabel);
+
+        const secretValue = document.createElement('div');
+        secretValue.className = 'field__group';
+        secretValue.id = 'mfa-setup-secret';
+        secretValue.textContent = mfaState.setupSecret;
+        setupPanel.appendChild(secretValue);
+
+        if (mfaState.otpauthUrl) {
+          const hint = document.createElement('p');
+          hint.className = 'caption';
+          hint.textContent = t('totpAppHint');
+          setupPanel.appendChild(hint);
+        }
+
+        const codeLabel = document.createElement('label');
+        codeLabel.className = 'field';
+
+        const codeText = document.createElement('span');
+        codeText.className = 'field__label';
+        codeText.textContent = t('totpCodeLabel');
+
+        const codeInput = document.createElement('input');
+        codeInput.type = 'text';
+        codeInput.inputMode = 'numeric';
+        codeInput.autocomplete = 'one-time-code';
+        codeInput.className = 'field__input';
+        codeInput.id = 'mfa-confirm-code';
+        codeInput.placeholder = t('totpCodePlaceholder');
+
+        codeLabel.appendChild(codeText);
+        codeLabel.appendChild(codeInput);
+        setupPanel.appendChild(codeLabel);
+
+        const confirmButton = document.createElement('button');
+        confirmButton.type = 'button';
+        confirmButton.className = 'button account-switcher-modal__primary-action';
+        confirmButton.id = 'mfa-confirm-button';
+        confirmButton.textContent = t('confirmTotpSetup');
+        confirmButton.addEventListener('click', async () => {
+          await confirmTotpSetup();
+        });
+        setupPanel.appendChild(confirmButton);
+      }
+    } else {
+      const regenLabel = document.createElement('label');
+      regenLabel.className = 'field';
+
+      const regenText = document.createElement('span');
+      regenText.className = 'field__label';
+      regenText.textContent = t('totpCodeLabel');
+
+      const regenInput = document.createElement('input');
+      regenInput.type = 'text';
+      regenInput.inputMode = 'numeric';
+      regenInput.autocomplete = 'one-time-code';
+      regenInput.className = 'field__input';
+      regenInput.id = 'mfa-regenerate-code';
+      regenInput.placeholder = t('totpCodePlaceholder');
+
+      regenLabel.appendChild(regenText);
+      regenLabel.appendChild(regenInput);
+      recoveryPanel.appendChild(regenLabel);
+
+      const regenerateButton = document.createElement('button');
+      regenerateButton.type = 'button';
+      regenerateButton.className = 'button account-switcher-modal__primary-action';
+      regenerateButton.id = 'mfa-regenerate-button';
+      regenerateButton.textContent = t('regenerateRecoveryCodes');
+      regenerateButton.addEventListener('click', async () => {
+        await regenerateRecoveryCodesFromModal();
+      });
+      recoveryPanel.appendChild(regenerateButton);
+    }
+
+    renderRecoveryCodes(recoveryPanel);
+  }
+
+  async function openMfaModal() {
+    if (!currentUser) {
+      return;
+    }
+
+    const modal = buildMfaModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+
+    mfaState.setupSecret = null;
+    mfaState.otpauthUrl = null;
+    mfaState.recoveryCodes = [];
+    const status = await loadMfaStatus();
+    if (!status) {
+      return;
+    }
+    renderMfaModal();
+    modal.hidden = false;
+  }
+
+  async function startTotpSetup() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    setStatusMessage(t('startingTotpSetup'));
+    const response = await api.setupTotp();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableStartTotpSetup'), 'error');
+      return false;
+    }
+
+    mfaState.setupSecret = response.data.secret || null;
+    mfaState.otpauthUrl = response.data.otpauth_url || null;
+    if (!mfaState.status) {
+      mfaState.status = {};
+    }
+    mfaState.status.totp_pending = true;
+    renderMfaModal();
+    setStatusMessage(t('totpSetupStarted'), 'success');
+    return true;
+  }
+
+  async function confirmTotpSetup() {
+    const api = getApiClient();
+    if (!api || !ui.mfaModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const input = ui.mfaModal.querySelector('#mfa-confirm-code');
+    const code = input && input.value ? input.value.trim() : '';
+    if (!code) {
+      setStatusMessage(t('totpCodeRequired'), 'error');
+      return false;
+    }
+
+    setStatusMessage(t('confirmingTotpSetup'));
+    const response = await api.confirmTotp(code);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableConfirmTotpSetup'), 'error');
+      return false;
+    }
+
+    mfaState.setupSecret = null;
+    mfaState.otpauthUrl = null;
+    mfaState.recoveryCodes = Array.isArray(response.data.recovery_codes) ? response.data.recovery_codes : [];
+    await loadMfaStatus();
+    renderMfaModal();
+    setStatusMessage(t('totpEnabledSuccess'), 'success');
+    return true;
+  }
+
+  async function regenerateRecoveryCodesFromModal() {
+    const api = getApiClient();
+    if (!api || !ui.mfaModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const input = ui.mfaModal.querySelector('#mfa-regenerate-code');
+    const code = input && input.value ? input.value.trim() : '';
+    if (!code) {
+      setStatusMessage(t('totpCodeRequired'), 'error');
+      return false;
+    }
+
+    setStatusMessage(t('regeneratingRecoveryCodes'));
+    const response = await api.regenerateRecoveryCodes(code);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableRegenerateRecoveryCodes'), 'error');
+      return false;
+    }
+
+    mfaState.recoveryCodes = Array.isArray(response.data.recovery_codes) ? response.data.recovery_codes : [];
+    await loadMfaStatus();
+    renderMfaModal();
+    setStatusMessage(t('recoveryCodesRegenerated'), 'success');
+    return true;
   }
 
   function renderPasskeyList(passkeys) {

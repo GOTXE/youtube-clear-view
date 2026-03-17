@@ -83,6 +83,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     themeToggle: document.getElementById('theme-toggle'),
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
+    menuHeadingAccount: document.getElementById('menu-heading-account'),
+    menuHeadingViewing: document.getElementById('menu-heading-viewing'),
+    menuHeadingSystem: document.getElementById('menu-heading-system'),
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
     menuDisplayMode: document.getElementById('menu-display-mode'),
@@ -311,6 +314,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.menuFilters) {
       ui.menuFilters.textContent = t('filters');
+    }
+    if (ui.menuHeadingAccount) {
+      ui.menuHeadingAccount.textContent = t('menuSectionAccount');
+    }
+    if (ui.menuHeadingViewing) {
+      ui.menuHeadingViewing.textContent = t('menuSectionViewing');
+    }
+    if (ui.menuHeadingSystem) {
+      ui.menuHeadingSystem.textContent = t('menuSectionSystem');
     }
     if (ui.menuCategoryGuide) {
       ui.menuCategoryGuide.textContent = t('categoryGuideLabel');

@@ -63,8 +63,8 @@
               <span class="menu-toggle__icon" aria-hidden="true">☰</span>
             </button>
             <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
-              <div class="menu-panel__section">
-                <p class="menu-panel__heading">Account</p>
+              <div class="menu-panel__section menu-panel__section--account">
+                <p id="menu-heading-account" class="menu-panel__heading">Account</p>
                 <div class="user-summary" aria-live="polite"></div>
                 <div id="menu-account-actions" class="menu-panel__actions">
                   <button id="google-login-button" class="menu-item" type="button" hidden>
@@ -76,8 +76,8 @@
                   <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
                 </div>
               </div>
-              <div class="menu-panel__section">
-                <p class="menu-panel__heading">Viewing</p>
+              <div class="menu-panel__section menu-panel__section--viewing">
+                <p id="menu-heading-viewing" class="menu-panel__heading">Viewing</p>
                 <button id="menu-filters" class="menu-item" type="button">Filters</button>
                 <button id="menu-category-guide" class="menu-item" type="button">Category guide</button>
                 <button id="menu-display-mode" class="menu-item" type="button" hidden>Display setup</button>
@@ -87,8 +87,8 @@
                   <span class="button__label">Toggle theme</span>
                 </button>
               </div>
-              <div class="menu-panel__section">
-                <p class="menu-panel__heading">System</p>
+              <div class="menu-panel__section menu-panel__section--system">
+                <p id="menu-heading-system" class="menu-panel__heading">System</p>
                 <div id="menu-system-actions" class="menu-panel__actions"></div>
                 <div class="menu-language" aria-label="Language selector">
                   <button class="menu-language__button" type="button" data-lang="es">🇪🇸 ES</button>

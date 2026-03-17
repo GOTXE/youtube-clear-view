@@ -144,14 +144,20 @@ def _server_error(message):
     )
 
 
-def _redirect_to_frontend(error_code=None):
-    """Redirect back to the configured frontend URL."""
+def _redirect_to_frontend(code=None):
+    """Redirect back to the configured frontend URL.
+
+    Pass ``code='needs_setup'`` to signal the wizard, or an error code string
+    (any other value) which will be surfaced as ``auth_error=<code>``.
+    """
     base_url = current_app.config.get("FRONTEND_URL") or "/"
-    if not error_code:
+    if not code:
         return redirect(base_url)
 
     separator = "&" if "?" in base_url else "?"
-    return redirect(f"{base_url}{separator}auth_error={error_code}")
+    if code == "needs_setup":
+        return redirect(f"{base_url}{separator}auth_status=needs_setup")
+    return redirect(f"{base_url}{separator}auth_error={code}")
 
 
 def _get_known_google_user_ids():
@@ -626,27 +632,58 @@ def list_users():
 @auth_bp.get("/api/auth/provider")
 @handle_route_errors
 def auth_provider():
-    """Return the configured authentication mode."""
+    """Return the configured authentication mode and available login options."""
     mode = _auth_mode()
-    login_url = "/api/auth/google" if mode == "google" else None
-    return jsonify({"auth_mode": mode, "google_login_url": login_url})
+    google_configured = bool(
+        current_app.config.get("GOOGLE_CLIENT_ID")
+        and current_app.config.get("GOOGLE_CLIENT_SECRET")
+        and current_app.config.get("GOOGLE_REDIRECT_URI")
+    )
+    return jsonify({
+        "auth_mode": mode,
+        "google_login_url": "/api/auth/google" if google_configured else None,
+        "google_link_url": "/api/auth/google/link" if google_configured else None,
+    })
+
+
+_GOOGLE_OAUTH_INTENT_KEY = "google_oauth_intent"
+_GOOGLE_OAUTH_INTENT_LOGIN = "login"
+_GOOGLE_OAUTH_INTENT_LINK = "link"
+
+
+def _google_oauth_configured():
+    return bool(
+        current_app.config.get("GOOGLE_CLIENT_ID")
+        and current_app.config.get("GOOGLE_CLIENT_SECRET")
+        and current_app.config.get("GOOGLE_REDIRECT_URI")
+    )
 
 
 @auth_bp.get("/api/auth/google")
 @handle_route_errors
 def google_login():
-    """Start the Google OAuth flow."""
-    if _auth_mode() != "google":
-        return _forbidden("Google OAuth not enabled.")
-
-    if (
-        not current_app.config.get("GOOGLE_CLIENT_ID")
-        or not current_app.config.get("GOOGLE_CLIENT_SECRET")
-        or not current_app.config.get("GOOGLE_REDIRECT_URI")
-    ):
+    """Start the Google OAuth login flow (no existing session required)."""
+    if not _google_oauth_configured():
         return _server_error("Missing Google OAuth configuration.")
 
     state = secrets.token_urlsafe(24)
+    session[_GOOGLE_OAUTH_INTENT_KEY] = _GOOGLE_OAUTH_INTENT_LOGIN
+    auth_url = build_auth_url(state)
+    response = redirect(auth_url)
+    _set_state_cookie(response, state)
+    return response
+
+
+@auth_bp.get("/api/auth/google/link")
+@handle_route_errors
+@require_auth
+def google_link():
+    """Start the Google OAuth flow to link a YouTube account to the current user."""
+    if not _google_oauth_configured():
+        return _server_error("Missing Google OAuth configuration.")
+
+    state = secrets.token_urlsafe(24)
+    session[_GOOGLE_OAUTH_INTENT_KEY] = _GOOGLE_OAUTH_INTENT_LINK
     auth_url = build_auth_url(state)
     response = redirect(auth_url)
     _set_state_cookie(response, state)
@@ -656,9 +693,8 @@ def google_login():
 @auth_bp.get("/api/auth/google/callback")
 @handle_route_errors
 def google_callback():
-    """Handle the Google OAuth callback and create a session."""
-    if _auth_mode() != "google":
-        return _forbidden("Google OAuth not enabled.")
+    """Handle the Google OAuth callback for both login and YouTube-link flows."""
+    oauth_intent = session.pop(_GOOGLE_OAUTH_INTENT_KEY, _GOOGLE_OAUTH_INTENT_LOGIN)
 
     error = request.args.get("error")
     if error:
@@ -691,19 +727,45 @@ def google_callback():
     display_name = user_info.get("name") or email or "Google user"
     avatar_url = user_info.get("picture")
 
+    # --- Link intent: attach YouTube tokens to the already-authenticated user ---
+    if oauth_intent == _GOOGLE_OAUTH_INTENT_LINK:
+        token = request.cookies.get(COOKIE_NAME)
+        linked_user = find_user_by_session_token(token) if token else None
+        if not linked_user:
+            response = _redirect_to_frontend("link_requires_auth")
+            _clear_state_cookie(response)
+            return response
+
+        linked_user.google_user_id = google_user_id
+        linked_user.google_avatar_url = avatar_url
+        linked_user.google_auth_status = "active"
+        if email:
+            linked_user.email = linked_user.email or email
+        apply_token_response(linked_user, token_data)
+        db.session.commit()
+
+        response = _redirect_to_frontend()
+        _clear_state_cookie(response)
+        return response
+
+    # --- Login intent: find or create a user account ---
     user = User.query.filter_by(google_user_id=google_user_id).first()
     if not user and email:
         user = User.query.filter_by(email=email).first()
 
-    if not user:
+    is_new_user = user is None
+    if is_new_user:
         username = email or f"google_{google_user_id}"
         if User.query.filter_by(username=username).first():
             username = f"google_{google_user_id}"
-        user = User(username=username, display_name=display_name)
+        user = User(
+            username=username,
+            display_name=display_name,
+            setup_completed=False,
+        )
         db.session.add(user)
         db.session.flush()
 
-    user.auth_provider = "google"
     user.google_user_id = google_user_id
     user.google_avatar_url = avatar_url
     user.google_auth_status = "active"
@@ -729,10 +791,50 @@ def google_callback():
     _remember_google_user(user.id)
     db.session.commit()
 
-    response = _redirect_to_frontend()
+    # Redirect with needs_setup flag so the frontend shows the setup wizard.
+    redirect_url = "needs_setup" if not user.setup_completed else None
+    response = _redirect_to_frontend(redirect_url)
     _set_session_cookie(response, session_token)
     _clear_state_cookie(response)
     return response
+
+
+@auth_bp.post("/api/auth/google/complete-setup")
+@handle_route_errors
+@require_auth
+def google_complete_setup():
+    """Complete first-time setup for a user who registered via Google OAuth."""
+    user = g.current_user
+    data = request.get_json(silent=True) or {}
+
+    new_username = (data.get("username") or "").strip()
+    new_password = data.get("password") or ""
+
+    if new_username and new_username != user.username:
+        if len(new_username) < 3 or len(new_username) > 64:
+            return (
+                jsonify({"error": "Username must be between 3 and 64 characters.", "status": 400}),
+                400,
+            )
+        if User.query.filter(User.username == new_username, User.id != user.id).first():
+            return (
+                jsonify({"error": "Username already taken.", "status": 409}),
+                409,
+            )
+        user.username = new_username
+
+    if new_password:
+        if len(new_password) < 8:
+            return (
+                jsonify({"error": "Password must be at least 8 characters.", "status": 400}),
+                400,
+            )
+        user.set_password(new_password)
+
+    user.setup_completed = True
+    db.session.commit()
+
+    return jsonify(_serialize_authenticated_user(user) | {"authenticated": True, "setup_completed": True})
 
 
 @auth_bp.get("/api/auth/current")

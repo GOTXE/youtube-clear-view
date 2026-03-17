@@ -890,4 +890,81 @@ def test_change_password_updates_hash(client):
         "/api/auth/login", json={"username": "changepw", "password": "newpassword1"}
     )
     assert login_response.status_code == 200
-    assert login_response.get_json()["username"] == "changepw"
+
+
+# ---------------------------------------------------------------------------
+# Fase 2: Google OAuth wizard + YouTube link
+# ---------------------------------------------------------------------------
+
+def test_google_complete_setup_updates_username_and_sets_flag(client, app):
+    """complete-setup should rename the user and mark setup_completed."""
+    with app.app_context():
+        user = User(username="g_123", display_name="G User", setup_completed=False)
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "g_123"})
+
+    response = client.post(
+        "/api/auth/google/complete-setup",
+        json={"username": "myrealname", "password": "supersecret1"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "myrealname"
+    assert data["setup_completed"] is True
+
+    with app.app_context():
+        updated = User.query.filter_by(username="myrealname").first()
+        assert updated is not None
+        assert updated.setup_completed is True
+        assert updated.check_password("supersecret1")
+
+
+def test_google_complete_setup_requires_auth(client):
+    """complete-setup must reject unauthenticated requests."""
+    response = client.post(
+        "/api/auth/google/complete-setup",
+        json={"username": "hacker", "password": "password1"},
+    )
+    assert response.status_code == 401
+
+
+def test_google_complete_setup_rejects_duplicate_username(client, app):
+    """complete-setup must not allow a username already taken by another user."""
+    with app.app_context():
+        existing = User(username="taken", display_name="Taken", setup_completed=True)
+        existing.set_password("pass12345")
+        newcomer = User(username="g_new", display_name="New", setup_completed=False)
+        db.session.add_all([existing, newcomer])
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "g_new"})
+    response = client.post(
+        "/api/auth/google/complete-setup",
+        json={"username": "taken"},
+    )
+    assert response.status_code == 409
+
+
+def test_google_link_requires_auth(client):
+    """google/link must reject unauthenticated requests."""
+    response = client.get("/api/auth/google/link")
+    assert response.status_code == 401
+
+
+def test_auth_provider_returns_google_urls_when_configured(client, app):
+    """provider endpoint exposes both login and link URLs when Google is configured."""
+    app.config["GOOGLE_CLIENT_ID"] = "test-id"
+    app.config["GOOGLE_CLIENT_SECRET"] = "test-secret"
+    app.config["GOOGLE_REDIRECT_URI"] = "http://localhost/cb"
+
+    response = client.get("/api/auth/provider")
+    data = response.get_json()
+    assert data["google_login_url"] == "/api/auth/google"
+    assert data["google_link_url"] == "/api/auth/google/link"
+
+    # Cleanup
+    app.config.pop("GOOGLE_CLIENT_ID", None)
+    app.config.pop("GOOGLE_CLIENT_SECRET", None)
+    app.config.pop("GOOGLE_REDIRECT_URI", None)

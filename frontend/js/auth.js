@@ -24,9 +24,12 @@
     newUserButton: null,
     switchUserButton: null,
     accountSwitchButton: null,
+    passkeyLoginButton: null,
+    managePasskeysButton: null,
     statusMessage: null,
     modal: null,
-    accountModal: null
+    accountModal: null,
+    passkeyModal: null
   };
 
   const t = (key, vars) => (
@@ -52,6 +55,14 @@
 
   function isGoogleMode() {
     return authMode === 'google';
+  }
+
+  function passkeysSupported() {
+    return Boolean(
+      window.ytcvPasskeys
+      && typeof window.ytcvPasskeys.isSupported === 'function'
+      && window.ytcvPasskeys.isSupported()
+    );
   }
 
   function getKnownGoogleAccounts() {
@@ -121,6 +132,14 @@
 
     if (ui.accountSwitchButton) {
       ui.accountSwitchButton.hidden = !googleMode;
+    }
+
+    if (ui.passkeyLoginButton) {
+      ui.passkeyLoginButton.hidden = Boolean(currentUser) || !passkeysSupported();
+    }
+
+    if (ui.managePasskeysButton) {
+      ui.managePasskeysButton.hidden = !currentUser || !passkeysSupported();
     }
 
     updateSwitchUserLabel();
@@ -243,6 +262,34 @@
       ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
     }
 
+    if (!ui.passkeyLoginButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'passkey-login-button';
+      button.className = 'menu-item';
+      button.textContent = t('signInWithPasskey');
+      button.hidden = !passkeysSupported();
+      button.addEventListener('click', async () => {
+        await signInWithPasskey();
+      });
+      ui.passkeyLoginButton = button;
+      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+    }
+
+    if (!ui.managePasskeysButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'manage-passkeys-button';
+      button.className = 'menu-item';
+      button.textContent = t('managePasskeys');
+      button.hidden = true;
+      button.addEventListener('click', async () => {
+        await openPasskeyModal();
+      });
+      ui.managePasskeysButton = button;
+      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+    }
+
     if (!ui.statusMessage && ui.userSummary) {
       const status = document.createElement('span');
       status.className = 'caption';
@@ -332,6 +379,14 @@
       ui.accountSwitchButton.hidden = !isGoogleMode();
     }
 
+    if (ui.passkeyLoginButton) {
+      ui.passkeyLoginButton.hidden = true;
+    }
+
+    if (ui.managePasskeysButton) {
+      ui.managePasskeysButton.hidden = !passkeysSupported();
+    }
+
     updateSwitchUserLabel();
     updateLoginLink();
     setStatusMessage('');
@@ -380,7 +435,19 @@
       ui.accountSwitchButton.hidden = !googleMode || getKnownGoogleAccounts().length === 0;
     }
 
-    setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
+    if (ui.passkeyLoginButton) {
+      ui.passkeyLoginButton.hidden = !passkeysSupported();
+    }
+
+    if (ui.managePasskeysButton) {
+      ui.managePasskeysButton.hidden = true;
+    }
+
+    if (passkeysSupported()) {
+      setStatusMessage(googleMode ? t('statusSignInGoogleOrPasskey') : t('statusSelectUserOrPasskey'));
+    } else {
+      setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
+    }
     updateLoginLink();
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: null } }));
   }
@@ -538,6 +605,272 @@
       return;
     }
     ui.accountModal.hidden = true;
+  }
+
+  async function loadPasskeys() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return [];
+    }
+
+    const response = await api.getPasskeys();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadPasskeys'), 'error');
+      return [];
+    }
+
+    return Array.isArray(response.data.passkeys) ? response.data.passkeys : [];
+  }
+
+  function buildPasskeyModal() {
+    if (ui.passkeyModal) {
+      return ui.passkeyModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'passkey-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'passkey-modal-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'passkey-modal-title';
+    title.className = 'heading-2';
+    title.textContent = t('managePasskeys');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('passkeyModalDescription');
+
+    const labelField = document.createElement('label');
+    labelField.className = 'field';
+
+    const labelText = document.createElement('span');
+    labelText.className = 'field__label';
+    labelText.textContent = t('passkeyLabelField');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'field__input';
+    input.id = 'passkey-label-input';
+    input.placeholder = t('passkeyLabelPlaceholder');
+
+    labelField.appendChild(labelText);
+    labelField.appendChild(input);
+
+    const list = document.createElement('div');
+    list.className = 'field';
+    list.id = 'passkey-list';
+
+    body.appendChild(description);
+    body.appendChild(labelField);
+    body.appendChild(list);
+
+    const footer = document.createElement('footer');
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
+
+    const registerButton = document.createElement('button');
+    registerButton.type = 'button';
+    registerButton.className = 'button account-switcher-modal__primary-action';
+    registerButton.id = 'passkey-register-button';
+    registerButton.textContent = t('registerPasskey');
+
+    footer.appendChild(registerButton);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closePasskeyModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closePasskeyModal();
+      }
+    });
+    registerButton.addEventListener('click', async () => {
+      await registerPasskeyFromModal();
+    });
+
+    ui.passkeyModal = overlay;
+    return overlay;
+  }
+
+  function closePasskeyModal() {
+    if (!ui.passkeyModal) {
+      return;
+    }
+    ui.passkeyModal.hidden = true;
+  }
+
+  function renderPasskeyList(passkeys) {
+    if (!ui.passkeyModal) {
+      return;
+    }
+
+    const list = ui.passkeyModal.querySelector('#passkey-list');
+    if (!list) {
+      return;
+    }
+
+    list.innerHTML = '';
+    if (!passkeys.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = t('noPasskeysYet');
+      list.appendChild(empty);
+      return;
+    }
+
+    passkeys.forEach(passkey => {
+      const row = document.createElement('div');
+      row.className = 'field__group';
+
+      const label = document.createElement('span');
+      label.className = 'body';
+      label.textContent = passkey.label || t('unnamedPasskey');
+
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'button button--ghost';
+      removeButton.textContent = t('deletePasskey');
+      removeButton.addEventListener('click', async () => {
+        await deletePasskey(passkey.id, removeButton);
+      });
+
+      row.appendChild(label);
+      row.appendChild(removeButton);
+      list.appendChild(row);
+    });
+  }
+
+  async function openPasskeyModal() {
+    if (!passkeysSupported() || !currentUser) {
+      return;
+    }
+
+    const modal = buildPasskeyModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+
+    const passkeys = await loadPasskeys();
+    renderPasskeyList(passkeys);
+    modal.hidden = false;
+  }
+
+  async function refreshPasskeyModalList() {
+    if (!ui.passkeyModal || ui.passkeyModal.hidden) {
+      return;
+    }
+    const passkeys = await loadPasskeys();
+    renderPasskeyList(passkeys);
+  }
+
+  async function registerPasskeyFromModal() {
+    if (!window.ytcvPasskeys || !passkeysSupported()) {
+      setStatusMessage(t('passkeyNotSupported'), 'error');
+      return false;
+    }
+
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const input = ui.passkeyModal ? ui.passkeyModal.querySelector('#passkey-label-input') : null;
+    const label = input && input.value ? input.value.trim() : '';
+    setStatusMessage(t('registeringPasskey'));
+
+    try {
+      await window.ytcvPasskeys.registerPasskey(api, label);
+      if (input) {
+        input.value = '';
+      }
+      await refreshPasskeyModalList();
+      setStatusMessage(t('passkeyRegistered'), 'success');
+      return true;
+    } catch (error) {
+      setStatusMessage(error && error.message ? error.message : t('unableRegisterPasskey'), 'error');
+      return false;
+    }
+  }
+
+  async function deletePasskey(passkeyId, button = null) {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = await api.deletePasskey(passkeyId);
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok) {
+      setStatusMessage(t('unableDeletePasskey'), 'error');
+      return false;
+    }
+
+    await refreshPasskeyModalList();
+    setStatusMessage(t('passkeyDeleted'), 'success');
+    return true;
+  }
+
+  async function signInWithPasskey() {
+    if (!window.ytcvPasskeys || !passkeysSupported()) {
+      setStatusMessage(t('passkeyNotSupported'), 'error');
+      return false;
+    }
+
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    setStatusMessage(t('signingInWithPasskey'));
+
+    try {
+      const response = await window.ytcvPasskeys.authenticateWithPasskey(api);
+      if (!response.ok || !response.data) {
+        setStatusMessage(t('unableSignInWithPasskey'), 'error');
+        return false;
+      }
+      setAuthenticated(response.data);
+      setStatusMessage(t('passkeySignInSuccess'), 'success');
+      return true;
+    } catch (error) {
+      setStatusMessage(error && error.message ? error.message : t('unableSignInWithPasskey'), 'error');
+      return false;
+    }
   }
 
   function renderAccountSwitcherList(accounts) {
@@ -894,4 +1227,5 @@
   window.logout = logout;
   window.switchUser = switchUser;
   window.setAuthStatus = setAuthStatus;
+  window.signInWithPasskey = signInWithPasskey;
 })();

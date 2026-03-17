@@ -124,8 +124,11 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - persist passkey credentials per user
   - generate registration/authentication WebAuthn options
   - verify browser ceremonies and issue a backend session on successful assertion
+- Frontend scope now included:
+  - unauthenticated users can sign in with a passkey from the header menu when the browser supports WebAuthn
+  - authenticated users can open a passkey management modal from the same menu
+  - the modal can list registered passkeys, register a new passkey, and delete an existing one
 - Current non-goals:
-  - no frontend passkey UX yet
   - no enforced MFA step after passkey sign-in yet
   - no TV pairing integration yet
 - Relevant config:

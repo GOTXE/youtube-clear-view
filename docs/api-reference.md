@@ -29,6 +29,7 @@ Notes:
 - Cookies are scoped to the `/api` path.
 - `AUTH_MODE` controls which login methods are available (`local` or `google`).
 - In Google mode, the backend also remembers browser-known Google accounts in the signed Flask session so the UI can switch accounts without a manual logout.
+- When the browser supports WebAuthn and the user has registered at least one passkey, the frontend can also start a recurring sign-in flow with `POST /api/auth/passkeys/authenticate/options` and `POST /api/auth/passkeys/authenticate/verify`.
 - Newly issued sessions are stored in the database as a hash of the cookie token, not the raw token.
 - Stored Google access tokens, refresh tokens, and OAuth scopes are encrypted at rest.
 

@@ -118,6 +118,30 @@ class APIClient {
     return this.post('/api/auth/switch', { user_id: userId });
   }
 
+  getPasskeys() {
+    return this.get('/api/auth/passkeys');
+  }
+
+  getPasskeyRegistrationOptions(label = '') {
+    return this.post('/api/auth/passkeys/register/options', { label });
+  }
+
+  verifyPasskeyRegistration(payload) {
+    return this.post('/api/auth/passkeys/register/verify', payload);
+  }
+
+  deletePasskey(passkeyId) {
+    return this.delete(`/api/auth/passkeys/${passkeyId}`);
+  }
+
+  getPasskeyAuthenticationOptions() {
+    return this.post('/api/auth/passkeys/authenticate/options');
+  }
+
+  verifyPasskeyAuthentication(payload) {
+    return this.post('/api/auth/passkeys/authenticate/verify', payload);
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }

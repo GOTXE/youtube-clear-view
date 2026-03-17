@@ -1,0 +1,91 @@
+// Service worker para YT Clear View — estrategia cache-first para assets estáticos.
+const CACHE_VERSION = 'ytcv-v1';
+const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.json'];
+
+// Recursos precacheados en la instalación
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/css/main.css',
+  '/css/mode-desktop-tablet.css',
+  '/css/mode-tv.css',
+  '/css/mode-phone.css',
+  '/js/i18n.js',
+  '/js/utils.js',
+  '/js/api.js',
+  '/js/auth.js',
+  '/js/app.js',
+  '/i18n/en.json',
+  '/i18n/es.json',
+  '/manifest.json',
+];
+
+function isStaticAsset(url) {
+  const { pathname } = new URL(url);
+  return STATIC_EXTENSIONS.some(ext => pathname.endsWith(ext));
+}
+
+function isApiRequest(url) {
+  const { pathname } = new URL(url);
+  return pathname.startsWith('/api') || pathname.startsWith('/logs');
+}
+
+// Instalación: precachea los recursos principales
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then(cache => cache.addAll(PRECACHE_URLS))
+  );
+  self.skipWaiting();
+});
+
+// Activación: limpia caches antiguas
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys
+          .filter(key => key !== CACHE_VERSION)
+          .map(key => caches.delete(key))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+// Fetch: cache-first para assets estáticos, network-only para API
+self.addEventListener('fetch', event => {
+  const { request } = event;
+
+  // Solo intercepta GET
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // API y logs: siempre red
+  if (isApiRequest(request.url)) {
+    return;
+  }
+
+  // Assets estáticos: cache-first, fallback a red y actualiza cache
+  if (isStaticAsset(request.url)) {
+    event.respondWith(
+      caches.open(CACHE_VERSION).then(async cache => {
+        const cached = await cache.match(request);
+        if (cached) {
+          return cached;
+        }
+        const response = await fetch(request);
+        if (response.ok) {
+          cache.put(request, response.clone());
+        }
+        return response;
+      })
+    );
+    return;
+  }
+
+  // HTML (navegación): network-first, fallback a cache
+  event.respondWith(
+    fetch(request).catch(() => caches.match(request))
+  );
+});

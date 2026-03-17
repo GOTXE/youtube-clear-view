@@ -90,8 +90,29 @@ class APIClient {
   }
 
   // Auth endpoints
-  login(username) {
-    return this.post('/api/auth/login', { username });
+  login(username, password) {
+    const body = password ? { username, password } : { username };
+    return this.post('/api/auth/login', body);
+  }
+
+  register(username, password) {
+    return this.post('/api/auth/register', { username, password });
+  }
+
+  completeSetup(username, password) {
+    const body = { username };
+    if (password) {
+      body.password = password;
+    }
+    return this.post('/api/auth/google/complete-setup', body);
+  }
+
+  changePassword(currentPassword, newPassword) {
+    return this.post('/api/auth/profile/password', { current_password: currentPassword, new_password: newPassword });
+  }
+
+  googleLinkUrl() {
+    return this.get('/api/auth/google/link');
   }
 
   fallbackLogin(identifier, code, method) {

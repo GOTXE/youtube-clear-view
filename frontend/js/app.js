@@ -2498,8 +2498,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.initAuth === 'function') {
       state.currentUser = await window.initAuth();
     }
-    if (state.currentUser) {
-      await loadSettings();
+
+    // Check for auth_status URL param before showing login page
+    const authStatus = window.ytcvLoginPage ? window.ytcvLoginPage.checkAuthStatusParam() : null;
+
+    if (!state.currentUser) {
+      if (window.ytcvLoginPage) {
+        const wizardOptions = authStatus === 'needs_setup' ? { wizard: true } : {};
+        window.ytcvLoginPage.show(wizardOptions);
+      }
+    } else {
+      if (authStatus === 'needs_setup' && window.ytcvLoginPage) {
+        window.ytcvLoginPage.show({ wizard: true });
+      } else {
+        await loadSettings();
+      }
     }
 
     setupFilters();

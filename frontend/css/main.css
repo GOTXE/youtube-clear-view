@@ -2065,3 +2065,125 @@ body.player-overlay-open {
 .channel-item__category {
   margin: 0;
 }
+
+/* ── Login page overlay ──────────────────────────────────────────────────── */
+
+body.login-page-open #app {
+  filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.login-page-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.login-page__card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--primary) 20%);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.login-page__brand {
+  text-align: center;
+}
+
+.login-page__app-name {
+  font-size: 1.25rem;
+  opacity: 0.6;
+  margin: 0;
+}
+
+.login-page__title {
+  margin: 0 0 var(--space-4);
+}
+
+.login-page__subtitle {
+  margin: calc(var(--space-4) * -1) 0 var(--space-4);
+  opacity: 0.7;
+}
+
+.login-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.login-page__submit {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
+.login-page__error {
+  color: var(--error);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.login-page__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.login-page__divider::before,
+.login-page__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-page__alt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.login-page__google-btn {
+  width: 100%;
+}
+
+.login-page__switch {
+  text-align: center;
+  color: var(--muted);
+  margin: 0;
+}
+
+.login-page__link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.login-page__link:hover {
+  opacity: 0.8;
+}
+
+.field__hint {
+  display: block;
+  margin-top: var(--space-1);
+  opacity: 0.65;
+}
+

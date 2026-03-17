@@ -2771,4 +2771,5 @@
   window.switchUser = switchUser;
   window.setAuthStatus = setAuthStatus;
   window.signInWithPasskey = signInWithPasskey;
+  window.notifyAuthenticated = setAuthenticated;
 })();

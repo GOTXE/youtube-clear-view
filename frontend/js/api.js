@@ -118,6 +118,22 @@ class APIClient {
     return this.post('/api/auth/switch', { user_id: userId });
   }
 
+  startPairing(deviceIdentifier = null) {
+    const payload = {};
+    if (deviceIdentifier) {
+      payload.device_identifier = deviceIdentifier;
+    }
+    return this.post('/api/auth/pairing/start', payload);
+  }
+
+  approvePairing(code) {
+    return this.post('/api/auth/pairing/approve', { code });
+  }
+
+  claimPairing(publicId) {
+    return this.post('/api/auth/pairing/claim', { public_id: publicId });
+  }
+
   getPasskeys() {
     return this.get('/api/auth/passkeys');
   }

@@ -158,17 +158,16 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 
 ## Pairing Code Foundation
 
-- Auth v2 now also has a backend-only pairing flow for TV and secondary devices.
+- Auth v2 now also has a pairing flow for TV and secondary devices.
 - New endpoints:
   - `POST /api/auth/pairing/start`
   - `POST /api/auth/pairing/approve`
   - `POST /api/auth/pairing/claim`
 - Current scope:
-  - start a short-lived pairing request from an unauthenticated device
-  - approve that request from an already authenticated user session
-  - claim the approved pairing and receive a normal backend session cookie
+  - unauthenticated users can open `Sign in with device code` from the menu and start a short-lived pairing request
+  - authenticated users can open `Approve device code` from the same menu and approve the code manually
+  - the waiting device polls `claim` until the approval arrives and then receives a normal backend session cookie
 - Current non-goals:
-  - no TV/frontend pairing UI yet
   - no QR flow yet
   - no pairing administration UI yet
 

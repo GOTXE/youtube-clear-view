@@ -25,12 +25,16 @@
     newUserButton: null,
     switchUserButton: null,
     accountSwitchButton: null,
+    pairingLoginButton: null,
+    pairingApproveButton: null,
     passkeyLoginButton: null,
     managePasskeysButton: null,
     manageMfaButton: null,
     statusMessage: null,
     modal: null,
     accountModal: null,
+    pairingLoginModal: null,
+    pairingApproveModal: null,
     passkeyModal: null,
     mfaModal: null,
     mfaChallengeModal: null
@@ -41,6 +45,11 @@
     setupSecret: null,
     otpauthUrl: null,
     recoveryCodes: []
+  };
+
+  const pairingState = {
+    current: null,
+    claimTimerId: null
   };
 
   const t = (key, vars) => (
@@ -123,6 +132,29 @@
     }
 
     ui.statusMessage.style.color = '';
+  }
+
+  function stopPairingClaimPolling() {
+    if (pairingState.claimTimerId) {
+      window.clearInterval(pairingState.claimTimerId);
+      pairingState.claimTimerId = null;
+    }
+  }
+
+  function closePairingLoginModal() {
+    stopPairingClaimPolling();
+    pairingState.current = null;
+    if (!ui.pairingLoginModal) {
+      return;
+    }
+    ui.pairingLoginModal.hidden = true;
+  }
+
+  function closePairingApproveModal() {
+    if (!ui.pairingApproveModal) {
+      return;
+    }
+    ui.pairingApproveModal.hidden = true;
   }
 
   function closeMfaChallengeModal() {
@@ -281,6 +313,14 @@
       ui.accountSwitchButton.hidden = !googleMode;
     }
 
+    if (ui.pairingLoginButton) {
+      ui.pairingLoginButton.hidden = Boolean(currentUser);
+    }
+
+    if (ui.pairingApproveButton) {
+      ui.pairingApproveButton.hidden = !currentUser;
+    }
+
     if (ui.passkeyLoginButton) {
       ui.passkeyLoginButton.hidden = Boolean(currentUser) || !passkeysSupported();
     }
@@ -413,6 +453,34 @@
       ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
     }
 
+    if (!ui.pairingLoginButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'pairing-login-button';
+      button.className = 'menu-item';
+      button.textContent = t('signInWithDeviceCode');
+      button.hidden = Boolean(currentUser);
+      button.addEventListener('click', async () => {
+        await openPairingLoginModal();
+      });
+      ui.pairingLoginButton = button;
+      ui.headerActions.insertBefore(button, ui.googleLoginButton || ui.userSummary || null);
+    }
+
+    if (!ui.pairingApproveButton) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'approve-pairing-button';
+      button.className = 'menu-item';
+      button.textContent = t('approveDeviceCode');
+      button.hidden = true;
+      button.addEventListener('click', async () => {
+        await openPairingApproveModal();
+      });
+      ui.pairingApproveButton = button;
+      ui.headerActions.insertBefore(button, ui.switchUserButton || ui.userSummary || null);
+    }
+
     if (!ui.passkeyLoginButton) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -510,6 +578,8 @@
     currentUser = user;
     pendingMfaChallenge = null;
     closeMfaChallengeModal();
+    closePairingLoginModal();
+    closePairingApproveModal();
     if (ui.currentUserLabel) {
       const displayName = user.display_name || user.username;
       ui.currentUserLabel.textContent = t('signedInAsPrefix');
@@ -546,6 +616,14 @@
       ui.accountSwitchButton.hidden = !isGoogleMode();
     }
 
+    if (ui.pairingLoginButton) {
+      ui.pairingLoginButton.hidden = true;
+    }
+
+    if (ui.pairingApproveButton) {
+      ui.pairingApproveButton.hidden = false;
+    }
+
     if (ui.passkeyLoginButton) {
       ui.passkeyLoginButton.hidden = true;
     }
@@ -570,6 +648,7 @@
 
   function setUnauthenticated() {
     currentUser = null;
+    closePairingApproveModal();
     if (ui.currentUserLabel) {
       ui.currentUserLabel.textContent = t('notSignedIn');
     }
@@ -606,6 +685,14 @@
       ui.accountSwitchButton.hidden = !googleMode || getKnownGoogleAccounts().length === 0;
     }
 
+    if (ui.pairingLoginButton) {
+      ui.pairingLoginButton.hidden = false;
+    }
+
+    if (ui.pairingApproveButton) {
+      ui.pairingApproveButton.hidden = true;
+    }
+
     if (ui.passkeyLoginButton) {
       ui.passkeyLoginButton.hidden = !passkeysSupported();
     }
@@ -621,9 +708,9 @@
     if (pendingMfaChallenge) {
       setStatusMessage(t('mfaChallengeRequired'), 'error');
     } else if (passkeysSupported()) {
-      setStatusMessage(googleMode ? t('statusSignInGoogleOrPasskey') : t('statusSelectUserOrPasskey'));
+      setStatusMessage(googleMode ? t('statusSignInGoogleOrPasskeyOrCode') : t('statusSelectUserPasskeyOrCode'));
     } else {
-      setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
+      setStatusMessage(googleMode ? t('statusSignInGoogleOrCode') : t('statusSelectUserOrCode'));
     }
     updateLoginLink();
     window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: null } }));
@@ -782,6 +869,308 @@
       return;
     }
     ui.accountModal.hidden = true;
+  }
+
+  function renderPairingLoginModal() {
+    if (!ui.pairingLoginModal) {
+      return;
+    }
+
+    const codeNode = ui.pairingLoginModal.querySelector('#pairing-login-code');
+    const statusNode = ui.pairingLoginModal.querySelector('#pairing-login-status');
+    const retryButton = ui.pairingLoginModal.querySelector('#pairing-login-retry-button');
+    if (!codeNode || !statusNode || !retryButton) {
+      return;
+    }
+
+    if (!pairingState.current) {
+      codeNode.textContent = '---- ----';
+      statusNode.textContent = t('pairingCodeStarting');
+      retryButton.disabled = true;
+      return;
+    }
+
+    codeNode.textContent = pairingState.current.pairing_code || '---- ----';
+    retryButton.disabled = false;
+    statusNode.textContent = pairingState.current.status === 'approved'
+      ? t('pairingCodeApproved')
+      : t('pairingCodeWaiting');
+  }
+
+  function buildPairingLoginModal() {
+    if (ui.pairingLoginModal) {
+      return ui.pairingLoginModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'pairing-login-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'pairing-login-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'pairing-login-title';
+    title.className = 'heading-2';
+    title.textContent = t('pairingLoginTitle');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('pairingLoginDescription');
+
+    const code = document.createElement('div');
+    code.className = 'field__group';
+    code.id = 'pairing-login-code';
+
+    const status = document.createElement('p');
+    status.className = 'caption';
+    status.id = 'pairing-login-status';
+
+    body.appendChild(description);
+    body.appendChild(code);
+    body.appendChild(status);
+
+    const footer = document.createElement('footer');
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
+
+    const retryButton = document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'button';
+    retryButton.id = 'pairing-login-retry-button';
+    retryButton.textContent = t('generateNewDeviceCode');
+
+    footer.appendChild(retryButton);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closePairingLoginModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closePairingLoginModal();
+      }
+    });
+    retryButton.addEventListener('click', async () => {
+      await startPairingLogin();
+    });
+
+    ui.pairingLoginModal = overlay;
+    return overlay;
+  }
+
+  function buildPairingApproveModal() {
+    if (ui.pairingApproveModal) {
+      return ui.pairingApproveModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'pairing-approve-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'pairing-approve-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'pairing-approve-title';
+    title.className = 'heading-2';
+    title.textContent = t('pairingApproveTitle');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.textContent = t('pairingApproveDescription');
+
+    const field = document.createElement('label');
+    field.className = 'field';
+
+    const label = document.createElement('span');
+    label.className = 'field__label';
+    label.textContent = t('pairingCodeLabel');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'field__input';
+    input.id = 'pairing-approve-code';
+    input.autocomplete = 'off';
+    input.autocapitalize = 'characters';
+    input.placeholder = 'ABCD-EFGH';
+
+    field.appendChild(label);
+    field.appendChild(input);
+    body.appendChild(description);
+    body.appendChild(field);
+
+    const footer = document.createElement('footer');
+    footer.className = 'confirm-modal__footer account-switcher-modal__footer';
+
+    const approveButton = document.createElement('button');
+    approveButton.type = 'button';
+    approveButton.className = 'button account-switcher-modal__primary-action';
+    approveButton.id = 'pairing-approve-button';
+    approveButton.textContent = t('approveDeviceCode');
+
+    footer.appendChild(approveButton);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closePairingApproveModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closePairingApproveModal();
+      }
+    });
+    approveButton.addEventListener('click', async () => {
+      await approvePairingFromModal();
+    });
+
+    ui.pairingApproveModal = overlay;
+    return overlay;
+  }
+
+  async function claimPairingLogin() {
+    const api = getApiClient();
+    if (!api || !pairingState.current || !pairingState.current.public_id) {
+      return false;
+    }
+
+    const response = await api.claimPairing(pairingState.current.public_id);
+    if (!response.ok) {
+      stopPairingClaimPolling();
+      setStatusMessage(t('unableClaimDeviceCode'), 'error');
+      return false;
+    }
+
+    if (response.data && response.data.authenticated) {
+      setAuthenticated(response.data);
+      setStatusMessage(t('deviceCodeSignInSuccess'), 'success');
+      return true;
+    }
+
+    pairingState.current = response.data;
+    renderPairingLoginModal();
+    return false;
+  }
+
+  async function startPairingLogin() {
+    const api = getApiClient();
+    if (!api || !ui.pairingLoginModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    stopPairingClaimPolling();
+    pairingState.current = null;
+    renderPairingLoginModal();
+    setStatusMessage(t('pairingCodeStarting'));
+
+    const response = await api.startPairing();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableStartDeviceCode'), 'error');
+      return false;
+    }
+
+    pairingState.current = response.data;
+    renderPairingLoginModal();
+    pairingState.claimTimerId = window.setInterval(() => {
+      claimPairingLogin();
+    }, 3000);
+    setStatusMessage(t('pairingCodeWaiting'));
+    return true;
+  }
+
+  async function openPairingLoginModal() {
+    if (currentUser) {
+      return;
+    }
+
+    const modal = buildPairingLoginModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+    modal.hidden = false;
+    await startPairingLogin();
+  }
+
+  async function openPairingApproveModal() {
+    if (!currentUser) {
+      return;
+    }
+
+    const modal = buildPairingApproveModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+    const input = modal.querySelector('#pairing-approve-code');
+    if (input) {
+      input.value = '';
+    }
+    modal.hidden = false;
+  }
+
+  async function approvePairingFromModal() {
+    const api = getApiClient();
+    if (!api || !ui.pairingApproveModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const input = ui.pairingApproveModal.querySelector('#pairing-approve-code');
+    const code = input && input.value ? input.value.trim().toUpperCase() : '';
+    if (!code) {
+      setStatusMessage(t('pairingCodeRequired'), 'error');
+      return false;
+    }
+
+    setStatusMessage(t('approvingDeviceCode'));
+    const response = await api.approvePairing(code);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableApproveDeviceCode'), 'error');
+      return false;
+    }
+
+    closePairingApproveModal();
+    setStatusMessage(t('deviceCodeApprovedSuccess'), 'success');
+    return true;
   }
 
   async function loadPasskeys() {

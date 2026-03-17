@@ -6,6 +6,7 @@
   let listenersReady = false;
   let authMode = 'local';
   let googleLoginUrl = null;
+  let pendingMfaChallenge = null;
 
   const userSelector = document.getElementById('user-selector');
   const googleLoginButton = document.getElementById('google-login-button');
@@ -31,7 +32,8 @@
     modal: null,
     accountModal: null,
     passkeyModal: null,
-    mfaModal: null
+    mfaModal: null,
+    mfaChallengeModal: null
   };
 
   const mfaState = {
@@ -121,6 +123,142 @@
     }
 
     ui.statusMessage.style.color = '';
+  }
+
+  function closeMfaChallengeModal() {
+    if (!ui.mfaChallengeModal) {
+      return;
+    }
+    ui.mfaChallengeModal.hidden = true;
+  }
+
+  function buildMfaChallengeModal() {
+    if (ui.mfaChallengeModal) {
+      return ui.mfaChallengeModal;
+    }
+
+    const overlay = document.createElement('section');
+    overlay.className = 'confirm-modal-overlay';
+    overlay.id = 'mfa-challenge-modal';
+    overlay.hidden = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal account-switcher-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'mfa-challenge-title');
+
+    const header = document.createElement('header');
+    header.className = 'confirm-modal__header';
+
+    const title = document.createElement('h2');
+    title.id = 'mfa-challenge-title';
+    title.className = 'heading-2';
+    title.textContent = t('completeMfaChallenge');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'confirm-modal__close';
+    closeButton.setAttribute('aria-label', t('close'));
+    closeButton.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'confirm-modal__body';
+
+    const description = document.createElement('p');
+    description.className = 'body';
+    description.id = 'mfa-challenge-description';
+
+    const label = document.createElement('label');
+    label.className = 'field';
+
+    const labelText = document.createElement('span');
+    labelText.className = 'field__label';
+    labelText.textContent = t('totpCodeLabel');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.autocomplete = 'one-time-code';
+    input.className = 'field__input';
+    input.id = 'mfa-challenge-code';
+    input.placeholder = t('totpCodePlaceholder');
+
+    label.appendChild(labelText);
+    label.appendChild(input);
+
+    const actions = document.createElement('div');
+    actions.className = 'field__group';
+
+    const verifyButton = document.createElement('button');
+    verifyButton.type = 'button';
+    verifyButton.className = 'button';
+    verifyButton.id = 'mfa-challenge-verify-button';
+    verifyButton.textContent = t('verifyTotpCode');
+
+    const recoveryButton = document.createElement('button');
+    recoveryButton.type = 'button';
+    recoveryButton.className = 'button button--ghost';
+    recoveryButton.id = 'mfa-challenge-recovery-button';
+    recoveryButton.textContent = t('useRecoveryCode');
+
+    actions.appendChild(verifyButton);
+    actions.appendChild(recoveryButton);
+
+    body.appendChild(description);
+    body.appendChild(label);
+    body.appendChild(actions);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+
+    closeButton.addEventListener('click', closeMfaChallengeModal);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) {
+        closeMfaChallengeModal();
+      }
+    });
+    verifyButton.addEventListener('click', async () => {
+      await completeMfaChallenge('totp');
+    });
+    recoveryButton.addEventListener('click', async () => {
+      await completeMfaChallenge('recovery_code');
+    });
+
+    ui.mfaChallengeModal = overlay;
+    return overlay;
+  }
+
+  function renderMfaChallengeModal() {
+    if (!ui.mfaChallengeModal || !pendingMfaChallenge) {
+      return;
+    }
+
+    const description = ui.mfaChallengeModal.querySelector('#mfa-challenge-description');
+    if (!description) {
+      return;
+    }
+
+    const userLabel = pendingMfaChallenge.display_name || pendingMfaChallenge.email || '';
+    description.textContent = userLabel
+      ? t('mfaChallengeForUser', { user: userLabel })
+      : t('mfaChallengeDescription');
+  }
+
+  function setPendingMfaChallenge(challenge) {
+    currentUser = null;
+    pendingMfaChallenge = challenge;
+    const modal = buildMfaChallengeModal();
+    if (!modal.parentNode) {
+      document.body.appendChild(modal);
+    }
+    renderMfaChallengeModal();
+    modal.hidden = false;
+    setStatusMessage(t('mfaChallengeRequired'), 'info');
   }
 
   function applyAuthMode() {
@@ -370,6 +508,8 @@
 
   function setAuthenticated(user) {
     currentUser = user;
+    pendingMfaChallenge = null;
+    closeMfaChallengeModal();
     if (ui.currentUserLabel) {
       const displayName = user.display_name || user.username;
       ui.currentUserLabel.textContent = t('signedInAsPrefix');
@@ -478,7 +618,9 @@
       ui.manageMfaButton.hidden = true;
     }
 
-    if (passkeysSupported()) {
+    if (pendingMfaChallenge) {
+      setStatusMessage(t('mfaChallengeRequired'), 'error');
+    } else if (passkeysSupported()) {
       setStatusMessage(googleMode ? t('statusSignInGoogleOrPasskey') : t('statusSelectUserOrPasskey'));
     } else {
       setStatusMessage(googleMode ? t('statusSignInGoogle') : t('statusSelectUser'));
@@ -1337,6 +1479,10 @@
     }
 
     closeAccountSwitcherModal();
+    if (response.data.mfa_required) {
+      setPendingMfaChallenge(response.data);
+      return true;
+    }
     setAuthenticated(response.data);
     return true;
   }
@@ -1505,9 +1651,40 @@
       return false;
     }
 
+    if (response.data && response.data.mfa_required) {
+      setPendingMfaChallenge(response.data);
+      return true;
+    }
+
     const user = response.data || { username };
     setAuthenticated(user);
     await loadUsers();
+    return true;
+  }
+
+  async function completeMfaChallenge(method) {
+    const api = getApiClient();
+    if (!api || !pendingMfaChallenge || !ui.mfaChallengeModal) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    const input = ui.mfaChallengeModal.querySelector('#mfa-challenge-code');
+    const code = input && input.value ? input.value.trim() : '';
+    if (!code) {
+      setStatusMessage(t('totpCodeRequired'), 'error');
+      return false;
+    }
+
+    setStatusMessage(method === 'recovery_code' ? t('verifyingRecoveryCode') : t('verifyingTotpCode'));
+    const response = await api.verifyMfaChallenge(code, method);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableVerifyMfaChallenge'), 'error');
+      return false;
+    }
+
+    setAuthenticated(response.data);
+    setStatusMessage(t('mfaChallengeCompleted'), 'success');
     return true;
   }
 
@@ -1543,6 +1720,11 @@
       return response.data;
     }
 
+    if (response.ok && response.data && response.data.mfa_required) {
+      setPendingMfaChallenge(response.data);
+      return null;
+    }
+
     if (!response.ok) {
     setStatusMessage(t('unableVerifySession'), 'error');
     }
@@ -1570,6 +1752,8 @@
       await api.logout();
     }
 
+    pendingMfaChallenge = null;
+    closeMfaChallengeModal();
     setUnauthenticated();
     if (isGoogleMode()) {
       await loadSwitchableAccounts();

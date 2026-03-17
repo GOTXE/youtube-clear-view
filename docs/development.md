@@ -116,8 +116,16 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - confirm setup with a real 6-digit code
   - render newly issued recovery codes
   - regenerate recovery codes after validating a current TOTP code
+- MFA is now enforced for primary auth flows that still rely on username/Google session bootstrap:
+  - local login
+  - Google OAuth callback
+  - Google account switching
+- When a user has TOTP enabled, those primary flows stop at a pending MFA challenge.
+- The frontend completes that challenge with either:
+  - a current TOTP code
+  - a recovery code
 - Current non-goals:
-  - enforcing MFA during sign-in
+  - enforcing an extra TOTP step after passkey sign-in
   - disabling TOTP from the UI
   - TV pairing integration
 

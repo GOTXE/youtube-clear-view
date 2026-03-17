@@ -111,6 +111,31 @@ def test_current_user_requires_cookie(client):
     assert data["authenticated"] is False
 
 
+def test_login_with_totp_enabled_returns_mfa_challenge(client, app):
+    with app.app_context():
+        user = User(username="mfa-login", display_name="MFA Login")
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post("/api/auth/login", json={"username": "mfa-login"})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is False
+    assert data["mfa_required"] is True
+    assert data["user_id"]
+
+    cookie = response.headers.get("Set-Cookie", "")
+    assert "ytcv_session=" in cookie
+    assert "Max-Age=0" in cookie or "expires=" in cookie.lower()
+
+    current_response = client.get("/api/auth/current")
+    current_data = current_response.get_json()
+    assert current_data["mfa_required"] is True
+    assert current_data["user_id"] == data["user_id"]
+
+
 def test_current_user_returns_profile(client):
     client.post("/api/auth/login", json={"username": "bob"})
     response = client.get("/api/auth/current")
@@ -118,6 +143,50 @@ def test_current_user_returns_profile(client):
     data = response.get_json()
     assert data["username"] == "bob"
     assert data["authenticated"] is True
+
+
+def test_verify_mfa_challenge_with_totp_creates_session(client, app):
+    with app.app_context():
+        user = User(username="mfa-verify", display_name="MFA Verify")
+        user.totp_secret = "JBSWY3DPEHPK3PXP"
+        user.totp_enabled = True
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "mfa-verify"})
+    response = client.post(
+        "/api/auth/mfa/verify",
+        json={"method": "totp", "code": generate_totp_code("JBSWY3DPEHPK3PXP")},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is True
+    assert data["username"] == "mfa-verify"
+    assert "ytcv_session=" in response.headers.get("Set-Cookie", "")
+
+
+def test_verify_mfa_challenge_with_recovery_code_consumes_code(client):
+    client.post("/api/auth/login", json={"username": "mfa-recovery-login"})
+    setup_data = client.post("/api/auth/totp/setup").get_json()
+    confirm_data = client.post(
+        "/api/auth/totp/confirm",
+        json={"code": generate_totp_code(setup_data["secret"])},
+    ).get_json()
+    recovery_code = confirm_data["recovery_codes"][0]
+    client.post("/api/auth/logout")
+
+    login_response = client.post("/api/auth/login", json={"username": "mfa-recovery-login"})
+    assert login_response.get_json()["mfa_required"] is True
+
+    verify_response = client.post(
+        "/api/auth/mfa/verify",
+        json={"method": "recovery_code", "code": recovery_code},
+    )
+    assert verify_response.status_code == 200
+    assert verify_response.get_json()["authenticated"] is True
+
+    with client.session_transaction() as sess:
+        assert "mfa_challenge" not in sess
 
 
 def test_auth_provider_defaults_local(client):
@@ -396,6 +465,33 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
         user_b = User.query.filter_by(id=bob_id).first()
         assert user_b.session_token is None
         assert user_b.session_token_hash
+
+
+def test_google_switch_account_with_totp_enabled_returns_mfa_challenge(client_google, app_google):
+    with app_google.app_context():
+        user_b = User(
+            username="bob+mfa@gmail.com",
+            display_name="Bob MFA",
+            email="bob+mfa@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-bob-mfa",
+            google_auth_status="active",
+        )
+        user_b.totp_secret = "JBSWY3DPEHPK3PXP"
+        user_b.totp_enabled = True
+        db.session.add(user_b)
+        db.session.commit()
+        bob_id = user_b.id
+
+    with client_google.session_transaction() as sess:
+        sess["known_google_user_ids"] = [bob_id]
+
+    response = client_google.post("/api/auth/switch", json={"user_id": bob_id})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is False
+    assert data["mfa_required"] is True
+    assert data["user_id"] == bob_id
 
 
 def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google, monkeypatch):

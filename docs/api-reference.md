@@ -215,6 +215,20 @@ Response (no session):
 { "authenticated": false }
 ```
 
+Response (pending MFA challenge):
+
+```json
+{
+  "authenticated": false,
+  "mfa_required": true,
+  "user_id": 2,
+  "display_name": "Bob",
+  "email": "bob@example.com",
+  "auth_provider": "google",
+  "available_methods": ["totp", "recovery_code"]
+}
+```
+
 ### GET /api/auth/accounts
 
 Returns the Google accounts already authenticated in this browser session.
@@ -324,6 +338,38 @@ Response:
   "user_id": 1,
   "auth_provider": "google",
   "google_auth_status": "revoked"
+}
+```
+
+### POST /api/auth/mfa/verify
+
+Completes a pending MFA challenge created after primary auth for a user with TOTP enabled.
+
+Request:
+
+```json
+{
+  "method": "totp",
+  "code": "123456"
+}
+```
+
+`method` can be `totp` or `recovery_code`.
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 2,
+  "username": "bob@example.com",
+  "display_name": "Bob",
+  "email": "bob@example.com",
+  "auth_provider": "google",
+  "google_avatar_url": null,
+  "google_auth_status": "active",
+  "totp_enabled": true,
+  "theme_preference": "dark"
 }
 ```
 

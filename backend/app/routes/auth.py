@@ -47,6 +47,8 @@ STATE_COOKIE_MAX_AGE = 10 * 60
 KNOWN_GOOGLE_USERS_KEY = "known_google_user_ids"
 PASSKEY_REGISTRATION_KEY = "passkey_registration"
 PASSKEY_AUTHENTICATION_KEY = "passkey_authentication"
+MFA_CHALLENGE_KEY = "mfa_challenge"
+MFA_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -200,6 +202,86 @@ def _serialize_authenticated_user(user):
     }
 
 
+def _user_requires_mfa(user):
+    """Return whether the user must complete a TOTP challenge after primary auth."""
+    return bool(user and user.totp_enabled and user.totp_secret)
+
+
+def _store_mfa_challenge(user):
+    """Persist a short-lived MFA challenge in the signed browser session."""
+    session[MFA_CHALLENGE_KEY] = {
+        "user_id": user.id,
+        "created_at": datetime.utcnow().timestamp(),
+    }
+    session.modified = True
+
+
+def _clear_mfa_challenge():
+    """Clear any pending MFA challenge."""
+    if MFA_CHALLENGE_KEY in session:
+        session.pop(MFA_CHALLENGE_KEY, None)
+        session.modified = True
+
+
+def _load_mfa_challenge():
+    """Load and validate the pending MFA challenge payload."""
+    raw = session.get(MFA_CHALLENGE_KEY)
+    if not isinstance(raw, dict):
+        return None
+
+    user_id = raw.get("user_id")
+    created_at = raw.get("created_at")
+    try:
+        user_id = int(user_id)
+        created_at = float(created_at)
+    except (TypeError, ValueError):
+        _clear_mfa_challenge()
+        return None
+
+    if datetime.utcnow().timestamp() - created_at > MFA_CHALLENGE_MAX_AGE_SECONDS:
+        _clear_mfa_challenge()
+        return None
+
+    return {"user_id": user_id, "created_at": created_at}
+
+
+def _get_pending_mfa_user():
+    """Resolve the user behind a pending MFA challenge if one exists."""
+    challenge = _load_mfa_challenge()
+    if not challenge:
+        return None
+
+    user = User.query.filter_by(id=challenge["user_id"]).first()
+    if not _user_requires_mfa(user):
+        _clear_mfa_challenge()
+        return None
+    return user
+
+
+def _serialize_mfa_required(user):
+    """Serialize the pending MFA challenge payload for the frontend."""
+    return {
+        "authenticated": False,
+        "mfa_required": True,
+        "user_id": user.id,
+        "display_name": user.display_name,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "available_methods": ["totp", "recovery_code"],
+    }
+
+
+def _clear_existing_session_from_cookie():
+    """Invalidate the currently active persisted session, if any."""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return
+
+    current_user = find_user_by_session_token(token)
+    if current_user:
+        clear_session_token(current_user)
+
+
 @auth_bp.post("/api/auth/login")
 @handle_route_errors
 def login():
@@ -225,6 +307,15 @@ def login():
         user = User(username=username, display_name=username)
         db.session.add(user)
 
+    if _user_requires_mfa(user):
+        _clear_existing_session_from_cookie()
+        _store_mfa_challenge(user)
+        db.session.commit()
+
+        response = jsonify(_serialize_mfa_required(user))
+        _clear_session_cookie(response)
+        return response
+
     session_token = _issue_session_for_user(user)
     db.session.commit()
 
@@ -245,6 +336,7 @@ def logout():
         if user:
             clear_session_token(user)
             db.session.commit()
+    _clear_mfa_challenge()
 
     response = jsonify({"message": "Logged out"})
     _clear_session_cookie(response)
@@ -313,6 +405,16 @@ def switch_account():
             jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}),
             404,
         )
+
+    if _user_requires_mfa(user):
+        _clear_existing_session_from_cookie()
+        _store_mfa_challenge(user)
+        _remember_google_user(user.id)
+        db.session.commit()
+
+        response = jsonify(_serialize_mfa_required(user))
+        _clear_session_cookie(response)
+        return response
 
     session_token = _issue_session_for_user(user)
     _remember_google_user(user.id)
@@ -431,6 +533,17 @@ def google_callback():
 
     apply_token_response(user, token_data)
 
+    if _user_requires_mfa(user):
+        _clear_existing_session_from_cookie()
+        _remember_google_user(user.id)
+        _store_mfa_challenge(user)
+        db.session.commit()
+
+        response = _redirect_to_frontend()
+        _clear_session_cookie(response)
+        _clear_state_cookie(response)
+        return response
+
     session_token = _issue_session_for_user(user)
     _remember_google_user(user.id)
     db.session.commit()
@@ -447,10 +560,18 @@ def current_user():
     """Return the current authenticated user if a valid session exists."""
     token = request.cookies.get(COOKIE_NAME)
     if not token:
+        pending_user = _get_pending_mfa_user()
+        if pending_user:
+            return jsonify(_serialize_mfa_required(pending_user))
         return jsonify({"authenticated": False})
 
     user = find_user_by_session_token(token)
     if not user:
+        pending_user = _get_pending_mfa_user()
+        if pending_user:
+            response = jsonify(_serialize_mfa_required(pending_user))
+            _clear_session_cookie(response)
+            return response
         response = jsonify({"authenticated": False})
         _clear_session_cookie(response)
         return response
@@ -681,6 +802,41 @@ def passkey_authentication_verify():
 
     session.pop(PASSKEY_AUTHENTICATION_KEY, None)
     session.modified = True
+    response = jsonify(_serialize_authenticated_user(user))
+    _set_session_cookie(response, session_token)
+    return response
+
+
+@auth_bp.post("/api/auth/mfa/verify")
+@handle_route_errors
+def verify_mfa_challenge():
+    """Complete a pending MFA challenge and issue the authenticated session."""
+    user = _get_pending_mfa_user()
+    if not user:
+        return _forbidden("No MFA challenge is pending.")
+
+    data = request.get_json(silent=True) or {}
+    method = (data.get("method") or "").strip()
+    code = (data.get("code") or "").strip()
+    if method not in {"totp", "recovery_code"} or not code:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    if method == "totp":
+        if not verify_totp_code(user.totp_secret, code):
+            tracking_id = generate_tracking_id()
+            return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+    else:
+        matched, remaining = consume_recovery_code(_load_recovery_hashes(user), code)
+        if not matched:
+            tracking_id = generate_tracking_id()
+            return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+        user.recovery_codes_hashes = json.dumps(remaining)
+
+    session_token = _issue_session_for_user(user)
+    _clear_mfa_challenge()
+    db.session.commit()
+
     response = jsonify(_serialize_authenticated_user(user))
     _set_session_cookie(response, session_token)
     return response

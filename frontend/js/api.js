@@ -158,6 +158,10 @@ class APIClient {
     return this.post('/api/auth/recovery-codes/regenerate', { code });
   }
 
+  verifyMfaChallenge(code, method) {
+    return this.post('/api/auth/mfa/verify', { code, method });
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }

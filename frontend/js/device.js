@@ -317,12 +317,10 @@
 
   async function initDevice() {
     deviceIdentifier = buildDeviceIdentifier();
-    const suggestion = await detectDevice();
+    const [suggestion, registration] = await Promise.all([detectDevice(), registerDevice()]);
     const suggestedType = suggestion && suggestion.suggested_type
       ? suggestion.suggested_type
       : DEVICE_TYPES.DESKTOP;
-
-    const registration = await registerDevice();
     if (!registration) {
       setCurrentDevice(DEVICE_TYPES.DESKTOP);
       return null;

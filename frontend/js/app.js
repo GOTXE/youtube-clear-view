@@ -1,13 +1,16 @@
 // Main application orchestrator for YT Clear View.
 
+// Registro del service worker para soporte PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('app');
   if (!root) {
     return;
-  }
-
-  if (window.ytcvI18nReady) {
-    await window.ytcvI18nReady;
   }
 
   const t = (key, vars) => (
@@ -514,8 +517,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  applyLocalizedCopy();
-  markI18nReady();
+  (window.ytcvI18nReady || Promise.resolve()).then(() => {
+    applyLocalizedCopy();
+    markI18nReady();
+  });
 
   function showNotification(message, type = 'info') {
     if (typeof window.showNotification === 'function') {
@@ -1136,9 +1141,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!preserveDOM && ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
-    if (state.categoryManager) {
-      state.categoryManager.destroy();
-    }
   }
 
   async function renderMainCarousel() {
@@ -1743,9 +1745,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderShortsCarousel();
     await renderOlderCarousel();
 
-    if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
-      state.categoryManager = new window.CategoryManager(api, 'category-carousels');
-      await state.categoryManager.init();
+    // Ocultar categorías automáticas cuando hay un canal seleccionado.
+    // Solo se muestran cuando no hay canal activo (vista "All").
+    if (ui.categoriesSection) {
+      ui.categoriesSection.hidden = state.selectedChannelId !== null;
     }
   }
 

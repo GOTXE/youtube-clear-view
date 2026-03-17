@@ -4,12 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <meta name="theme-color" content="#0f172a">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <style>
-      html:not(.i18n-ready) body {
-        visibility: hidden;
-      }
-    </style>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
     <script>
       (function () {
         try {
@@ -24,13 +22,11 @@
     <title>YT Clear View</title>
     <link rel="preconnect" href="https://www.youtube.com">
     <link rel="preconnect" href="https://i.ytimg.com">
+    <link rel="preload" href="i18n/en.json" as="fetch" crossorigin>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/mode-desktop-tablet.css">
     <link rel="stylesheet" href="css/mode-tv.css">
     <link rel="stylesheet" href="css/mode-phone.css">
-    <link rel="stylesheet" href="css/tv.css" media="screen and (min-width: 1600px)">
-    <link rel="stylesheet" href="css/tablet.css" media="screen and (min-width: 768px) and (max-width: 1199px)">
-    <link rel="stylesheet" href="css/mobile.css" media="screen and (max-width: 767px)">
   </head>
   <body>
     <div id="app" class="app" data-theme="dark">
@@ -55,7 +51,7 @@
             </div>
             <div class="header-context__content">
               <p id="header-context-eyebrow" class="caption header-context__eyebrow"></p>
-              <h2 id="header-context-title" class="heading-3 header-context__title"></h2>
+              <h2 id="header-context-title" class="heading-3 header-context__title">Your library</h2>
               <p id="header-context-description" class="caption header-context__description"></p>
               <dl id="header-context-metrics" class="header-context__metrics"></dl>
             </div>
@@ -375,24 +371,24 @@
       </footer>
     </div>
 
-    <script src="config.js"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/channel-sidebar-search.js"></script>
-    <script src="js/header-context.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/passkey-auth.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/device.js"></script>
-    <script src="js/layout-mode.js"></script>
-    <script src="js/desktop-shell.js"></script>
-    <script src="js/phone-shell.js"></script>
-    <script src="js/tv-shell.js"></script>
-    <script src="js/player-overlay.js"></script>
-    <script src="js/refresh-governance.js"></script>
-    <script src="js/theme-switcher.js"></script>
-    <script src="js/carousel.js"></script>
-    <script src="js/categories.js"></script>
-    <script src="js/app.js"></script>
+    <script src="config.js" defer></script>
+    <script src="js/i18n.js" defer></script>
+    <script src="js/utils.js" defer></script>
+    <script src="js/channel-sidebar-search.js" defer></script>
+    <script src="js/header-context.js" defer></script>
+    <script src="js/api.js" defer></script>
+    <script src="js/passkey-auth.js" defer></script>
+    <script src="js/auth.js" defer></script>
+    <script src="js/device.js" defer></script>
+    <script src="js/layout-mode.js" defer></script>
+    <script src="js/desktop-shell.js" defer></script>
+    <script src="js/phone-shell.js" defer></script>
+    <script src="js/tv-shell.js" defer></script>
+    <script src="js/player-overlay.js" defer></script>
+    <script src="js/refresh-governance.js" defer></script>
+    <script src="js/theme-switcher.js" defer></script>
+    <script src="js/carousel.js" defer></script>
+    <script src="js/categories.js" defer></script>
+    <script src="js/app.js" defer></script>
   </body>
 </html>

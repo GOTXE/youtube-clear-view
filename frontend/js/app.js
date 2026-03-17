@@ -59,7 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshProgress: null,
     initialContentReady: false,
     autoRefreshPromise: null,
-    autoRefreshKeepsLoadingState: false
+    autoRefreshKeepsLoadingState: false,
+    setMenuOpen: null
   };
 
   const ui = {
@@ -76,12 +77,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtersTitle: document.getElementById('filters-title'),
     filtersSearchLabel: document.getElementById('filters-search-label'),
     channelSidebar: document.querySelector('.channel-sidebar'),
+    channelSidebarBackdrop: document.getElementById('channel-sidebar-backdrop'),
+    phoneNav: document.getElementById('phone-nav'),
     themeToggle: document.getElementById('theme-toggle'),
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
-    menuDeviceType: document.getElementById('menu-device-type'),
     menuDisplayMode: document.getElementById('menu-display-mode'),
     menuSettings: document.getElementById('menu-settings'),
     logoutButton: document.getElementById('logout-button'),
@@ -312,10 +314,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuCategoryGuide) {
       ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
     }
-    if (ui.menuDeviceType) {
-      ui.menuDeviceType.textContent = t('deviceTypeMenuLabel');
-    }
-
     if (ui.menuDisplayMode) {
       ui.menuDisplayMode.textContent = t('displayModeMenuLabel');
     }
@@ -421,6 +419,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.filterPanel) {
       ui.filterPanel.setAttribute('aria-label', t('filtersAria'));
+    }
+    if (ui.phoneNav) {
+      ui.phoneNav.setAttribute('aria-label', t('mobileNavigationLabel'));
+    }
+    const phoneChannels = document.getElementById('phone-nav-channels');
+    if (phoneChannels) {
+      phoneChannels.textContent = t('subscriptions');
+    }
+    const phoneFilters = document.getElementById('phone-nav-filters');
+    if (phoneFilters) {
+      phoneFilters.textContent = t('filters');
+    }
+    const phoneMenu = document.getElementById('phone-nav-menu');
+    if (phoneMenu) {
+      phoneMenu.textContent = t('menu');
+    }
+    const sidebarClose = document.getElementById('channel-sidebar-close');
+    if (sidebarClose) {
+      sidebarClose.setAttribute('aria-label', t('close'));
     }
     if (ui.githubLabel) {
       ui.githubLabel.textContent = t('viewOnGitHub');
@@ -1910,6 +1927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     };
+    state.setMenuOpen = setMenuOpen;
 
     ui.menuToggle.addEventListener('click', event => {
       event.stopPropagation();
@@ -2450,6 +2468,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupSearch();
     setupMenu();
     setupFilterPanel();
+    if (window.ytcvPhoneShell && typeof window.ytcvPhoneShell.initPhoneShell === 'function') {
+      window.ytcvPhoneShell.initPhoneShell({
+        openFilters: openFilterPanel,
+        openMenu: () => {
+          if (typeof state.setMenuOpen === 'function') {
+            state.setMenuOpen(true);
+          }
+        }
+      });
+    }
     setupGuide();
     setupSettingsModal();
     setupConfirmModal();

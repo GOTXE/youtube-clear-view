@@ -100,6 +100,10 @@
       <main class="app-main" role="main">
         <div class="app-layout">
           <aside class="channel-sidebar" aria-label="Subscribed channels">
+            <div class="channel-sidebar__mobile-header">
+              <h2 class="heading-2">Subscriptions</h2>
+              <button id="channel-sidebar-close" class="channel-sidebar__mobile-close" type="button" aria-label="Close">✕</button>
+            </div>
             <div class="channel-sidebar__header">
                 <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
               <span id="channel-count" class="caption">0</span>
@@ -176,6 +180,14 @@
           </div>
         </div>
       </main>
+
+      <div id="channel-sidebar-backdrop" class="channel-sidebar-backdrop" hidden></div>
+
+      <nav id="phone-nav" class="phone-nav" aria-label="Mobile navigation" hidden>
+        <button id="phone-nav-channels" class="phone-nav__button" type="button">Subscriptions</button>
+        <button id="phone-nav-filters" class="phone-nav__button" type="button">Filters</button>
+        <button id="phone-nav-menu" class="phone-nav__button" type="button">Menu</button>
+      </nav>
 
       <section id="filter-panel" class="filter-panel" hidden>
         <div class="filter-panel__header">
@@ -325,6 +337,7 @@
     <script src="js/auth.js"></script>
     <script src="js/device.js"></script>
     <script src="js/layout-mode.js"></script>
+    <script src="js/phone-shell.js"></script>
     <script src="js/refresh-governance.js"></script>
     <script src="js/theme-switcher.js"></script>
     <script src="js/carousel.js"></script>

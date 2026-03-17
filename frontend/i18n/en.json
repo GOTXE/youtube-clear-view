@@ -224,6 +224,7 @@
   "close": "Close",
   "openMenu": "Open menu",
   "menuLabel": "App menu",
+  "mobileNavigationLabel": "Mobile navigation",
   "reportIssue": "Report issue",
   "categoryGuideLabel": "Category guide",
   "deviceTypeMenuLabel": "Device type",

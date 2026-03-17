@@ -341,6 +341,63 @@ def ensure_user_passkey_schema():
         )
 
 
+def ensure_login_pairing_schema():
+    """Ensure login_pairings table exists for secondary-device pairing."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(login_pairings)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS login_pairings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        public_id VARCHAR(64) NOT NULL,
+                        pairing_code VARCHAR(16) NOT NULL,
+                        device_identifier VARCHAR(128),
+                        approved_user_id INTEGER,
+                        approved_at DATETIME,
+                        expires_at DATETIME NOT NULL,
+                        used_at DATETIME,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(approved_user_id) REFERENCES users(id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_login_pairings_public_id "
+                    "ON login_pairings (public_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_login_pairings_code "
+                    "ON login_pairings (pairing_code)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_pairings_approved_user_id "
+                    "ON login_pairings (approved_user_id)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Login pairing schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_category_schema():
     """Ensure categories table exists and is seeded with predefined categories."""
     engine = db.engine

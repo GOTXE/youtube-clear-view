@@ -156,6 +156,22 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - `PASSKEY_ORIGIN`
   - `PASSKEY_ALLOWED_ORIGINS`
 
+## Pairing Code Foundation
+
+- Auth v2 now also has a backend-only pairing flow for TV and secondary devices.
+- New endpoints:
+  - `POST /api/auth/pairing/start`
+  - `POST /api/auth/pairing/approve`
+  - `POST /api/auth/pairing/claim`
+- Current scope:
+  - start a short-lived pairing request from an unauthenticated device
+  - approve that request from an already authenticated user session
+  - claim the approved pairing and receive a normal backend session cookie
+- Current non-goals:
+  - no TV/frontend pairing UI yet
+  - no QR flow yet
+  - no pairing administration UI yet
+
 ## Device Type Persistence
 
 - Device state is stored per `user_id + device_identifier` in `user_devices`.

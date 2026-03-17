@@ -40,6 +40,7 @@ class User(db.Model):
     watched_videos = db.relationship("WatchedVideo", back_populates="user", cascade="all, delete-orphan")
     devices = db.relationship("UserDevice", back_populates="user", cascade="all, delete-orphan")
     passkeys = db.relationship("UserPasskey", back_populates="user", cascade="all, delete-orphan")
+    approved_pairings = db.relationship("LoginPairing", back_populates="approved_user")
     settings = db.relationship(
         "UserSettings",
         back_populates="user",

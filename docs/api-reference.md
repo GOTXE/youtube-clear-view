@@ -373,6 +373,71 @@ Response:
 }
 ```
 
+### POST /api/auth/pairing/start
+
+Starts a short-lived pairing request for a secondary device.
+
+Request:
+
+```json
+{
+  "device_identifier": "living-room-tv"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "pending",
+  "public_id": "b8J6x4...",
+  "pairing_code": "ABCD-EFGH",
+  "expires_at": "2026-03-17T11:05:00"
+}
+```
+
+### POST /api/auth/pairing/approve
+
+Requires an authenticated session.
+
+Approves a pairing code for the current user.
+
+Request:
+
+```json
+{
+  "code": "ABCD-EFGH"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "approved",
+  "public_id": "b8J6x4...",
+  "pairing_code": "ABCD-EFGH",
+  "expires_at": "2026-03-17T11:05:00",
+  "approved_at": "2026-03-17T10:58:00",
+  "used_at": null
+}
+```
+
+### POST /api/auth/pairing/claim
+
+Claims a pairing request from the original device.
+
+- If the request is still waiting for approval, the endpoint returns `status: pending`.
+- If approved and unused, it issues a normal backend session cookie and returns the authenticated user payload.
+
+Request:
+
+```json
+{
+  "public_id": "b8J6x4..."
+}
+```
+
 ### GET /api/auth/passkeys
 
 Requires an authenticated session.

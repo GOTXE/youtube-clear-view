@@ -1,5 +1,6 @@
 """Authentication endpoint tests."""
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -492,6 +493,79 @@ def test_google_switch_account_with_totp_enabled_returns_mfa_challenge(client_go
     assert data["authenticated"] is False
     assert data["mfa_required"] is True
     assert data["user_id"] == bob_id
+
+
+def test_pairing_flow_start_approve_claim(client, app):
+    with app.app_context():
+        user = User(username="pair-owner", display_name="Pair Owner")
+        db.session.add(user)
+        db.session.commit()
+
+    start_response = client.post("/api/auth/pairing/start", json={"device_identifier": "living-room-tv"})
+    assert start_response.status_code == 200
+    start_data = start_response.get_json()
+    assert start_data["status"] == "pending"
+    assert start_data["pairing_code"]
+    assert start_data["public_id"]
+
+    client.post("/api/auth/login", json={"username": "pair-owner"})
+    approve_response = client.post(
+        "/api/auth/pairing/approve",
+        json={"code": start_data["pairing_code"]},
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.get_json()["status"] == "approved"
+
+    claim_client = app.test_client()
+    claim_response = claim_client.post(
+        "/api/auth/pairing/claim",
+        json={"public_id": start_data["public_id"]},
+    )
+    assert claim_response.status_code == 200
+    claim_data = claim_response.get_json()
+    assert claim_data["authenticated"] is True
+    assert claim_data["pairing_claimed"] is True
+    assert claim_data["username"] == "pair-owner"
+    assert "ytcv_session=" in claim_response.headers.get("Set-Cookie", "")
+
+
+def test_pairing_claim_returns_pending_until_approved(client):
+    start_data = client.post("/api/auth/pairing/start").get_json()
+    claim_response = client.post("/api/auth/pairing/claim", json={"public_id": start_data["public_id"]})
+    assert claim_response.status_code == 200
+    assert claim_response.get_json()["status"] == "pending"
+
+
+def test_pairing_claim_is_single_use(client, app):
+    with app.app_context():
+        user = User(username="pair-once", display_name="Pair Once")
+        db.session.add(user)
+        db.session.commit()
+
+    start_data = client.post("/api/auth/pairing/start").get_json()
+    client.post("/api/auth/login", json={"username": "pair-once"})
+    client.post("/api/auth/pairing/approve", json={"code": start_data["pairing_code"]})
+
+    claim_client = app.test_client()
+    first_claim = claim_client.post("/api/auth/pairing/claim", json={"public_id": start_data["public_id"]})
+    assert first_claim.status_code == 200
+
+    second_claim = claim_client.post("/api/auth/pairing/claim", json={"public_id": start_data["public_id"]})
+    assert second_claim.status_code == 409
+
+
+def test_pairing_expiry_is_enforced(client, app):
+    start_data = client.post("/api/auth/pairing/start").get_json()
+
+    with app.app_context():
+        from app.models import LoginPairing
+
+        pairing = LoginPairing.query.filter_by(public_id=start_data["public_id"]).first()
+        pairing.expires_at = datetime.utcnow() - timedelta(minutes=1)
+        db.session.commit()
+
+    claim_response = client.post("/api/auth/pairing/claim", json={"public_id": start_data["public_id"]})
+    assert claim_response.status_code == 410
 
 
 def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google, monkeypatch):

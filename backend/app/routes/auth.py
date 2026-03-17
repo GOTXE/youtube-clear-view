@@ -2,7 +2,7 @@
 
 import json
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, g, jsonify, redirect, request, session
 
@@ -11,7 +11,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import User, UserPasskey
+from app.models import LoginPairing, User, UserPasskey
 from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
     apply_token_response,
@@ -49,6 +49,7 @@ PASSKEY_REGISTRATION_KEY = "passkey_registration"
 PASSKEY_AUTHENTICATION_KEY = "passkey_authentication"
 MFA_CHALLENGE_KEY = "mfa_challenge"
 MFA_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
+PAIRING_CODE_TTL_MINUTES = 10
 
 
 def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
@@ -280,6 +281,44 @@ def _clear_existing_session_from_cookie():
     current_user = find_user_by_session_token(token)
     if current_user:
         clear_session_token(current_user)
+
+
+def _generate_pairing_code():
+    """Generate a human-readable pairing code."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    first = "".join(secrets.choice(alphabet) for _ in range(4))
+    second = "".join(secrets.choice(alphabet) for _ in range(4))
+    return f"{first}-{second}"
+
+
+def _create_login_pairing(device_identifier=None):
+    """Create a unique login pairing request."""
+    for _ in range(10):
+        pairing = LoginPairing(
+            public_id=secrets.token_urlsafe(16),
+            pairing_code=_generate_pairing_code(),
+            device_identifier=(device_identifier or "").strip()[:128] or None,
+            expires_at=datetime.utcnow() + timedelta(minutes=PAIRING_CODE_TTL_MINUTES),
+        )
+        db.session.add(pairing)
+        try:
+            db.session.flush()
+            return pairing
+        except Exception:
+            db.session.rollback()
+    raise RuntimeError("Unable to create unique pairing code.")
+
+
+def _serialize_pairing_status(pairing, status):
+    """Serialize a pairing request status for API responses."""
+    return {
+        "status": status,
+        "public_id": pairing.public_id,
+        "pairing_code": pairing.pairing_code,
+        "expires_at": pairing.expires_at.isoformat() if pairing.expires_at else None,
+        "approved_at": pairing.approved_at.isoformat() if pairing.approved_at else None,
+        "used_at": pairing.used_at.isoformat() if pairing.used_at else None,
+    }
 
 
 @auth_bp.post("/api/auth/login")
@@ -579,6 +618,79 @@ def current_user():
     return jsonify(
         _serialize_authenticated_user(user)
     )
+
+
+@auth_bp.post("/api/auth/pairing/start")
+@handle_route_errors
+def start_pairing():
+    """Start a short-lived pairing flow for a secondary device."""
+    data = request.get_json(silent=True) or {}
+    pairing = _create_login_pairing(device_identifier=data.get("device_identifier"))
+    db.session.commit()
+    return jsonify(_serialize_pairing_status(pairing, "pending"))
+
+
+@auth_bp.post("/api/auth/pairing/approve")
+@handle_route_errors
+@require_auth
+def approve_pairing():
+    """Approve a pairing request from an already authenticated session."""
+    code = ((request.get_json(silent=True) or {}).get("code") or "").strip().upper()
+    if not code:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    pairing = LoginPairing.query.filter_by(pairing_code=code).first()
+    if not pairing:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
+    if pairing.is_expired():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Gone.", "tracking_id": tracking_id, "status": 410}), 410
+    if pairing.used_at:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Conflict.", "tracking_id": tracking_id, "status": 409}), 409
+
+    pairing.approved_user_id = g.current_user.id
+    pairing.approved_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(_serialize_pairing_status(pairing, "approved"))
+
+
+@auth_bp.post("/api/auth/pairing/claim")
+@handle_route_errors
+def claim_pairing():
+    """Claim a pairing request from the original device and receive a session if approved."""
+    public_id = ((request.get_json(silent=True) or {}).get("public_id") or "").strip()
+    if not public_id:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    pairing = LoginPairing.query.filter_by(public_id=public_id).first()
+    if not pairing:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
+    if pairing.is_expired():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Gone.", "tracking_id": tracking_id, "status": 410}), 410
+    if pairing.used_at:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Conflict.", "tracking_id": tracking_id, "status": 409}), 409
+    if not pairing.approved_user_id:
+        return jsonify(_serialize_pairing_status(pairing, "pending"))
+
+    user = User.query.filter_by(id=pairing.approved_user_id).first()
+    if not user:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
+
+    pairing.used_at = datetime.utcnow()
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    response = jsonify(_serialize_authenticated_user(user) | {"pairing_claimed": True})
+    _set_session_cookie(response, session_token)
+    return response
 
 
 @auth_bp.put("/api/auth/profile")

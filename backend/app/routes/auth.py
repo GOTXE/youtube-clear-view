@@ -827,6 +827,7 @@ def google_callback():
         user = User(
             username=username,
             display_name=display_name,
+            auth_provider="google",
             setup_completed=False,
         )
         db.session.add(user)

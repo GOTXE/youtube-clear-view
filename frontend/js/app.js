@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
     menuHeadingAccount: document.getElementById('menu-heading-account'),
+    menuHeadingChannels: document.getElementById('menu-heading-channels'),
     menuHeadingViewing: document.getElementById('menu-heading-viewing'),
     menuHeadingSystem: document.getElementById('menu-heading-system'),
     menuFilters: document.getElementById('menu-filters'),
@@ -322,6 +323,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.menuHeadingAccount) {
       ui.menuHeadingAccount.textContent = t('menuSectionAccount');
     }
+    if (ui.menuHeadingChannels) {
+      ui.menuHeadingChannels.textContent = t('menuSectionChannels');
+    }
     if (ui.menuHeadingViewing) {
       ui.menuHeadingViewing.textContent = t('menuSectionViewing');
     }
@@ -341,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.myAccountButton.textContent = t('myAccount');
     }
     if (ui.importButton) {
-      ui.importButton.textContent = t('importSubscriptions');
+      ui.importButton.textContent = t('importChannels');
     }
     updateHeaderContext();
     const googleButton = document.getElementById('google-login-button');

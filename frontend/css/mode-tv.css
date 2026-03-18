@@ -339,14 +339,19 @@ html[data-mode="tv"] .video-card__title {
 }
 
 html[data-mode="tv"] .video-card__channel {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 700;
 }
 
-/* Hide details and meta in TV mode — show only
-   thumbnail + title + channel + description (truncated). */
+/* Hide details and meta in TV mode — but keep channel name visible */
 html[data-mode="tv"] .video-card__details,
 html[data-mode="tv"] .video-card__meta {
   display: none;
+}
+
+html[data-mode="tv"] .video-card__channel {
+  display: block;
 }
 
 html[data-mode="tv"] .video-card__description {
@@ -410,9 +415,24 @@ html[data-mode="tv"] .player-overlay__body {
   grid-template-columns: minmax(0, 1fr) 220px;
 }
 
-/* ── Footer: minimal ─────────────────────────────────────────────── */
+/* ── Footer: single-line, 32px, matches Pencil ──────────────────── */
 
 html[data-mode="tv"] .app-footer {
-  padding: 4px 0;
-  font-size: 0.8rem;
+  flex-direction: row;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  gap: 8px;
+  font-size: 11px;
+  color: #555577;
+}
+
+html[data-mode="tv"] .app-footer .caption {
+  font-size: 11px;
+  color: #555577;
+}
+
+html[data-mode="tv"] .app-footer .footer-link {
+  font-size: 11px;
+  color: #4fc3f7;
 }

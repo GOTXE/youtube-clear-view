@@ -176,13 +176,29 @@ def _server_error(message):
     )
 
 
+def _save_oauth_origin():
+    """Remember the caller's origin so the post-OAuth redirect lands on the
+    same host the user started from (important for LAN access via IP)."""
+    origin = request.headers.get("Origin") or request.referrer
+    if origin:
+        # Strip path — keep only scheme + host + port
+        from urllib.parse import urlparse
+
+        parsed = urlparse(origin)
+        session["_oauth_origin"] = f"{parsed.scheme}://{parsed.netloc}"
+
+
 def _redirect_to_frontend(code=None):
-    """Redirect back to the configured frontend URL.
+    """Redirect back to the frontend URL.
+
+    Uses the origin saved at the start of the OAuth flow so that LAN clients
+    (e.g. ``http://192.168.1.50:8080``) are redirected back to the same host
+    instead of always landing on the configured ``FRONTEND_URL``.
 
     Pass ``code='needs_setup'`` to signal the wizard, or an error code string
     (any other value) which will be surfaced as ``auth_error=<code>``.
     """
-    base_url = current_app.config.get("FRONTEND_URL") or "/"
+    base_url = session.pop("_oauth_origin", None) or current_app.config.get("FRONTEND_URL") or "/"
     if not code:
         return redirect(base_url)
 
@@ -716,6 +732,7 @@ def google_login():
 
     state = secrets.token_urlsafe(24)
     session[_GOOGLE_OAUTH_INTENT_KEY] = _GOOGLE_OAUTH_INTENT_LOGIN
+    _save_oauth_origin()
     auth_url = build_auth_url(state)
     response = redirect(auth_url)
     _set_state_cookie(response, state)
@@ -732,6 +749,7 @@ def google_link():
 
     state = secrets.token_urlsafe(24)
     session[_GOOGLE_OAUTH_INTENT_KEY] = _GOOGLE_OAUTH_INTENT_LINK
+    _save_oauth_origin()
     auth_url = build_auth_url(state)
     response = redirect(auth_url)
     _set_state_cookie(response, state)

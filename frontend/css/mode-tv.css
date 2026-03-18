@@ -1,4 +1,10 @@
-/* Mode-specific overrides for TV layout mode. */
+/* Mode-specific overrides for TV layout mode.
+ *
+ * Design target: 55" 1920×1080 at ~3 m viewing distance.
+ * Goal: compact header, compact tabs, maximum carousel + channel space.
+ */
+
+/* ── Scale tokens ────────────────────────────────────────────────── */
 
 html[data-mode="tv"][data-tv-scale="M"] {
   --space-8: 36px;
@@ -32,44 +38,136 @@ html[data-mode="tv"][data-tv-scale="XXL"] {
   --font-body: 1.8rem;
 }
 
+/* ── App container ───────────────────────────────────────────────── */
+
 html[data-mode="tv"] .app {
-  padding: var(--space-10);
+  padding: 12px 24px;
+  gap: 0;
+}
+
+/* ── Header: single compact bar ──────────────────────────────────── */
+
+html[data-mode="tv"] .app-header {
+  gap: 0;
 }
 
 html[data-mode="tv"] .header-row {
-  grid-template-columns: minmax(420px, 520px) minmax(420px, 1fr) auto;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "brand context menu";
+  align-items: center;
+  gap: var(--space-4);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-html[data-mode="tv"] .app-layout {
-  grid-template-columns: 340px 1fr;
-  gap: var(--space-8);
-}
-
-html[data-mode="tv"] .channel-sidebar {
-  padding: var(--space-5);
-}
-
-html[data-mode="tv"] .channel-item {
-  padding: var(--space-3);
-}
-
-html[data-mode="tv"] .channel-list {
+/* Brand: compact, single line */
+html[data-mode="tv"] .brand__text {
+  flex-direction: row;
+  align-items: baseline;
   gap: var(--space-3);
 }
+
+html[data-mode="tv"] .heading-1 {
+  font-size: 1.6rem;
+}
+
+html[data-mode="tv"] #app-subtitle {
+  font-size: 0.95rem;
+  max-width: none;
+}
+
+html[data-mode="tv"] .brand__subtitle-secondary {
+  display: none;
+}
+
+/* Header context: flatten to inline stat bar instead of card */
+html[data-mode="tv"] .header-context {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  max-width: none;
+  width: auto;
+  justify-self: end;
+}
+
+html[data-mode="tv"] .header-context__media {
+  display: none;
+}
+
+html[data-mode="tv"] .header-context__content {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+html[data-mode="tv"] .header-context__eyebrow,
+html[data-mode="tv"] .header-context__title,
+html[data-mode="tv"] .header-context__description {
+  display: none;
+}
+
+html[data-mode="tv"] .header-context__metrics {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+html[data-mode="tv"] .header-context__metric {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+html[data-mode="tv"] .header-context__metric dt {
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+  order: 2;
+}
+
+html[data-mode="tv"] .header-context__metric dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+  order: 1;
+}
+
+/* Session info: inline, smaller */
+html[data-mode="tv"] .session-info {
+  display: none;
+}
+
+/* Header status bar: collapse when empty (no min-height reservation) */
+html[data-mode="tv"] .header-status {
+  min-height: 0;
+  padding: 0;
+}
+
+/* ── TV Action bar: compact tabs ─────────────────────────────────── */
 
 html[data-mode="tv"] .tv-action-bar {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 html[data-mode="tv"] .tv-action-bar__button {
   border: 1px solid var(--border);
-  border-radius: var(--radius-3);
+  border-radius: var(--radius-2);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   color: var(--text);
-  padding: var(--space-4) var(--space-5);
-  font-weight: 700;
+  padding: 8px var(--space-4);
+  font-weight: 600;
+  font-size: 0.95rem;
   text-align: center;
 }
 
@@ -78,23 +176,80 @@ html[data-mode="tv"] .tv-action-bar__button:focus {
   outline-offset: 3px;
 }
 
-html[data-mode="tv"] .carousel-track {
-  gap: var(--space-6);
+/* ── Main layout: sidebar + content ──────────────────────────────── */
+
+html[data-mode="tv"] .app-layout {
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  border-left: none;
 }
 
+html[data-mode="tv"] .app-content {
+  gap: var(--space-5);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--border);
+}
+
+html[data-mode="tv"] .channel-sidebar {
+  padding: var(--space-3);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-mode="tv"] .channel-item {
+  padding: var(--space-2) var(--space-2);
+}
+
+html[data-mode="tv"] .channel-list {
+  gap: var(--space-1);
+}
+
+/* ── Carousel & video cards: maximised ───────────────────────────── */
+
+html[data-mode="tv"] .carousel-track {
+  gap: var(--space-4);
+}
+
+/* Cards sized dynamically by JS getVisibleCount(). Override the
+   CSS base so the JS-computed flex-basis wins and cards fill the
+   available track width.  Remove max-width cap.                   */
 html[data-mode="tv"] .video-card {
-  flex: 0 0 360px;
-  max-width: 360px;
+  max-width: none;
+  border-radius: var(--radius-3);
 }
 
 html[data-mode="tv"] .video-card__thumb {
-  min-height: 250px;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
 }
+
+html[data-mode="tv"] .video-card__title {
+  font-size: 1.1rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+html[data-mode="tv"] .video-card__channel {
+  font-size: 0.95rem;
+}
+
+html[data-mode="tv"] .video-card__body {
+  padding: var(--space-2) var(--space-3);
+  gap: 2px;
+}
+
+/* ── Focus indicators (remote-friendly) ──────────────────────────── */
 
 html[data-mode="tv"] .button:focus,
 html[data-mode="tv"] .field__input:focus {
   outline-width: 3px;
 }
+
+/* ── Player overlay ──────────────────────────────────────────────── */
 
 html[data-mode="tv"] .player-overlay__dialog {
   width: min(1840px, calc(100vw - 20px));
@@ -113,4 +268,11 @@ html[data-mode="tv"] .player-overlay__actions .button {
 
 html[data-mode="tv"] .player-overlay__body {
   grid-template-columns: minmax(0, 1fr) 220px;
+}
+
+/* ── Footer: minimal ─────────────────────────────────────────────── */
+
+html[data-mode="tv"] .app-footer {
+  padding: 4px 0;
+  font-size: 0.8rem;
 }

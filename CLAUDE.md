@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# Repository Guidelines
 
 ## Project Overview
 
@@ -12,11 +10,17 @@ YT Clear View (YTCV) is a self-hosted YouTube subscription viewer that removes a
 - Auth: YouTube Data API v3 (OAuth) or local authentication
 - Deployment: Gunicorn + reverse proxy (Nginx/Synology)
 
-## Repository Conventions
+## Project Structure & Module Organization
 
-- Write code, comments, PR text, and developer-facing documentation in English.
-- Use `develop` as the main integration branch.
-- Target feature branches and PRs to `develop` unless the change is an explicit release or hotfix for `main`.
+This repository is currently a scaffold/design workspace. The intended target layout is:
+
+- `backend/`: Python (Flask) REST API + SQLite
+  - `backend/app/`: app factory (`create_app`), routes, models, services, logging
+  - `backend/tests/`: `pytest` suite (`test_*.py`)
+- `log_viewer/`: separate Flask microservice for viewing logs
+- `frontend/`: vanilla HTML/CSS/JS client (plus `frontend/assets/`)
+- `docs/`: public documentation (API, deployment, development)
+- `tech_docs/`: private/local notes (gitignored; not synced to GitHub)
 
 ## VibeCoding
 
@@ -35,46 +39,25 @@ Operational flow:
 Runner:
 - `./vibecoding/system/orchestration/runner/vibecoding_runner.sh`
 
-## Development Commands
+## Docker & Deployment
 
-### Environment Setup
-```bash
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+The app runs locally as 3 Docker containers (proxy/Caddy, backend, log_viewer).
+Frontend files are baked into the proxy image — **any frontend change requires rebuilding the proxy container** and bumping `CACHE_VERSION` in `frontend/sw.js`.
 
-# Install dependencies
-pip install -r backend/requirements.txt
+Full details: [`docs/docker-setup.md`](docs/docker-setup.md)
 
-# Create .env file from example
-cp backend/.env.example backend/.env
-# Edit backend/.env with your configuration
-```
+## Build, Test, and Development Commands
 
-### Running the Application
-```bash
-# Smoke test the app factory
-python -c "from app import create_app; create_app(); print('OK')"
+Commands below apply once `backend/` and related modules exist:
 
-# Run backend development server
-cd backend
-python -m flask --app app run --port 5550
-
-# Run with Gunicorn (production-like)
-cd backend && ./run_app.sh
-```
-
-### Testing
-```bash
-# Run all tests
-pytest backend/tests -v
-
-# Run specific test file
-pytest backend/tests/test_auth.py -v
-
-# Run with markers
-pytest backend/tests -v -m "not slow"
-```
+- Create venv: `python3 -m venv .venv && source .venv/bin/activate`
+- Install deps: `pip install -r backend/requirements.txt`
+- Run tests: `pytest backend/tests -v`
+- Run specific test file: `pytest backend/tests/test_auth.py -v`
+- Run with markers: `pytest backend/tests -v -m "not slow"`
+- Smoke check app factory: `python -c "from app import create_app; create_app(); print('OK')"`
+- Run dev server: `cd backend && python -m flask --app app run --port 5550`
+- Deployment scripts (NAS): `backend/run_app.sh`, `log_viewer/run_log_viewer.sh`
 
 ## Architecture
 
@@ -142,6 +125,30 @@ pytest backend/tests -v -m "not slow"
 - `OLLAMA_HOST`, `OLLAMA_MODEL`: LLM-based classification
 - `CLASSIFICATION_METHOD`: `auto`, `youtube_topics`, `tfidf`, `ollama`, or `hybrid`
 
+## Coding Style & Naming Conventions
+
+- Write code and comments in English.
+- Write pull requests, issue-facing technical summaries, and public developer documentation in English.
+- Python: 4-space indentation, PEP 8 naming (`snake_case`, `PascalCase` for classes).
+- Frontend: keep JS/CSS readable and modular; prefer descriptive names (e.g., `theme-switcher.js`).
+- Configuration: do not hardcode URLs/keys; use `.env` and keep templates in `.env.example`.
+
+## Testing Guidelines
+
+- Use `pytest`; name tests `test_*.py` and keep tests independent.
+- Mock external YT API calls; tests must not require real API keys.
+- Use fixtures from `conftest.py`.
+
+## Commit & Pull Request Guidelines
+
+- Current commit history is informal (e.g., "inicio", "correccion carpeta"). Going forward, prefer Conventional Commits:
+  - `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, `chore: ...`
+- Use `develop` as the main integration branch for ongoing work.
+- Target feature PRs to `develop` unless the change is a release/hotfix explicitly meant for `main`.
+- PRs should include: purpose, how to test, and screenshots for UI changes. Link related issues when applicable.
+- PR text should be written in English.
+- Release tags: follow SemVer guidance in `tech_docs/yt-curator-guide.md` (use annotated tags like `v0.X.Y-beta.N` and never retag).
+
 ## Adding Features
 
 ### New API Endpoint
@@ -162,6 +169,11 @@ pytest backend/tests -v -m "not slow"
 3. Use dependency injection via `db` and `current_app.config`
 4. Mock external dependencies in tests
 
+## Security & Configuration Tips
+
+- Never commit secrets (`.env`, keys, tokens). Follow `.gitignore` and add new sensitive patterns if needed.
+- Prefer HTTPS-only assumptions in code and docs (reverse proxy terminates TLS).
+
 ## Important Notes
 
 - **Database**: SQLite with WAL mode enabled for better concurrency. Schema migrations run automatically on startup.
@@ -172,14 +184,6 @@ pytest backend/tests -v -m "not slow"
 - **CORS**: In production, frontend and backend should ideally be served from the same origin (via reverse proxy at `/` and `/api` paths) to avoid cookie/CORS issues, especially on smart TVs.
 - **Error Handling**: All errors return a tracking ID. Stack traces are logged but not exposed to clients.
 - **Testing**: Use `pytest` with fixtures from `conftest.py`. External API calls should be mocked.
-
-## Coding Conventions
-
-- **Language**: Code and comments in English
-- **Python**: PEP 8, 4-space indentation, `snake_case` for functions/variables, `PascalCase` for classes
-- **JavaScript**: Readable, modular code with descriptive names
-- **Commits**: Use Conventional Commits format (`feat:`, `fix:`, `docs:`, `test:`, `chore:`)
-- **No hardcoded secrets**: Use environment variables and `.env` files (never commit `.env`)
 
 ## Troubleshooting
 

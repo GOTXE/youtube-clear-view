@@ -348,10 +348,7 @@ def iter_refresh_user_channels(
 
         db.session.commit()
 
-        if (
-            (channel_new_videos > 0 or channel_metadata_updates > 0)
-            and not ChannelCategory.query.filter_by(channel_id=channel.id).first()
-        ):
+        if not ChannelCategory.query.filter_by(channel_id=channel.id).first():
             try:
                 if classifier is None:
                     classifier = ClassificationService()

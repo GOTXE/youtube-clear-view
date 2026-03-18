@@ -443,5 +443,13 @@
   "accountYoutubeUnlink": "Unlink YouTube account",
   "accountYoutubeUnlinking": "Unlinking...",
   "accountYoutubeUnlinkSuccess": "YouTube account unlinked.",
-  "accountYoutubeUnlinkFailed": "Could not unlink YouTube account."
+  "accountYoutubeUnlinkFailed": "Could not unlink YouTube account.",
+  "classifyChannels": "Classify channels",
+  "classifyingChannels": "Classifying channels...",
+  "classifyEnriching": "Enriching channel metadata...",
+  "classifyEvidenceGathering": "Gathering video evidence...",
+  "classifyComplete": "{count} channels classified.",
+  "classifyNothingToDo": "All channels are already classified.",
+  "classifyError": "Classification failed.",
+  "classifyProgress": "Classifying: {cursor}/{total} ({classified} classified)"
 }

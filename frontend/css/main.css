@@ -377,6 +377,15 @@ select {
   box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 45%, transparent);
 }
 
+.refresh-progress[data-state="running"] {
+  animation: refresh-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes refresh-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 .refresh-progress[data-state="complete"] {
   border-color: color-mix(in srgb, var(--success) 28%, transparent);
   background: color-mix(in srgb, var(--success) 12%, var(--surface));
@@ -2084,6 +2093,10 @@ body.login-page-open #app {
   background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.login-page-overlay[hidden] {
+  display: none;
 }
 
 .login-page__card {

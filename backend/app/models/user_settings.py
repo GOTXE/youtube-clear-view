@@ -23,6 +23,13 @@ class UserSettings(db.Model):
     backfill_cursor = db.Column(db.Integer)
     backfill_started_at = db.Column(db.DateTime)
     backfill_last_run_at = db.Column(db.DateTime)
+    enrich_active = db.Column(db.Boolean, default=False)
+    enrich_phase = db.Column(db.String(20))
+    enrich_cursor = db.Column(db.Integer, default=0)
+    enrich_total = db.Column(db.Integer, default=0)
+    enrich_classified = db.Column(db.Integer, default=0)
+    enrich_errors = db.Column(db.Integer, default=0)
+    enrich_started_at = db.Column(db.DateTime)
     last_schedule_run_at = db.Column(db.DateTime)
     quota_date = db.Column(db.String(10))
     quota_used = db.Column(db.Integer, default=0)
@@ -80,4 +87,13 @@ class UserSettings(db.Model):
             "quota_date": self.quota_date,
             "quota_used": self.quota_used,
             "quota_cap": self.quota_cap,
+            "enrich_active": self.enrich_active or False,
+            "enrich_phase": self.enrich_phase,
+            "enrich_cursor": self.enrich_cursor or 0,
+            "enrich_total": self.enrich_total or 0,
+            "enrich_classified": self.enrich_classified or 0,
+            "enrich_errors": self.enrich_errors or 0,
+            "enrich_started_at": (
+                self.enrich_started_at.isoformat() if self.enrich_started_at else None
+            ),
         }

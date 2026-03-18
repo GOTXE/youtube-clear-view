@@ -1,5 +1,5 @@
 // Service worker para YT Clear View — estrategia cache-first para assets estáticos.
-const CACHE_VERSION = 'ytcv-v3';
+const CACHE_VERSION = 'ytcv-v14';
 const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.json'];
 
 // Recursos precacheados en la instalación
@@ -13,7 +13,12 @@ const PRECACHE_URLS = [
   '/js/i18n.js',
   '/js/utils.js',
   '/js/api.js',
+  '/js/passkey-auth.js',
   '/js/auth.js',
+  '/js/device.js',
+  '/js/layout-mode.js',
+  '/js/login-page.js',
+  '/js/account-panel.js',
   '/js/app.js',
   '/i18n/en.json',
   '/i18n/es.json',
@@ -30,10 +35,19 @@ function isApiRequest(url) {
   return pathname.startsWith('/api') || pathname.startsWith('/logs');
 }
 
-// Instalación: precachea los recursos principales
+// Instalación: precachea los recursos principales (bypass HTTP cache para evitar
+// servir ficheros obsoletos cuando Caddy usa immutable en assets estáticos)
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then(cache => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_VERSION).then(cache =>
+      Promise.all(
+        PRECACHE_URLS.map(url =>
+          fetch(url, { cache: 'reload' }).then(res => {
+            if (res.ok) return cache.put(url, res);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });

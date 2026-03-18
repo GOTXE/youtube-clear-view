@@ -19,6 +19,7 @@ from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
+from app.services.enrichment_task import enrich_status_dict, start_enrich_task
 from app.services.refresh_governance import acquire_manual_refresh, evaluate_manual_refresh
 from app.services.video_ingest import (
     iter_refresh_user_channels,
@@ -1031,3 +1032,43 @@ def enrich_channel_video_evidence():
         "remaining_unclassified": remaining,
         "message": f"Processed {channels_processed} channels with recent video evidence.",
     })
+
+
+@channels_bp.post("/api/channels/classify")
+@handle_route_errors
+@require_auth
+def start_classify_task():
+    """Start a background enrichment + classification task."""
+    user = g.current_user
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=user.id, preset=DEFAULT_PRESET)
+        db.session.add(settings)
+        db.session.commit()
+
+    try:
+        status = start_enrich_task(current_app._get_current_object(), user, settings)
+    except ValueError:
+        return jsonify(enrich_status_dict(settings)), 409
+
+    if status is None:
+        return jsonify({
+            "active": False,
+            "message": "All channels are already classified.",
+        })
+
+    return jsonify(status), 202
+
+
+@channels_bp.get("/api/channels/classify/status")
+@handle_route_errors
+@require_auth
+def classify_status():
+    """Return the current enrichment task status."""
+    user = g.current_user
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        return jsonify({"active": False, "phase": None, "cursor": 0, "total": 0,
+                        "classified": 0, "errors": 0, "started_at": None})
+
+    return jsonify(enrich_status_dict(settings))

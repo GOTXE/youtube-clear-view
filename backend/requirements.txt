@@ -10,3 +10,4 @@ pytest
 google-api-python-client
 scikit-learn>=1.3.0
 webauthn>=2.7.1
+qrcode[pil]>=7.4

@@ -522,9 +522,18 @@ class Carousel {
     }
 
     const count = this.getVisibleCount();
+    const gap = this.options.gap || 20;
+    // Use px so cards overflow the track and scrollBy works correctly.
+    // Percentage flex-basis is relative to the container's visible width,
+    // which means cards never exceed 100% and nothing scrolls.
+    const trackWidth = this.track.clientWidth || this.track.offsetWidth || 800;
+    const totalGap = gap * (count - 1);
+    const cardWidth = Math.floor((trackWidth - totalGap) / count);
+
     const cards = this.track.querySelectorAll('.video-card');
     cards.forEach(card => {
-      card.style.flex = `0 0 ${100 / count}%`;
+      card.style.flex = `0 0 ${cardWidth}px`;
+      card.style.maxWidth = `${cardWidth}px`;
     });
   }
 

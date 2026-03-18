@@ -21,10 +21,7 @@ html[data-mode="desktop_tablet"] .carousel-track {
   gap: var(--space-5);
 }
 
-html[data-mode="desktop_tablet"] .video-card {
-  flex: 0 0 240px;
-  max-width: 240px;
-}
+/* .video-card width controlled by JS updateCardSizing() */
 
 html[data-mode="desktop_tablet"] .video-card__thumb {
   min-height: 169px;

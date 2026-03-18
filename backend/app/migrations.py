@@ -249,6 +249,42 @@ def ensure_user_settings_schema():
         )
 
 
+def ensure_enrich_settings_columns():
+    """Ensure user_settings table has enrich task columns."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_settings)")).fetchall()
+            if not result:
+                return
+
+            columns = {row[1] for row in result}
+            additions = [
+                ("enrich_active", "BOOLEAN DEFAULT 0"),
+                ("enrich_phase", "VARCHAR(20)"),
+                ("enrich_cursor", "INTEGER DEFAULT 0"),
+                ("enrich_total", "INTEGER DEFAULT 0"),
+                ("enrich_classified", "INTEGER DEFAULT 0"),
+                ("enrich_errors", "INTEGER DEFAULT 0"),
+                ("enrich_started_at", "DATETIME"),
+            ]
+
+            for name, column_def in additions:
+                if name not in columns:
+                    conn.execute(text(f"ALTER TABLE user_settings ADD COLUMN {name} {column_def}"))
+                    logger.info("Added column %s to user_settings table", name)
+    except Exception as error:
+        logger.warning(
+            "Enrich settings columns migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_user_device_schema():
     """Ensure newer user device columns exist in SQLite dev databases."""
     engine = db.engine

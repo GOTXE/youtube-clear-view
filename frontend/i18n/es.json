@@ -443,5 +443,13 @@
   "accountYoutubeUnlink": "Desvincular cuenta YouTube",
   "accountYoutubeUnlinking": "Desvinculando...",
   "accountYoutubeUnlinkSuccess": "Cuenta YouTube desvinculada.",
-  "accountYoutubeUnlinkFailed": "No se pudo desvincular la cuenta YouTube."
+  "accountYoutubeUnlinkFailed": "No se pudo desvincular la cuenta YouTube.",
+  "classifyChannels": "Clasificar canales",
+  "classifyingChannels": "Clasificando canales...",
+  "classifyEnriching": "Enriqueciendo metadatos de canales...",
+  "classifyEvidenceGathering": "Recopilando evidencia de videos...",
+  "classifyComplete": "{count} canales clasificados.",
+  "classifyNothingToDo": "Todos los canales ya estan clasificados.",
+  "classifyError": "Fallo la clasificacion.",
+  "classifyProgress": "Clasificando: {cursor}/{total} ({classified} clasificados)"
 }

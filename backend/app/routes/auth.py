@@ -396,9 +396,9 @@ def _serialize_pairing_status(pairing, status):
         "status": status,
         "public_id": pairing.public_id,
         "pairing_code": pairing.pairing_code,
-        "expires_at": pairing.expires_at.isoformat() if pairing.expires_at else None,
-        "approved_at": pairing.approved_at.isoformat() if pairing.approved_at else None,
-        "used_at": pairing.used_at.isoformat() if pairing.used_at else None,
+        "expires_at": (pairing.expires_at.isoformat() + "Z") if pairing.expires_at else None,
+        "approved_at": (pairing.approved_at.isoformat() + "Z") if pairing.approved_at else None,
+        "used_at": (pairing.used_at.isoformat() + "Z") if pairing.used_at else None,
     }
 
 
@@ -946,7 +946,13 @@ def start_pairing():
 @require_auth
 def approve_pairing():
     """Approve a pairing request from an already authenticated session."""
-    code = ((request.get_json(silent=True) or {}).get("code") or "").strip().upper()
+    raw = ((request.get_json(silent=True) or {}).get("code") or "").strip().upper()
+    # Normalize: strip non-alphanumeric, then re-insert hyphen (XXXX-XXXX)
+    digits = "".join(c for c in raw if c.isalnum())
+    if len(digits) == 8:
+        code = f"{digits[:4]}-{digits[4:]}"
+    else:
+        code = raw
     if not code:
         tracking_id = generate_tracking_id()
         return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
@@ -999,7 +1005,7 @@ def claim_pairing():
     session_token = _issue_session_for_user(user)
     db.session.commit()
 
-    response = jsonify(_serialize_authenticated_user(user) | {"pairing_claimed": True})
+    response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True, "pairing_claimed": True})
     _set_session_cookie(response, session_token)
     return response
 

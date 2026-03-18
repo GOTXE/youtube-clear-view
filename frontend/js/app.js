@@ -162,7 +162,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoryCarousels: document.getElementById('category-carousels'),
     categoriesLabel: document.getElementById('categories-label'),
     categoriesDescription: document.getElementById('categories-description'),
-    reclassifyBtn: document.getElementById('reclassify-btn')
+    reclassifyBtn: document.getElementById('reclassify-btn'),
+    classifyButton: document.getElementById('classify-channels-button')
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
@@ -346,6 +347,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.importButton) {
       ui.importButton.textContent = t('importChannels');
+    }
+    if (ui.classifyButton) {
+      ui.classifyButton.textContent = t('classifyChannels');
     }
     updateHeaderContext();
     const googleButton = document.getElementById('google-login-button');
@@ -2357,6 +2361,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       showNotification(t('allSubscriptionsUpToDate'), 'success');
     }
 
+    // Auto-classify unclassified channels after import + refresh
+    classifyUnclassifiedChannels(msg => setRefreshProgress(msg))
+      .then(count => {
+        setRefreshProgress('');
+        if (count > 0) showNotification(t('classifyComplete', { count }), 'success');
+      })
+      .catch(() => setRefreshProgress(''));
+
     return true;
   }
 
@@ -2390,6 +2402,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('auth:changed', event => {
       const user = event.detail ? event.detail.user : null;
       updateImportVisibility(user);
+    });
+  }
+
+  // ── Shared classify function ──────────────────────────────────────────────
+
+  async function classifyUnclassifiedChannels(progressCallback) {
+    const report = progressCallback || (() => {});
+
+    // Start the background task on the backend
+    const startResp = await api.startClassifyTask();
+    // Nothing to classify
+    if (startResp.ok && startResp.data && startResp.data.active === false) {
+      return 0;
+    }
+    // 409 means already running — continue to poll
+    if (!startResp.ok && startResp.status !== 409) {
+      throw new Error('Failed to start classify task');
+    }
+
+    // Poll until done
+    return new Promise((resolve, reject) => {
+      const poll = setInterval(async () => {
+        try {
+          const resp = await api.getClassifyStatus();
+          if (!resp.ok) {
+            clearInterval(poll);
+            reject(new Error('Failed to get classify status'));
+            return;
+          }
+          const s = resp.data;
+          if (s.active) {
+            report(t('classifyProgress', {
+              cursor: s.cursor,
+              total: s.total,
+              classified: s.classified
+            }));
+          } else {
+            clearInterval(poll);
+            report('');
+            // Refresh UI
+            await syncChannelsState();
+            renderChannelList(state.channels);
+            if (state.categoryManager) {
+              await state.categoryManager.init();
+            }
+            resolve(s.classified || 0);
+          }
+        } catch (err) {
+          clearInterval(poll);
+          reject(err);
+        }
+      }, 3000);
+    });
+  }
+
+  async function resumeClassifyPollIfActive() {
+    try {
+      const resp = await api.getClassifyStatus();
+      if (resp.ok && resp.data && resp.data.active) {
+        classifyUnclassifiedChannels(msg => setRefreshProgress(msg))
+          .then(count => {
+            setRefreshProgress('');
+            if (count > 0) showNotification(t('classifyComplete', { count }), 'success');
+          })
+          .catch(() => setRefreshProgress(''));
+      }
+    } catch (_) {
+      // Ignore — status check is best-effort on load
+    }
+  }
+
+  function setupClassifyButton() {
+    if (!ui.classifyButton) return;
+
+    ui.classifyButton.addEventListener('click', async () => {
+      ui.classifyButton.disabled = true;
+      const origText = ui.classifyButton.textContent;
+      try {
+        const classified = await classifyUnclassifiedChannels(msg => {
+          setRefreshProgress(msg);
+        });
+        if (classified > 0) {
+          showNotification(t('classifyComplete', { count: classified }), 'success');
+        } else {
+          showNotification(t('classifyNothingToDo'), 'info');
+        }
+      } catch (_) {
+        showNotification(t('classifyError'), 'error');
+      } finally {
+        ui.classifyButton.disabled = false;
+        setRefreshProgress('');
+      }
+    });
+
+    // Show/hide based on auth
+    const updateVisibility = user => {
+      ui.classifyButton.hidden = !user;
+    };
+    updateVisibility(state.currentUser);
+    window.addEventListener('auth:changed', event => {
+      updateVisibility(event.detail ? event.detail.user : null);
     });
   }
 
@@ -2511,6 +2624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     await initCategorySelector();
     await loadApp();
+    resumeClassifyPollIfActive();
   }
 
   async function init() {
@@ -2590,6 +2704,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupRefresh();
     setupImportButton();
     setupReclassifyButton();
+    setupClassifyButton();
     setupKeyboardNavigation();
     setupDebug();
   }

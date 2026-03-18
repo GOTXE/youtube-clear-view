@@ -421,6 +421,15 @@ class APIClient {
     return this.post('/api/channels/enrich-video-evidence', payload);
   }
 
+  // Background classification task
+  startClassifyTask() {
+    return this.post('/api/channels/classify');
+  }
+
+  getClassifyStatus() {
+    return this.get('/api/channels/classify/status');
+  }
+
   // Settings endpoints
   getSettings() {
     return this.get('/api/settings');

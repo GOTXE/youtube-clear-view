@@ -54,7 +54,8 @@
 
   const pairingState = {
     current: null,
-    claimTimerId: null
+    claimTimerId: null,
+    countdownTimerId: null
   };
 
   const adminState = {
@@ -152,6 +153,10 @@
     if (pairingState.claimTimerId) {
       window.clearInterval(pairingState.claimTimerId);
       pairingState.claimTimerId = null;
+    }
+    if (pairingState.countdownTimerId) {
+      window.clearInterval(pairingState.countdownTimerId);
+      pairingState.countdownTimerId = null;
     }
   }
 
@@ -1103,23 +1108,78 @@
     description.className = 'body';
     description.textContent = t('pairingApproveDescription');
 
-    const field = document.createElement('label');
+    const field = document.createElement('div');
     field.className = 'field';
 
     const label = document.createElement('span');
     label.className = 'field__label';
     label.textContent = t('pairingCodeLabel');
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'field__input';
-    input.id = 'pairing-approve-code';
-    input.autocomplete = 'off';
-    input.autocapitalize = 'characters';
-    input.placeholder = 'ABCD-EFGH';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:0.5rem;';
 
+    const inputStyle = 'text-transform:uppercase;letter-spacing:0.2em;font-family:monospace;text-align:center;font-size:1.25rem;width:6rem;';
+
+    const inputL = document.createElement('input');
+    inputL.type = 'text';
+    inputL.className = 'field__input';
+    inputL.id = 'pairing-approve-code-l';
+    inputL.autocomplete = 'off';
+    inputL.autocapitalize = 'characters';
+    inputL.maxLength = 4;
+    inputL.placeholder = 'XXXX';
+    inputL.style.cssText = inputStyle;
+
+    const sep = document.createElement('span');
+    sep.textContent = '–';
+    sep.style.cssText = 'font-size:1.5rem;font-weight:bold;user-select:none;';
+
+    const inputR = document.createElement('input');
+    inputR.type = 'text';
+    inputR.className = 'field__input';
+    inputR.id = 'pairing-approve-code-r';
+    inputR.autocomplete = 'off';
+    inputR.autocapitalize = 'characters';
+    inputR.maxLength = 4;
+    inputR.placeholder = 'XXXX';
+    inputR.style.cssText = inputStyle;
+
+    // Auto-uppercase + auto-jump to right input after 4 chars
+    inputL.addEventListener('input', () => {
+      inputL.value = inputL.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 4);
+      if (inputL.value.length === 4) inputR.focus();
+    });
+    inputR.addEventListener('input', () => {
+      inputR.value = inputR.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 4);
+    });
+    // Backspace on empty right input jumps back to left
+    inputR.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && inputR.value === '') {
+        e.preventDefault();
+        inputL.focus();
+      }
+      if (e.key === 'Enter') approvePairingFromModal();
+    });
+    inputL.addEventListener('keydown', e => {
+      if (e.key === 'Enter') approvePairingFromModal();
+    });
+    // Handle paste of full code (e.g. "XXXX-XXXX") on either input
+    function handlePaste(e) {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8);
+      inputL.value = clean.slice(0, 4);
+      inputR.value = clean.slice(4, 8);
+      if (inputR.value.length > 0) inputR.focus(); else inputL.focus();
+    }
+    inputL.addEventListener('paste', handlePaste);
+    inputR.addEventListener('paste', handlePaste);
+
+    row.appendChild(inputL);
+    row.appendChild(sep);
+    row.appendChild(inputR);
     field.appendChild(label);
-    field.appendChild(input);
+    field.appendChild(row);
     body.appendChild(description);
     body.appendChild(field);
 
@@ -1159,18 +1219,29 @@
     }
 
     const response = await api.claimPairing(pairingState.current.public_id);
-    if (!response.ok) {
+
+    // Expired or already used — stop polling
+    if (response.status === 410 || response.status === 409) {
       stopPairingClaimPolling();
       setStatusMessage(t('unableClaimDeviceCode'), 'error');
       return false;
     }
 
+    // Network error or other failure — keep polling silently
+    if (!response.ok) {
+      return false;
+    }
+
+    // Claim succeeded — user authenticated
     if (response.data && response.data.authenticated) {
+      stopPairingClaimPolling();
+      closePairingLoginModal();
       setAuthenticated(response.data);
       setStatusMessage(t('deviceCodeSignInSuccess'), 'success');
       return true;
     }
 
+    // Still pending — update modal state
     pairingState.current = response.data;
     renderPairingLoginModal();
     return false;
@@ -1199,6 +1270,33 @@
     pairingState.claimTimerId = window.setInterval(() => {
       claimPairingLogin();
     }, 3000);
+
+    // Countdown display
+    const expiresAt = response.data.expires_at;
+    const expiresMs = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 600000;
+    const statusNode = ui.pairingLoginModal
+      ? ui.pairingLoginModal.querySelector('#pairing-login-status')
+      : null;
+    const retryButton = ui.pairingLoginModal
+      ? ui.pairingLoginModal.querySelector('#pairing-login-retry-button')
+      : null;
+    pairingState.countdownTimerId = window.setInterval(() => {
+      const remaining = Math.max(0, Math.round((expiresMs - Date.now()) / 1000));
+      if (statusNode) {
+        if (remaining > 0) {
+          const mins = Math.floor(remaining / 60);
+          const secs = remaining % 60;
+          statusNode.textContent = t('pairingCodeWaiting') + ' (' + mins + ':' + String(secs).padStart(2, '0') + ')';
+        } else {
+          statusNode.textContent = t('unableClaimDeviceCode');
+        }
+      }
+      if (remaining === 0) {
+        stopPairingClaimPolling();
+        if (retryButton) retryButton.disabled = false;
+      }
+    }, 1000);
+
     setStatusMessage(t('pairingCodeWaiting'));
     return true;
   }
@@ -1225,11 +1323,12 @@
     if (!modal.parentNode) {
       document.body.appendChild(modal);
     }
-    const input = modal.querySelector('#pairing-approve-code');
-    if (input) {
-      input.value = '';
-    }
+    const inputL = modal.querySelector('#pairing-approve-code-l');
+    const inputR = modal.querySelector('#pairing-approve-code-r');
+    if (inputL) inputL.value = '';
+    if (inputR) inputR.value = '';
     modal.hidden = false;
+    if (inputL) inputL.focus();
   }
 
   async function approvePairingFromModal() {
@@ -1239,9 +1338,12 @@
       return false;
     }
 
-    const input = ui.pairingApproveModal.querySelector('#pairing-approve-code');
-    const code = input && input.value ? input.value.trim().toUpperCase() : '';
-    if (!code) {
+    const inputL = ui.pairingApproveModal.querySelector('#pairing-approve-code-l');
+    const inputR = ui.pairingApproveModal.querySelector('#pairing-approve-code-r');
+    const left = inputL ? inputL.value.trim().toUpperCase() : '';
+    const right = inputR ? inputR.value.trim().toUpperCase() : '';
+    const code = left && right ? left + '-' + right : left + right;
+    if (!code || code.replace(/-/g, '').length < 8) {
       setStatusMessage(t('pairingCodeRequired'), 'error');
       return false;
     }

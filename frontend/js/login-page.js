@@ -537,15 +537,20 @@
     if (loading) loading.hidden = true;
     if (codeBox) codeBox.hidden = false;
 
-    // Countdown display
+    // Countdown display (mm:ss)
     const expiresMs = expires_at ? new Date(expires_at).getTime() : Date.now() + 600_000;
     const countdownId = setInterval(() => {
       if (currentView !== 'pairing') { clearInterval(countdownId); return; }
       const remaining = Math.max(0, Math.round((expiresMs - Date.now()) / 1000));
       if (statusEl) {
-        statusEl.textContent = remaining > 0
-          ? `${t('pairingCodeWaiting')} (${remaining}s)`
-          : t('unableClaimDeviceCode');
+        if (remaining > 0) {
+          const mins = Math.floor(remaining / 60);
+          const secs = remaining % 60;
+          const ts = `${mins}:${String(secs).padStart(2, '0')}`;
+          statusEl.textContent = `${t('pairingCodeWaiting')} (${ts})`;
+        } else {
+          statusEl.textContent = t('unableClaimDeviceCode');
+        }
       }
       if (remaining === 0) {
         clearInterval(countdownId);
@@ -574,6 +579,7 @@
         _stopPairingPoll();
         if (statusEl) statusEl.textContent = t('pairingCodeApproved');
         notifyAuthSuccess(pollResp.data);
+        hide();
       }
       // status === 'pending' → keep polling
     }, 3000);

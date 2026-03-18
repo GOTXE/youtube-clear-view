@@ -126,6 +126,14 @@ class TFIDFClassifier:
     MIN_VIDEO_SHARE = 0.6
     MIN_VIDEO_MARGIN = 2
 
+    # Relaxed thresholds for channels with sparse data
+    MIN_CONFIDENCE_SPARSE = 0.12
+    MIN_MARGIN_SPARSE = 0.02
+    MIN_FALLBACK_SCORE_SPARSE = 2
+    MIN_FALLBACK_MARGIN_SPARSE = 1
+    MIN_VIDEO_EVIDENCE_SPARSE = 2
+    MIN_VIDEO_SHARE_SPARSE = 0.50
+
     def __init__(self):
         """Initialize the classifier with keyword corpus."""
         self.category_keywords = CATEGORY_KEYWORDS
@@ -212,7 +220,10 @@ class TFIDFClassifier:
             best_idx, best_score = ranked[0]
             second_score = ranked[1][1] if len(ranked) > 1 else 0.0
 
-            if best_score < self.MIN_CONFIDENCE or (best_score - second_score) < self.MIN_MARGIN:
+            sparse = self._is_sparse(channel)
+            min_conf = self.MIN_CONFIDENCE_SPARSE if sparse else self.MIN_CONFIDENCE
+            min_marg = self.MIN_MARGIN_SPARSE if sparse else self.MIN_MARGIN
+            if best_score < min_conf or (best_score - second_score) < min_marg:
                 logger.debug(
                     "Channel %s TF-IDF signal too weak (best=%s, second=%s)",
                     channel.yt_channel_id,
@@ -250,10 +261,13 @@ class TFIDFClassifier:
         best_category, best_score = ranked[0]
         second_score = ranked[1][1] if len(ranked) > 1 else 0
 
+        sparse = self._is_sparse(channel)
+        min_fb_score = self.MIN_FALLBACK_SCORE_SPARSE if sparse else self.MIN_FALLBACK_SCORE
+        min_fb_margin = self.MIN_FALLBACK_MARGIN_SPARSE if sparse else self.MIN_FALLBACK_MARGIN
         if (
             best_category
-            and best_score >= self.MIN_FALLBACK_SCORE
-            and (best_score - second_score) >= self.MIN_FALLBACK_MARGIN
+            and best_score >= min_fb_score
+            and (best_score - second_score) >= min_fb_margin
         ):
             confidence = min(best_score / 10, 0.8)
             return (best_category, confidence)
@@ -287,7 +301,9 @@ class TFIDFClassifier:
             counts[candidates[0]] += 1
             mapped_total += 1
 
-        if mapped_total < self.MIN_VIDEO_EVIDENCE or not counts:
+        sparse = self._is_sparse(channel)
+        min_vid_ev = self.MIN_VIDEO_EVIDENCE_SPARSE if sparse else self.MIN_VIDEO_EVIDENCE
+        if mapped_total < min_vid_ev or not counts:
             return None
 
         ranked = counts.most_common()
@@ -295,7 +311,8 @@ class TFIDFClassifier:
         second_score = ranked[1][1] if len(ranked) > 1 else 0
         share = best_score / mapped_total if mapped_total else 0.0
 
-        if share < self.MIN_VIDEO_SHARE or (best_score - second_score) < self.MIN_VIDEO_MARGIN:
+        min_vid_share = self.MIN_VIDEO_SHARE_SPARSE if sparse else self.MIN_VIDEO_SHARE
+        if share < min_vid_share or (best_score - second_score) < self.MIN_VIDEO_MARGIN:
             return None
 
         confidence = min(0.9, 0.7 + (share * 0.2))
@@ -342,6 +359,14 @@ class TFIDFClassifier:
                     parts.append(video.tags)
 
         return " ".join(parts)
+
+    def _is_sparse(self, channel) -> bool:
+        """Return True when a channel has limited metadata for classification."""
+        desc_len = len(channel.description or "") if channel.description else 0
+        video_count = 0
+        if getattr(channel, "id", None):
+            video_count = Video.query.filter_by(channel_id=channel.id).count()
+        return desc_len < 100 and video_count < 4
 
     def can_classify(self, channel) -> bool:
         """Check if this classifier can handle the channel."""

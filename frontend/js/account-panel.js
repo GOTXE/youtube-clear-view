@@ -15,15 +15,15 @@
   // ── State ─────────────────────────────────────────────────────────────────
 
   let overlay = null;
-  let activeTab = 'password';
+  let activeTab = 'profile';
   let currentDeviceIdentifier = null;
 
   // ── Public API ────────────────────────────────────────────────────────────
 
   function open(tab) {
     if (!overlay) build();
-    activeTab = tab || 'password';
-    overlay.hidden = false;
+    activeTab = tab || 'profile';
+    overlay.style.display = '';
     document.body.classList.add('account-panel-open');
     switchTab(activeTab);
     loadTab(activeTab);
@@ -31,7 +31,7 @@
 
   function close() {
     if (!overlay) return;
-    overlay.hidden = true;
+    overlay.style.display = 'none';
     document.body.classList.remove('account-panel-open');
   }
 
@@ -44,7 +44,7 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'ap-title');
-    overlay.hidden = true;
+    overlay.style.display = 'none';
 
     overlay.innerHTML = `
       <div class="account-panel__card">
@@ -54,6 +54,7 @@
         </header>
 
         <nav class="account-panel__tabs" role="tablist">
+          <button class="account-panel__tab" role="tab" data-tab="profile" data-i18n="accountTabProfile">Profile</button>
           <button class="account-panel__tab" role="tab" data-tab="password" data-i18n="accountTabPassword">Password</button>
           <button class="account-panel__tab" role="tab" data-tab="passkeys" data-i18n="accountTabPasskeys">Passkeys</button>
           <button class="account-panel__tab" role="tab" data-tab="totp" data-i18n="accountTabTotp">Authenticator</button>
@@ -62,8 +63,11 @@
         </nav>
 
         <div class="account-panel__body">
-          <!-- PASSWORD TAB -->
-          <div id="ap-tab-password" class="account-panel__panel" role="tabpanel">
+          <div id="ap-tab-profile" class="account-panel__panel" role="tabpanel" style="display:none">
+            <div id="ap-profile-content" class="account-panel__profile-content"></div>
+          </div>
+
+          <div id="ap-tab-password" class="account-panel__panel" role="tabpanel" style="display:none">
             <form id="ap-password-form" class="account-panel__form" novalidate>
               <label class="field">
                 <span class="field__label" data-i18n="accountPasswordCurrent">Current password</span>
@@ -77,13 +81,12 @@
                 <span class="field__label" data-i18n="accountPasswordConfirm">Confirm new password</span>
                 <input id="ap-pw-confirm" class="field__input" type="password" autocomplete="new-password" required>
               </label>
-              <p id="ap-pw-msg" class="account-panel__msg" hidden></p>
+              <p id="ap-pw-msg" class="account-panel__msg"></p>
               <button id="ap-pw-submit" class="button" type="submit" data-i18n="accountPasswordSave">Change password</button>
             </form>
           </div>
 
-          <!-- PASSKEYS TAB -->
-          <div id="ap-tab-passkeys" class="account-panel__panel" role="tabpanel" hidden>
+          <div id="ap-tab-passkeys" class="account-panel__panel" role="tabpanel" style="display:none">
             <div id="ap-passkeys-list" class="account-panel__list"></div>
             <div class="account-panel__actions">
               <label class="field account-panel__inline-field">
@@ -91,25 +94,27 @@
               </label>
               <button id="ap-passkey-add" class="button" type="button" data-i18n="accountPasskeyAdd">Add passkey</button>
             </div>
-            <p id="ap-passkeys-msg" class="account-panel__msg" hidden></p>
+            <p id="ap-passkeys-msg" class="account-panel__msg"></p>
           </div>
 
-          <!-- TOTP TAB -->
-          <div id="ap-tab-totp" class="account-panel__panel" role="tabpanel" hidden>
+          <div id="ap-tab-totp" class="account-panel__panel" role="tabpanel" style="display:none">
             <div id="ap-totp-status" class="account-panel__totp-status"></div>
           </div>
 
-          <!-- DEVICES TAB -->
-          <div id="ap-tab-devices" class="account-panel__panel" role="tabpanel" hidden>
+          <div id="ap-tab-devices" class="account-panel__panel" role="tabpanel" style="display:none">
             <div id="ap-devices-list" class="account-panel__list"></div>
-            <p id="ap-devices-msg" class="account-panel__msg" hidden></p>
+            <p id="ap-devices-msg" class="account-panel__msg"></p>
+            <div id="ap-devices-approve" class="account-panel__pairing-section"></div>
           </div>
 
-          <!-- YOUTUBE TAB -->
-          <div id="ap-tab-youtube" class="account-panel__panel" role="tabpanel" hidden>
+          <div id="ap-tab-youtube" class="account-panel__panel" role="tabpanel" style="display:none">
             <div id="ap-youtube-status" class="account-panel__youtube-status"></div>
           </div>
         </div>
+
+        <footer class="account-panel__footer">
+          <button id="ap-cancel" class="button button--ghost" type="button" data-i18n="cancel">${t('cancel')}</button>
+        </footer>
       </div>
     `;
 
@@ -137,12 +142,13 @@
       btn.setAttribute('aria-selected', String(active));
     });
     overlay.querySelectorAll('.account-panel__panel').forEach(panel => {
-      panel.hidden = panel.id !== `ap-tab-${tabName}`;
+      panel.style.display = panel.id === `ap-tab-${tabName}` ? '' : 'none';
     });
   }
 
   function loadTab(tabName) {
     switch (tabName) {
+      case 'profile': loadProfile(); break;
       case 'passkeys': loadPasskeys(); break;
       case 'totp': loadTotp(); break;
       case 'devices': loadDevices(); break;
@@ -155,6 +161,9 @@
   function attachEvents() {
     const closeBtn = document.getElementById('ap-close');
     if (closeBtn) closeBtn.addEventListener('click', close);
+
+    const cancelBtn = document.getElementById('ap-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', close);
 
     overlay.addEventListener('click', e => {
       if (e.target === overlay) close();
@@ -174,6 +183,78 @@
     // Passkey add
     const passkeyAdd = document.getElementById('ap-passkey-add');
     if (passkeyAdd) passkeyAdd.addEventListener('click', handlePasskeyAdd);
+  }
+
+  // ── Profile tab ─────────────────────────────────────────────────────────
+
+  async function loadProfile() {
+    const container = document.getElementById('ap-profile-content');
+    if (!container) return;
+    container.textContent = '…';
+
+    const api = getApi();
+    if (!api) return;
+    const resp = await api.getCurrentUser();
+    if (!resp.ok) { container.textContent = ''; return; }
+
+    renderProfile(resp.data, container);
+  }
+
+  function renderProfile(data, container) {
+    container.innerHTML = '';
+    const isLocal = data.auth_provider === 'local';
+    const providerLabel = isLocal ? t('accountProfileAuthLocal') : t('accountProfileAuthGoogle');
+
+    container.innerHTML = `
+      <div class="account-panel__profile-badge">
+        <span class="account-panel__auth-badge account-panel__auth-badge--${isLocal ? 'local' : 'google'}">${escapeHtml(providerLabel)}</span>
+      </div>
+      <form id="ap-profile-form" class="account-panel__form" novalidate>
+        <label class="field">
+          <span class="field__label">${t('accountProfileUsername')}</span>
+          <input id="ap-profile-username" class="field__input" type="text" value="${escapeHtml(data.username || '')}" maxlength="64">
+          <span class="field__hint">${t('accountProfileUsernameHint')}</span>
+        </label>
+        <label class="field">
+          <span class="field__label">${t('accountProfileDisplayName')}</span>
+          <input id="ap-profile-display-name" class="field__input" type="text" value="${escapeHtml(data.display_name || '')}" maxlength="128">
+        </label>
+        <label class="field">
+          <span class="field__label">${t('accountProfileEmail')}</span>
+          <input id="ap-profile-email" class="field__input field__input--readonly" type="text" value="${escapeHtml(data.email || '—')}" readonly>
+        </label>
+        <p id="ap-profile-msg" class="account-panel__msg" hidden></p>
+        <button id="ap-profile-save" class="button" type="submit">${t('accountProfileSave')}</button>
+      </form>
+    `;
+
+    const form = document.getElementById('ap-profile-form');
+    if (form) {
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('ap-profile-save');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = t('accountPasswordSaving'); }
+        clearMsg('ap-profile-msg');
+
+        const payload = {
+          display_name: (document.getElementById('ap-profile-display-name') || {}).value || '',
+          username: (document.getElementById('ap-profile-username') || {}).value || ''
+        };
+
+        const api = getApi();
+        const r = await api.updateProfile(payload);
+
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = t('accountProfileSave'); }
+
+        if (r.ok) {
+          showMsg('ap-profile-msg', t('accountProfileSaved'), 'success');
+        } else if (r.status === 409) {
+          showMsg('ap-profile-msg', t('accountProfileUsernameTaken'), 'error');
+        } else {
+          showMsg('ap-profile-msg', t('accountPasswordFailed'), 'error');
+        }
+      });
+    }
   }
 
   // ── Password tab ──────────────────────────────────────────────────────────
@@ -345,19 +426,30 @@
       const setupBtn = document.createElement('button');
       setupBtn.className = 'button';
       setupBtn.textContent = t('accountTotpSetup');
-      setupBtn.addEventListener('click', () => renderTotpSetupFlow(container));
+      setupBtn.addEventListener('click', () => {
+        setupBtn.disabled = true;
+        renderTotpSetupFlow(container);
+      });
       actionsEl.appendChild(setupBtn);
     } else {
       const disableBtn = document.createElement('button');
       disableBtn.className = 'button button--ghost';
       disableBtn.textContent = t('accountTotpDisable');
-      disableBtn.addEventListener('click', () => renderTotpDisableFlow(container));
+      disableBtn.addEventListener('click', () => {
+        disableBtn.disabled = true;
+        regenBtn.disabled = true;
+        renderTotpDisableFlow(container);
+      });
       actionsEl.appendChild(disableBtn);
 
       const regenBtn = document.createElement('button');
       regenBtn.className = 'button button--ghost';
       regenBtn.textContent = t('accountTotpRegenerateRecovery');
-      regenBtn.addEventListener('click', () => renderTotpRegenFlow(container));
+      regenBtn.addEventListener('click', () => {
+        regenBtn.disabled = true;
+        disableBtn.disabled = true;
+        renderTotpRegenFlow(container);
+      });
       actionsEl.appendChild(regenBtn);
     }
 
@@ -371,11 +463,15 @@
 
     api.setupTotp().then(resp => {
       if (!resp.ok) { container.innerHTML = ''; loadTotp(); return; }
-      const { secret, otpauth_url } = resp.data;
+      const { secret, otpauth_url, qr_code } = resp.data;
+
+      const qrHtml = qr_code
+        ? `<div class="account-panel__qr"><img src="${qr_code}" alt="TOTP QR" width="180" height="180"></div>`
+        : `<div class="account-panel__qr"><a href="${escapeHtml(otpauth_url)}" class="caption" style="word-break:break-all">${escapeHtml(otpauth_url)}</a></div>`;
 
       container.innerHTML = `
         <p class="body">${t('accountTotpScanQr')}</p>
-        <div id="ap-totp-qr" class="account-panel__qr"></div>
+        ${qrHtml}
         <p class="caption account-panel__totp-secret">${escapeHtml(secret)}</p>
         <form id="ap-totp-confirm-form" class="account-panel__form" novalidate>
           <label class="field">
@@ -389,8 +485,6 @@
           </div>
         </form>
       `;
-
-      renderQrCode(document.getElementById('ap-totp-qr'), otpauth_url);
 
       const form = document.getElementById('ap-totp-confirm-form');
       if (form) {
@@ -504,21 +598,6 @@
     if (cancelBtn) cancelBtn.addEventListener('click', () => loadTotp());
   }
 
-  function renderQrCode(container, otpauthUrl) {
-    if (!container) return;
-    // Use a QR code library if available (e.g. qrcode.js), otherwise show text
-    if (window.QRCode) {
-      new window.QRCode(container, { text: otpauthUrl, width: 180, height: 180 });
-    } else {
-      const a = document.createElement('a');
-      a.href = otpauthUrl;
-      a.textContent = otpauthUrl;
-      a.className = 'caption';
-      a.style.wordBreak = 'break-all';
-      container.appendChild(a);
-    }
-  }
-
   // ── Devices tab ───────────────────────────────────────────────────────────
 
   async function loadDevices() {
@@ -532,6 +611,7 @@
     if (!resp.ok) { container.textContent = ''; return; }
 
     renderDevices(resp.data || []);
+    renderPairingApproveSection();
   }
 
   function renderDevices(devices) {
@@ -585,6 +665,70 @@
       btn.disabled = false;
       btn.textContent = orig;
       showMsg('ap-devices-msg', t('accountDeviceRevokeFailed'), 'error');
+    }
+  }
+
+  function renderPairingApproveSection() {
+    const container = document.getElementById('ap-devices-approve');
+    if (!container) return;
+    container.innerHTML = `
+      <p class="body account-panel__section-title">${t('pairingApproveTitle')}</p>
+      <p class="caption account-panel__section-desc">${t('pairingApproveDescription')}</p>
+      <div class="account-panel__pairing-form">
+        <input id="ap-pairing-code-input" class="field__input account-panel__pairing-input"
+          type="text" maxlength="9" autocomplete="off" spellcheck="false"
+          placeholder="XXXX-XXXX">
+        <button id="ap-pairing-approve-btn" class="button" type="button">${t('approveDeviceCode')}</button>
+      </div>
+      <p id="ap-pairing-msg" class="account-panel__msg" hidden></p>
+    `;
+
+    const input = document.getElementById('ap-pairing-code-input');
+    if (input) {
+      // Auto-format: uppercase + insert hyphen after 4th char
+      input.addEventListener('input', () => {
+        const raw = input.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8);
+        input.value = raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw;
+      });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') handleApprovePairing();
+        // Allow backspace to remove hyphen cleanly
+        if (e.key === 'Backspace' && input.value.endsWith('-')) {
+          e.preventDefault();
+          input.value = input.value.slice(0, -1);
+        }
+      });
+    }
+
+    const btn = document.getElementById('ap-pairing-approve-btn');
+    if (btn) btn.addEventListener('click', () => handleApprovePairing());
+  }
+
+  async function handleApprovePairing() {
+    const input = document.getElementById('ap-pairing-code-input');
+    const btn = document.getElementById('ap-pairing-approve-btn');
+    const code = (input ? input.value.trim().toUpperCase() : '');
+    if (!code) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = t('approvingDeviceCode'); }
+    clearMsg('ap-pairing-msg');
+
+    const api = getApi();
+    const resp = await api.approvePairing(code);
+
+    if (btn) { btn.disabled = false; btn.textContent = t('approveDeviceCode'); }
+
+    if (resp.ok) {
+      if (input) input.value = '';
+      showMsg('ap-pairing-msg', t('deviceCodeApprovedSuccess'), 'success');
+      return;
+    }
+    if (resp.status === 404 || resp.status === 410) {
+      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
+    } else if (resp.status === 409) {
+      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
+    } else {
+      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
     }
   }
 

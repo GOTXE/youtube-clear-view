@@ -989,10 +989,11 @@ def claim_pairing():
 @handle_route_errors
 @require_auth
 def update_profile():
-    """Update the user's display name and theme preference."""
+    """Update the user's display name, theme preference, and username (local only)."""
     data = request.get_json(silent=True) or {}
     display_name = data.get("display_name")
     theme_preference = data.get("theme_preference")
+    new_username = data.get("username")
 
     if theme_preference and theme_preference not in ("light", "dark"):
         tracking_id = generate_tracking_id()
@@ -1002,6 +1003,35 @@ def update_profile():
         )
 
     user = g.current_user
+
+    # Username change
+    if new_username is not None:
+        import re
+
+        cleaned_username = new_username.strip()
+        if not cleaned_username or len(cleaned_username) < 3 or len(cleaned_username) > 64:
+            tracking_id = generate_tracking_id()
+            return (
+                jsonify({"error": "Username must be 3-64 characters.", "tracking_id": tracking_id, "status": 400}),
+                400,
+            )
+        if not re.match(r"^[A-Za-z0-9_.-]+$", cleaned_username):
+            tracking_id = generate_tracking_id()
+            return (
+                jsonify({"error": "Username contains invalid characters.", "tracking_id": tracking_id, "status": 400}),
+                400,
+            )
+        existing = User.query.filter(
+            User.username == cleaned_username, User.id != user.id
+        ).first()
+        if existing:
+            tracking_id = generate_tracking_id()
+            return (
+                jsonify({"error": "Username already taken.", "tracking_id": tracking_id, "status": 409}),
+                409,
+            )
+        user.username = cleaned_username
+
     if display_name is not None:
         cleaned = display_name.strip()
         user.display_name = cleaned if cleaned else None
@@ -1015,6 +1045,7 @@ def update_profile():
             "username": user.username,
             "display_name": user.display_name,
             "theme_preference": user.theme_preference,
+            "auth_provider": user.auth_provider,
         }
     )
 
@@ -1295,6 +1326,27 @@ def mfa_status():
     )
 
 
+def _build_totp_qr_data_url(otpauth_url: str) -> str | None:
+    """Generate a QR code SVG for the given otpauth URL and return it as a data URL."""
+    try:
+        import base64
+        import io
+
+        import qrcode
+        import qrcode.image.svg
+
+        img = qrcode.make(otpauth_url, image_factory=qrcode.image.svg.SvgImage)
+        buffer = io.BytesIO()
+        img.save(buffer)
+        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        return f"data:image/svg+xml;base64,{encoded}"
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Failed to generate TOTP QR code")
+        return None
+
+
 @auth_bp.post("/api/auth/totp/setup")
 @handle_route_errors
 @require_auth
@@ -1306,7 +1358,12 @@ def setup_totp():
     user.totp_pending_secret = secret
     db.session.commit()
 
-    return jsonify({"secret": secret, "otpauth_url": build_totp_uri(secret, account_name)})
+    otpauth_url = build_totp_uri(secret, account_name)
+    return jsonify({
+        "secret": secret,
+        "otpauth_url": otpauth_url,
+        "qr_code": _build_totp_qr_data_url(otpauth_url),
+    })
 
 
 @auth_bp.post("/api/auth/totp/confirm")

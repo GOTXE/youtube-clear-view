@@ -369,11 +369,23 @@
 
   "myAccount": "Mi cuenta",
   "accountPanelTitle": "Mi cuenta",
+  "accountTabProfile": "Perfil",
   "accountTabPassword": "Contrasena",
   "accountTabPasskeys": "Passkeys",
   "accountTabTotp": "Autenticador",
   "accountTabDevices": "Dispositivos",
   "accountTabYoutube": "YouTube",
+
+  "accountProfileUsername": "Usuario",
+  "accountProfileDisplayName": "Nombre para mostrar",
+  "accountProfileEmail": "Email",
+  "accountProfileAuthProvider": "Proveedor de autenticacion",
+  "accountProfileAuthLocal": "Local",
+  "accountProfileAuthGoogle": "Google",
+  "accountProfileSave": "Guardar perfil",
+  "accountProfileSaved": "Perfil actualizado.",
+  "accountProfileUsernameTaken": "El usuario ya esta en uso.",
+  "accountProfileUsernameHint": "Este es tu usuario de login para acceso local y desde otros dispositivos.",
 
   "accountPasswordCurrent": "Contrasena actual",
   "accountPasswordNew": "Nueva contrasena",

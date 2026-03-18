@@ -2010,7 +2010,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.myAccountButton.addEventListener('click', () => {
         setMenuOpen(false);
         if (window.ytcvAccountPanel) {
-          window.ytcvAccountPanel.open('password');
+          window.ytcvAccountPanel.open('profile');
         }
       });
     }

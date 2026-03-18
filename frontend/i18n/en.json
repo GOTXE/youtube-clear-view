@@ -369,11 +369,23 @@
 
   "myAccount": "My account",
   "accountPanelTitle": "My account",
+  "accountTabProfile": "Profile",
   "accountTabPassword": "Password",
   "accountTabPasskeys": "Passkeys",
   "accountTabTotp": "Authenticator",
   "accountTabDevices": "Devices",
   "accountTabYoutube": "YouTube",
+
+  "accountProfileUsername": "Username",
+  "accountProfileDisplayName": "Display name",
+  "accountProfileEmail": "Email",
+  "accountProfileAuthProvider": "Auth provider",
+  "accountProfileAuthLocal": "Local",
+  "accountProfileAuthGoogle": "Google",
+  "accountProfileSave": "Save profile",
+  "accountProfileSaved": "Profile updated.",
+  "accountProfileUsernameTaken": "Username already taken.",
+  "accountProfileUsernameHint": "This is your login username for local and device sign-in.",
 
   "accountPasswordCurrent": "Current password",
   "accountPasswordNew": "New password",

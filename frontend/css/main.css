@@ -1092,8 +1092,7 @@ select {
 }
 
 .video-card {
-  flex: 0 0 200px;
-  max-width: 200px;
+  flex: 0 0 200px; /* overridden by JS updateCardSizing() */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-2);
@@ -2278,6 +2277,57 @@ body.login-page-open #app {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  animation: ap-fade-in 0.15s ease-out;
+}
+
+.account-panel__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+@keyframes ap-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.account-panel__profile-badge {
+  margin-bottom: var(--space-1);
+}
+
+.account-panel__auth-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.account-panel__auth-badge--local {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--primary);
+}
+
+.account-panel__auth-badge--google {
+  background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+  color: var(--warning, #b45309);
+}
+
+.field__input--readonly {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--surface) 90%, var(--muted) 10%);
+}
+
+.field__hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
 .account-panel__form {
@@ -2414,5 +2464,62 @@ body.login-page-open #app {
 .button--sm {
   padding: var(--space-1) var(--space-3);
   font-size: 0.8125rem;
+}
+
+/* Pairing approve section (Devices tab) */
+.account-panel__pairing-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.account-panel__section-title {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
+}
+
+.account-panel__section-desc {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+}
+
+.account-panel__pairing-form {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.account-panel__pairing-input {
+  flex: 1;
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Pairing code display (login page) */
+.login-page__pairing-code {
+  text-align: center;
+  padding: var(--space-5) 0;
+}
+
+.login-page__pairing-code-value {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 700;
+  font-family: monospace;
+  letter-spacing: 0.25em;
+  color: var(--primary);
+  margin: 0 0 var(--space-2);
+}
+
+.login-page__pairing-status {
+  color: var(--muted);
+  margin: 0;
+}
+
+.login-page__pairing-loading {
+  text-align: center;
+  color: var(--muted);
+  padding: var(--space-5) 0;
 }
 

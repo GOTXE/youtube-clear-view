@@ -23,9 +23,11 @@
   // ── State ─────────────────────────────────────────────────────────────────
 
   let overlay = null;
-  let currentView = 'login'; // 'login' | 'register' | 'wizard'
+  let currentView = 'login'; // 'login' | 'register' | 'wizard' | 'pairing'
   let authProviderData = null;
   let visible = false;
+  let _pairingPollTimer = null;
+  let _pairingPublicId = null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -94,8 +96,9 @@
   // ── View switching ────────────────────────────────────────────────────────
 
   function showView(view, options = {}) {
+    if (currentView === 'pairing' && view !== 'pairing') _stopPairingPoll();
     currentView = view;
-    const views = ['login', 'register', 'wizard'];
+    const views = ['login', 'register', 'wizard', 'pairing'];
     views.forEach(v => {
       const panel = el(`lp-${v}`);
       if (panel) panel.hidden = v !== view;
@@ -156,7 +159,7 @@
           <div class="login-page__alt-actions" id="lp-alt-actions">
             <button id="lp-google-button" class="button button--ghost login-page__google-btn" type="button" hidden data-i18n="loginWithGoogle">Continue with Google</button>
             <button id="lp-passkey-button" class="button button--ghost" type="button" hidden data-i18n="loginWithPasskey">Sign in with passkey</button>
-            <button id="lp-device-button" class="button button--ghost" type="button" hidden data-i18n="loginWithDevice">Approve with device</button>
+            <button id="lp-device-button" class="button button--ghost" type="button" hidden data-i18n="signInWithDeviceCode">Sign in with device code</button>
           </div>
           <p class="login-page__switch caption">
             <span data-i18n="loginNoAccount">No account yet?</span>
@@ -189,6 +192,22 @@
             <span data-i18n="registerHaveAccount">Already have an account?</span>
             <button id="lp-go-login" class="login-page__link" type="button" data-i18n="registerLoginLink">Sign in</button>
           </p>
+        </div>
+
+        <!-- PAIRING PANEL -->
+        <div id="lp-pairing" class="login-page__panel" hidden>
+          <h2 class="heading-2 login-page__title" data-i18n="pairingLoginTitle">Sign in with device code</h2>
+          <p class="body login-page__subtitle" data-i18n="pairingLoginDescription">Use a device code when another signed-in device is nearby to approve this sign-in.</p>
+          <div id="lp-pairing-code-box" class="login-page__pairing-code" hidden>
+            <p class="login-page__pairing-code-value" id="lp-pairing-code-display"></p>
+            <p class="caption login-page__pairing-status" id="lp-pairing-status"></p>
+          </div>
+          <p id="lp-pairing-loading" class="body login-page__pairing-loading" data-i18n="pairingCodeStarting">Generating device code...</p>
+          <p id="lp-pairing-error" class="login-page__error body" role="alert" hidden></p>
+          <div class="login-page__alt-actions">
+            <button id="lp-pairing-cancel" class="button button--ghost" type="button" data-i18n="cancel">Cancel</button>
+            <button id="lp-pairing-new" class="button button--ghost" type="button" data-i18n="generateNewDeviceCode" hidden>Generate new code</button>
+          </div>
         </div>
 
         <!-- SETUP WIZARD PANEL -->
@@ -254,6 +273,7 @@
   function applyAuthProviderButtons() {
     const googleBtn = el('lp-google-button');
     const passkeyBtn = el('lp-passkey-button');
+    const deviceBtn = el('lp-device-button');
     const divider = el('lp-divider');
 
     const hasGoogle = authProviderData && authProviderData.google_login_url;
@@ -261,12 +281,14 @@
       window.ytcvPasskeys
       && typeof window.ytcvPasskeys.isSupported === 'function'
       && window.ytcvPasskeys.isSupported()
+      && typeof window.ytcvPasskeys.authenticateWithPasskey === 'function'
     );
 
     if (googleBtn) googleBtn.hidden = !hasGoogle;
     if (passkeyBtn) passkeyBtn.hidden = !hasPasskeys;
+    if (deviceBtn) deviceBtn.hidden = false; // always available
 
-    const anyAlt = hasGoogle || hasPasskeys;
+    const anyAlt = hasGoogle || hasPasskeys || true;
     if (divider) divider.hidden = !anyAlt;
   }
 
@@ -331,13 +353,25 @@
       });
     }
 
-    // Device
+    // Device pairing
     const deviceBtn = el('lp-device-button');
     if (deviceBtn) {
       deviceBtn.addEventListener('click', () => {
-        // Delegate to the existing pairing flow in auth.js
-        window.dispatchEvent(new CustomEvent('login-page:request-device-pairing'));
+        showView('pairing');
+        startPairingFlow();
       });
+    }
+
+    // Pairing cancel
+    const pairingCancel = el('lp-pairing-cancel');
+    if (pairingCancel) {
+      pairingCancel.addEventListener('click', () => showView('login'));
+    }
+
+    // Pairing new code
+    const pairingNew = el('lp-pairing-new');
+    if (pairingNew) {
+      pairingNew.addEventListener('click', () => startPairingFlow());
     }
   }
 
@@ -462,20 +496,107 @@
     setError('lp-wizard-error', t('setupWizardError'));
   }
 
-  async function handlePasskeyLogin() {
-    if (!window.ytcvPasskeys || typeof window.ytcvPasskeys.authenticate !== 'function') {
+  // ── Pairing flow (device code login) ─────────────────────────────────────
+
+  function _stopPairingPoll() {
+    if (_pairingPollTimer) { clearInterval(_pairingPollTimer); _pairingPollTimer = null; }
+    _pairingPublicId = null;
+  }
+
+  async function startPairingFlow() {
+    _stopPairingPoll();
+
+    const codeBox = el('lp-pairing-code-box');
+    const loading = el('lp-pairing-loading');
+    const newBtn = el('lp-pairing-new');
+    const errEl = el('lp-pairing-error');
+    const statusEl = el('lp-pairing-status');
+
+    if (codeBox) codeBox.hidden = true;
+    if (loading) loading.hidden = false;
+    if (newBtn) newBtn.hidden = true;
+    if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+
+    const api = getApi();
+    if (!api) return;
+
+    const resp = await api.startPairing(null);
+    if (!resp.ok || !resp.data) {
+      if (loading) loading.hidden = true;
+      if (errEl) { errEl.textContent = t('unableStartDeviceCode'); errEl.hidden = false; }
+      if (newBtn) newBtn.hidden = false;
       return;
     }
-    const passkeyBtn = el('lp-passkey-button');
-    if (passkeyBtn) passkeyBtn.disabled = true;
 
-    try {
-      const user = await window.ytcvPasskeys.authenticate();
-      if (user) {
-        notifyAuthSuccess(user);
+    const { public_id, pairing_code, expires_at } = resp.data;
+    _pairingPublicId = public_id;
+
+    const codeDisplay = el('lp-pairing-code-display');
+    if (codeDisplay) codeDisplay.textContent = pairing_code;
+    if (statusEl) statusEl.textContent = t('pairingCodeWaiting');
+    if (loading) loading.hidden = true;
+    if (codeBox) codeBox.hidden = false;
+
+    // Countdown display
+    const expiresMs = expires_at ? new Date(expires_at).getTime() : Date.now() + 600_000;
+    const countdownId = setInterval(() => {
+      if (currentView !== 'pairing') { clearInterval(countdownId); return; }
+      const remaining = Math.max(0, Math.round((expiresMs - Date.now()) / 1000));
+      if (statusEl) {
+        statusEl.textContent = remaining > 0
+          ? `${t('pairingCodeWaiting')} (${remaining}s)`
+          : t('unableClaimDeviceCode');
       }
-    } finally {
-      if (passkeyBtn) passkeyBtn.disabled = false;
+      if (remaining === 0) {
+        clearInterval(countdownId);
+        _stopPairingPoll();
+        if (newBtn) newBtn.hidden = false;
+      }
+    }, 1000);
+
+    // Poll for approval
+    _pairingPollTimer = setInterval(async () => {
+      if (!_pairingPublicId || currentView !== 'pairing') {
+        _stopPairingPoll(); clearInterval(countdownId); return;
+      }
+      const pollResp = await api.claimPairing(_pairingPublicId);
+      if (pollResp.status === 410 || pollResp.status === 409) {
+        // Expired or already used
+        clearInterval(countdownId);
+        _stopPairingPoll();
+        if (statusEl) statusEl.textContent = t('unableClaimDeviceCode');
+        if (newBtn) newBtn.hidden = false;
+        return;
+      }
+      if (!pollResp.ok) return; // network error, keep polling
+      if (pollResp.data && pollResp.data.pairing_claimed) {
+        clearInterval(countdownId);
+        _stopPairingPoll();
+        if (statusEl) statusEl.textContent = t('pairingCodeApproved');
+        notifyAuthSuccess(pollResp.data);
+      }
+      // status === 'pending' → keep polling
+    }, 3000);
+  }
+
+  async function handlePasskeyLogin() {
+    if (!window.ytcvPasskeys || typeof window.ytcvPasskeys.authenticateWithPasskey !== 'function') {
+      return;
+    }
+    const passkeyBtnEl = el('lp-passkey-button');
+    if (passkeyBtnEl) passkeyBtnEl.disabled = true;
+
+    const passkeyApi = getApi();
+    let passkeyResp = null;
+    try {
+      passkeyResp = await window.ytcvPasskeys.authenticateWithPasskey(passkeyApi);
+    } catch (_) { /* user cancelled or error */ }
+
+    if (passkeyBtnEl) passkeyBtnEl.disabled = false;
+
+    if (passkeyResp && passkeyResp.ok && passkeyResp.data) {
+      notifyAuthSuccess(passkeyResp.data);
+      hide();
     }
   }
 

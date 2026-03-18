@@ -33,9 +33,15 @@
     }
 
     if (ui.channels) {
+      ui.channels.setAttribute('aria-pressed', 'true');
       ui.channels.addEventListener('click', () => {
-        if (callbacks && typeof callbacks.focusChannels === 'function') {
-          callbacks.focusChannels();
+        const layout = document.querySelector('.app-layout');
+        if (layout) {
+          const hidden = layout.classList.toggle('sidebar-hidden');
+          ui.channels.setAttribute('aria-pressed', String(!hidden));
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+          }, 350);
         }
       });
     }

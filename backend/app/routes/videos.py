@@ -436,6 +436,54 @@ def clear_progress(video_id):
     return "", 204
 
 
+@videos_bp.get("/api/videos/in-progress")
+@handle_route_errors
+@require_auth
+def list_in_progress():
+    """Return videos with saved playback progress, most recently updated first."""
+    user = g.current_user
+    limit = min(int(request.args.get("limit", 20)), 100)
+    offset = int(request.args.get("offset", 0))
+
+    progress_query = (
+        VideoProgress.query
+        .filter_by(user_id=user.id)
+        .order_by(VideoProgress.updated_at.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+
+    has_more = len(progress_query) > limit
+    entries = progress_query[:limit]
+
+    if not entries:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    video_ids = [e.video_id for e in entries]
+    videos_map = {v.id: v for v in Video.query.filter(Video.id.in_(video_ids)).all()}
+
+    watched_entries = (
+        WatchedVideo.query.filter_by(user_id=user.id)
+        .filter(WatchedVideo.video_id.in_(video_ids))
+        .all()
+    )
+    watched_ids = {e.video_id for e in watched_entries}
+
+    payload = []
+    for entry in entries:
+        video = videos_map.get(entry.video_id)
+        if not video:
+            continue
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=entry.position_seconds,
+        ))
+
+    next_offset = offset + limit if has_more else None
+    return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
+
+
 @videos_bp.get("/api/videos/search")
 @handle_route_errors
 @require_auth

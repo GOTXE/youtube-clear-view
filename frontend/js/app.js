@@ -132,6 +132,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     quotaStatus: document.getElementById('quota-status'),
     quotaHint: document.getElementById('quota-hint'),
     backfillStatus: document.getElementById('backfill-status'),
+    inProgressCarousel: document.getElementById('in-progress-carousel'),
+    inProgressSection: document.getElementById('in-progress-section'),
+    inProgressCount: document.getElementById('in-progress-count'),
+    inProgressLabel: document.getElementById('in-progress-label'),
     latestCarousel: document.getElementById('latest-carousel'),
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
@@ -308,6 +312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.refreshButton) {
       ui.refreshButton.textContent = t('refresh');
+    }
+    if (ui.inProgressLabel) {
+      ui.inProgressLabel.textContent = t('continueWatching');
     }
     if (ui.videosLabel) {
       ui.videosLabel.textContent = t('videos');
@@ -1141,6 +1148,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.carousels.forEach(carousel => carousel.destroy(preserveDOM));
     state.carousels = [];
 
+    if (!preserveDOM && ui.inProgressCarousel) {
+      ui.inProgressCarousel.innerHTML = '';
+    }
+    if (ui.inProgressSection) {
+      ui.inProgressSection.hidden = true;
+    }
     if (!preserveDOM && ui.latestCarousel) {
       ui.latestCarousel.innerHTML = '';
     }
@@ -1152,6 +1165,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (!preserveDOM && ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
+    }
+  }
+
+  async function renderInProgressCarousel() {
+    if (!ui.inProgressCarousel || !ui.inProgressSection) {
+      return;
+    }
+
+    let totalCount = 0;
+    const carousel = new window.Carousel('in-progress-carousel', async (offset, limit) => {
+      const response = await api.getInProgressVideos(limit, offset);
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      const data = response.data;
+      if (offset === 0) {
+        totalCount = data.videos.length;
+      } else {
+        totalCount += data.videos.length;
+      }
+      return data;
+    }, { preserveContentOnInit: true });
+
+    await carousel.init();
+    state.carousels.push(carousel);
+
+    if (totalCount > 0) {
+      ui.inProgressSection.hidden = false;
+      if (ui.inProgressCount) {
+        ui.inProgressCount.textContent = totalCount;
+      }
+    } else {
+      ui.inProgressSection.hidden = true;
     }
   }
 
@@ -1721,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     clearCarousels();
+    await renderInProgressCarousel();
     await renderMainCarousel();
     state.initialContentReady = true;
 
@@ -1753,6 +1800,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function reloadCarousels() {
     clearCarousels(true);
+    await renderInProgressCarousel();
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();

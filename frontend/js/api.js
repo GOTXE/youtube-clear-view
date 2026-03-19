@@ -302,6 +302,10 @@ class APIClient {
     return this.delete(`/api/videos/${videoId}/progress`);
   }
 
+  getInProgressVideos(limit = 20, offset = 0) {
+    return this.get('/api/videos/in-progress', { limit, offset });
+  }
+
   searchVideos(query, filters = {}) {
     const params = { q: query, ...filters };
     return this.get('/api/videos/search', params);

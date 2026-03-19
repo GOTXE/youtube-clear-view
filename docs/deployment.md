@@ -7,6 +7,19 @@
 - SSH access to the NAS
 - `.env` configured with production values
 
+## Secret Key
+
+`FLASK_SECRET_KEY` is used to sign session cookies. If you do not set it in
+`.env`, the application generates a random 64-character hex key on first
+startup and stores it in `.flask_secret_key` next to the SQLite database file.
+
+- **Docker**: the key persists as long as the data volume (`backend_data`) is
+  preserved. Recreating the container without removing the volume keeps
+  existing sessions valid.
+- **Manual override**: set `FLASK_SECRET_KEY=<your-key>` in `.env` to use a
+  fixed value. The file-based key is ignored when the env var is present.
+- **Security**: `.flask_secret_key` is gitignored. Never commit it.
+
 ## Backend Deployment (Synology NAS)
 
 ### Option A: Run Script (systemd/manual)

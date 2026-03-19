@@ -123,7 +123,7 @@ pytest backend/tests -v -m "not slow"
 ## Configuration
 
 **Required Environment Variables** (in `backend/.env`):
-- `FLASK_SECRET_KEY`: Session encryption key
+- `FLASK_SECRET_KEY`: Session encryption key (auto-generated on first run if not set; stored in `.flask_secret_key`)
 - `YT_API_KEY`: YouTube Data API key
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: OAuth credentials (if using Google auth)
 - `GOOGLE_REDIRECT_URI`: OAuth callback URL

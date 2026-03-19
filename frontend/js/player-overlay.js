@@ -323,19 +323,14 @@
   // ── Confirm dialog ────────────────────────────────────────────────
 
   function showConfirm() {
-    if (!ui.confirm) {
-      return;
-    }
     if (ui.confirmMessage) {
       ui.confirmMessage.textContent = t('playerCloseConfirmMessage');
-    }
-    if (ui.confirmWatch) {
-      ui.confirmWatch.textContent = t('markWatched');
+      ui.confirmMessage.hidden = false;
     }
     if (ui.confirmLater) {
       ui.confirmLater.textContent = t('playerContinueLater');
+      ui.confirmLater.hidden = false;
     }
-    ui.confirm.hidden = false;
     confirmVisible = true;
 
     // Pause video while user decides
@@ -344,14 +339,17 @@
     }
 
     focusables = getFocusableElements();
-    if (ui.confirmWatch) {
-      ui.confirmWatch.focus();
+    if (ui.markWatched) {
+      ui.markWatched.focus();
     }
   }
 
   function hideConfirm() {
-    if (ui.confirm) {
-      ui.confirm.hidden = true;
+    if (ui.confirmMessage) {
+      ui.confirmMessage.hidden = true;
+    }
+    if (ui.confirmLater) {
+      ui.confirmLater.hidden = true;
     }
     confirmVisible = false;
   }
@@ -483,9 +481,7 @@
       close: document.getElementById('player-overlay-close'),
       markWatched: document.getElementById('player-overlay-mark-watched'),
       openYoutube: document.getElementById('player-overlay-open-youtube'),
-      confirm: document.getElementById('player-overlay-confirm'),
       confirmMessage: document.getElementById('player-overlay-confirm-message'),
-      confirmWatch: document.getElementById('player-overlay-confirm-watch'),
       confirmLater: document.getElementById('player-overlay-confirm-later')
     };
 
@@ -507,19 +503,17 @@
 
     if (ui.markWatched) {
       ui.markWatched.addEventListener('click', () => {
-        handleMarkWatched();
+        if (confirmVisible) {
+          handleConfirmWatch();
+        } else {
+          handleMarkWatched();
+        }
       });
     }
 
     if (ui.openYoutube) {
       ui.openYoutube.addEventListener('click', () => {
         handleOpenOnYouTube();
-      });
-    }
-
-    if (ui.confirmWatch) {
-      ui.confirmWatch.addEventListener('click', () => {
-        handleConfirmWatch();
       });
     }
 

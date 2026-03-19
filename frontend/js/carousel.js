@@ -298,6 +298,14 @@ class Carousel {
       thumb.appendChild(image);
     }
 
+    const durationBadgeText = this.formatDuration(video.duration);
+    if (durationBadgeText) {
+      const badge = document.createElement('span');
+      badge.className = 'video-card__duration';
+      badge.textContent = durationBadgeText;
+      thumb.appendChild(badge);
+    }
+
     const body = document.createElement('div');
     body.className = 'video-card__body';
 

@@ -1,6 +1,7 @@
 """Application configuration loaded from environment variables."""
 
 import os
+import secrets
 
 from dotenv import load_dotenv
 
@@ -8,10 +9,42 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _resolve_secret_key():
+    """Return FLASK_SECRET_KEY from env, or auto-generate and persist one.
+
+    The key is stored in a file next to the database so it survives
+    container rebuilds as long as the data volume is preserved.
+    """
+    env_key = os.getenv("FLASK_SECRET_KEY")
+    if env_key:
+        return env_key
+
+    db_uri = os.getenv("DATABASE_URI", "sqlite:///yt_clear_view.db")
+    if db_uri.startswith("sqlite:///"):
+        db_path = db_uri.replace("sqlite:///", "", 1)
+        key_dir = os.path.dirname(os.path.abspath(db_path)) if os.path.dirname(db_path) else "."
+    else:
+        key_dir = os.path.join(os.path.dirname(__file__), "..")
+
+    key_file = os.path.join(key_dir, ".flask_secret_key")
+
+    if os.path.isfile(key_file):
+        with open(key_file, "r") as fh:
+            stored = fh.read().strip()
+            if stored:
+                return stored
+
+    new_key = secrets.token_hex(32)
+    os.makedirs(key_dir, exist_ok=True)
+    with open(key_file, "w") as fh:
+        fh.write(new_key)
+    return new_key
+
+
 class Config:
     """Base configuration class for Flask."""
 
-    FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
+    FLASK_SECRET_KEY = _resolve_secret_key()
     YT_API_KEY = os.getenv("YT_API_KEY")
     DATABASE_URI = os.getenv("DATABASE_URI", "sqlite:///yt_clear_view.db")
     FLASK_PORT = int(os.getenv("FLASK_PORT", "5550"))
@@ -70,8 +103,6 @@ class Config:
     @staticmethod
     def validate():
         """Validate critical configuration values."""
-        if not Config.FLASK_SECRET_KEY:
-            raise ValueError("FLASK_SECRET_KEY is required.")
         if not Config.FLASK_DEBUG and not Config.YT_API_KEY:
             raise ValueError("YT_API_KEY is required in production.")
 

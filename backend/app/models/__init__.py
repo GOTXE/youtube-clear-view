@@ -8,7 +8,7 @@ from .passkey import UserPasskey
 from .theme import Theme, ThemeChannel
 from .user import User
 from .user_settings import UserSettings
-from .video import Video, WatchedVideo
+from .video import Video, VideoProgress, WatchedVideo
 
 __all__ = [
     "User",
@@ -22,6 +22,7 @@ __all__ = [
     "ThemeChannel",
     "Video",
     "WatchedVideo",
+    "VideoProgress",
     "UserDevice",
     "LoginPairing",
     "UserPasskey",

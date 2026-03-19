@@ -11,7 +11,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, WatchedVideo
+from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, VideoProgress, WatchedVideo
 
 videos_bp = Blueprint("videos", __name__)
 logger = get_logger(__name__)
@@ -24,23 +24,27 @@ def _bad_request(message):
     return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
 
 
-def _serialize_video(video, channel, watched):
-    """Serialize video with channel data and watched flag."""
-    return {
+def _serialize_video(video, channel, watched, progress=None):
+    """Serialize video with channel data, watched flag, and optional progress."""
+    result = {
         "video": video.to_dict(),
         "channel": channel.to_dict() if channel else None,
         "watched": watched,
     }
+    if progress is not None:
+        result["progress"] = progress
+    return result
 
 
 def _paginate_videos(query, user_id, limit, offset):
-    """Return paginated videos with watched flags."""
+    """Return paginated videos with watched flags and progress."""
     items = query.offset(offset).limit(limit + 1).all()
     has_more = len(items) > limit
     videos = items[:limit]
 
     video_ids = [video.id for video in videos]
     watched_ids = set()
+    progress_map = {}
     if video_ids:
         watched_entries = (
             WatchedVideo.query.filter_by(user_id=user_id)
@@ -49,16 +53,26 @@ def _paginate_videos(query, user_id, limit, offset):
         )
         watched_ids = {entry.video_id for entry in watched_entries}
 
+        progress_entries = (
+            VideoProgress.query.filter_by(user_id=user_id)
+            .filter(VideoProgress.video_id.in_(video_ids))
+            .all()
+        )
+        progress_map = {p.video_id: p.position_seconds for p in progress_entries}
+
     payload = []
     for video in videos:
-        payload.append(_serialize_video(video, video.channel, video.id in watched_ids))
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=progress_map.get(video.id),
+        ))
 
     next_offset = offset + limit if has_more else None
     return payload, has_more, next_offset
 
 
 def _paginate_videos_random(query, user_id, limit, offset, seed):
-    """Return randomized videos with watched flags, stable per seed."""
+    """Return randomized videos with watched flags and progress, stable per seed."""
     items = query.all()
     rng = random.Random(seed)
     rng.shuffle(items)
@@ -67,6 +81,7 @@ def _paginate_videos_random(query, user_id, limit, offset, seed):
 
     video_ids = [video.id for video in videos]
     watched_ids = set()
+    progress_map = {}
     if video_ids:
         watched_entries = (
             WatchedVideo.query.filter_by(user_id=user_id)
@@ -75,9 +90,19 @@ def _paginate_videos_random(query, user_id, limit, offset, seed):
         )
         watched_ids = {entry.video_id for entry in watched_entries}
 
+        progress_entries = (
+            VideoProgress.query.filter_by(user_id=user_id)
+            .filter(VideoProgress.video_id.in_(video_ids))
+            .all()
+        )
+        progress_map = {p.video_id: p.position_seconds for p in progress_entries}
+
     payload = []
     for video in videos:
-        payload.append(_serialize_video(video, video.channel, video.id in watched_ids))
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=progress_map.get(video.id),
+        ))
 
     next_offset = offset + limit if has_more else None
     return payload, has_more, next_offset
@@ -336,7 +361,10 @@ def mark_watched(video_id):
     if not watched:
         watched = WatchedVideo(user_id=user.id, video_id=video.id, device_id=device_id)
         db.session.add(watched)
-        db.session.commit()
+
+    # Clear any saved playback progress
+    VideoProgress.query.filter_by(user_id=user.id, video_id=video.id).delete()
+    db.session.commit()
 
     return "", 204
 
@@ -351,6 +379,60 @@ def unwatch_video(video_id):
     if watched:
         db.session.delete(watched)
         db.session.commit()
+    return "", 204
+
+
+@videos_bp.put("/api/videos/<int:video_id>/progress")
+@handle_route_errors
+@require_auth
+def save_progress(video_id):
+    """Save playback position for resume functionality."""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+
+    position = payload.get("position_seconds")
+    if position is None or not isinstance(position, (int, float)) or position < 0:
+        return _bad_request("position_seconds is required and must be >= 0.")
+
+    duration = payload.get("duration_seconds")
+    if duration is not None and (not isinstance(duration, (int, float)) or duration <= 0):
+        duration = None
+
+    video = db.session.get(Video, video_id)
+    if not video:
+        tracking_id = generate_tracking_id()
+        logger.warning("Video not found.", extra={"tracking_id": tracking_id})
+        return (
+            jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}),
+            404,
+        )
+
+    progress = VideoProgress.query.filter_by(user_id=user.id, video_id=video.id).first()
+    if progress:
+        progress.position_seconds = int(position)
+        progress.duration_seconds = int(duration) if duration else progress.duration_seconds
+        progress.updated_at = datetime.utcnow()
+    else:
+        progress = VideoProgress(
+            user_id=user.id,
+            video_id=video.id,
+            position_seconds=int(position),
+            duration_seconds=int(duration) if duration else None,
+        )
+        db.session.add(progress)
+
+    db.session.commit()
+    return "", 204
+
+
+@videos_bp.delete("/api/videos/<int:video_id>/progress")
+@handle_route_errors
+@require_auth
+def clear_progress(video_id):
+    """Clear saved playback position for a video."""
+    user = g.current_user
+    VideoProgress.query.filter_by(user_id=user.id, video_id=video_id).delete()
+    db.session.commit()
     return "", 204
 
 

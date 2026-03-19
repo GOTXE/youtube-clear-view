@@ -70,3 +70,23 @@ class WatchedVideo(db.Model):
             "device_id": self.device_id,
             "watched_at": self.watched_at.isoformat() if self.watched_at else None,
         }
+
+
+class VideoProgress(db.Model):
+    """Tracks playback position for resume functionality."""
+
+    __tablename__ = "video_progress"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=False, index=True)
+    position_seconds = db.Column(db.Integer, nullable=False)
+    duration_seconds = db.Column(db.Integer)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship("User", backref="video_progress_entries")
+    video = db.relationship("Video", backref="progress_entries")
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "video_id", name="uq_user_video_progress"),
+    )

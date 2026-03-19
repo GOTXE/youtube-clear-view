@@ -1,4 +1,6 @@
 // Embedded player overlay for desktop/tablet and TV modes.
+// Integrates YouTube IFrame Player API for progress tracking,
+// auto-mark watched at 75%, and playback resume.
 
 (() => {
   let initialized = false;
@@ -9,6 +11,25 @@
   let currentChannel = null;
   let currentWatched = false;
   let currentMarkWatched = null;
+
+  // YouTube IFrame API state
+  let ytApiLoaded = false;
+  let ytApiLoading = false;
+  let ytPlayer = null;
+  let apiAvailable = false;
+  let progressInterval = null;
+  let autoMarked = false;
+  let playbackStarted = false;
+  let lastKnownPosition = 0;
+  let lastKnownDuration = 0;
+  let saveCounter = 0;
+  let confirmVisible = false;
+  let resumeSeconds = 0;
+
+  const PROGRESS_POLL_MS = 5000;
+  const AUTO_SAVE_EVERY_N_POLLS = 6; // ~30s at 5s interval
+  const AUTO_MARK_RATIO = 0.75;
+  const YT_API_TIMEOUT_MS = 4000;
 
   const t = (key, vars) => (
     window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
@@ -48,15 +69,222 @@
         parts.push(value);
       }
     }
-    return parts.join(' • ');
+    return parts.join(' \u2022 ');
   }
 
-  function getEmbedUrl(videoId) {
+  function getEmbedUrl(videoId, startSeconds) {
     if (!videoId) {
       return 'about:blank';
     }
-    return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+    let url = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+    if (startSeconds && startSeconds > 0) {
+      url += `&start=${Math.floor(startSeconds)}`;
+    }
+    return url;
   }
+
+  // ── YouTube IFrame Player API ─────────────────────────────────────
+
+  function loadYTApi() {
+    if (ytApiLoaded || ytApiLoading) {
+      return;
+    }
+    ytApiLoading = true;
+
+    const existing = document.getElementById('yt-iframe-api');
+    if (existing) {
+      ytApiLoading = false;
+      if (window.YT && window.YT.Player) {
+        ytApiLoaded = true;
+        apiAvailable = true;
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'yt-iframe-api';
+    script.src = 'https://www.youtube.com/iframe_api';
+
+    const prevCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      ytApiLoaded = true;
+      ytApiLoading = false;
+      apiAvailable = true;
+      if (typeof prevCallback === 'function') {
+        prevCallback();
+      }
+      tryCreatePlayer();
+    };
+
+    script.onerror = () => {
+      ytApiLoading = false;
+      apiAvailable = false;
+    };
+
+    document.head.appendChild(script);
+
+    // Timeout fallback
+    setTimeout(() => {
+      if (!ytApiLoaded) {
+        ytApiLoading = false;
+        apiAvailable = false;
+      }
+    }, YT_API_TIMEOUT_MS);
+  }
+
+  function tryCreatePlayer() {
+    if (!apiAvailable || !window.YT || !window.YT.Player) {
+      return;
+    }
+    if (ytPlayer) {
+      return;
+    }
+    if (!ui || !ui.frame || ui.root.hidden) {
+      return;
+    }
+
+    try {
+      ytPlayer = new window.YT.Player('player-overlay-frame', {
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange
+        }
+      });
+    } catch (_err) {
+      apiAvailable = false;
+    }
+  }
+
+  function onPlayerReady() {
+    // If resuming, seek to saved position
+    if (resumeSeconds > 0 && ytPlayer && typeof ytPlayer.seekTo === 'function') {
+      ytPlayer.seekTo(resumeSeconds, true);
+    }
+  }
+
+  function onPlayerStateChange(event) {
+    if (!event || typeof event.data === 'undefined') {
+      return;
+    }
+
+    const YT = window.YT;
+    if (!YT || !YT.PlayerState) {
+      return;
+    }
+
+    if (event.data === YT.PlayerState.PLAYING) {
+      playbackStarted = true;
+      startProgressTracking();
+    } else if (event.data === YT.PlayerState.PAUSED) {
+      stopProgressTracking();
+      updateLastPosition();
+    } else if (event.data === YT.PlayerState.ENDED) {
+      stopProgressTracking();
+      if (!autoMarked && !currentWatched) {
+        autoMarked = true;
+        handleMarkWatched();
+      }
+    }
+  }
+
+  // ── Progress tracking ─────────────────────────────────────────────
+
+  function startProgressTracking() {
+    if (!apiAvailable || !ytPlayer) {
+      return;
+    }
+    stopProgressTracking();
+    saveCounter = 0;
+    progressInterval = setInterval(checkProgress, PROGRESS_POLL_MS);
+  }
+
+  function stopProgressTracking() {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+  }
+
+  function updateLastPosition() {
+    if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') {
+      return;
+    }
+    try {
+      lastKnownPosition = ytPlayer.getCurrentTime() || 0;
+      lastKnownDuration = ytPlayer.getDuration() || 0;
+    } catch (_err) {
+      // Player may be destroyed
+    }
+  }
+
+  function checkProgress() {
+    updateLastPosition();
+
+    if (lastKnownDuration <= 0) {
+      return;
+    }
+
+    const ratio = lastKnownPosition / lastKnownDuration;
+
+    // Auto-mark at 75%
+    if (ratio >= AUTO_MARK_RATIO && !autoMarked && !currentWatched) {
+      autoMarked = true;
+      handleMarkWatched();
+    }
+
+    // Auto-save progress periodically
+    saveCounter++;
+    if (saveCounter >= AUTO_SAVE_EVERY_N_POLLS && currentVideo && !currentWatched) {
+      saveCounter = 0;
+      saveProgressToServer();
+    }
+  }
+
+  function destroyPlayer() {
+    stopProgressTracking();
+    if (ytPlayer) {
+      try {
+        if (typeof ytPlayer.destroy === 'function') {
+          ytPlayer.destroy();
+        }
+      } catch (_err) {
+        // Ignore errors during cleanup
+      }
+      ytPlayer = null;
+    }
+  }
+
+  // ── Server persistence (progress) ─────────────────────────────────
+
+  function getApi() {
+    return window.ytcvApi || null;
+  }
+
+  function saveProgressToServer() {
+    const api = getApi();
+    if (!api || !currentVideo || lastKnownPosition <= 0) {
+      return;
+    }
+    const videoId = currentVideo.id;
+    if (!videoId) {
+      return;
+    }
+    api.saveProgress(videoId, Math.floor(lastKnownPosition), Math.floor(lastKnownDuration || 0));
+  }
+
+  function clearProgressFromServer() {
+    const api = getApi();
+    if (!api || !currentVideo) {
+      return;
+    }
+    const videoId = currentVideo.id;
+    if (!videoId) {
+      return;
+    }
+    api.clearProgress(videoId);
+  }
+
+  // ── Watched button ────────────────────────────────────────────────
 
   function syncWatchedButton() {
     if (!ui || !ui.markWatched) {
@@ -72,8 +300,80 @@
     }
   }
 
-  function closeVideoOverlay({ restore = true } = {}) {
-    if (!ui || !ui.root || ui.root.hidden) {
+  async function handleMarkWatched() {
+    if (currentWatched || typeof currentMarkWatched !== 'function') {
+      return;
+    }
+    await currentMarkWatched();
+    currentWatched = true;
+    syncWatchedButton();
+    clearProgressFromServer();
+  }
+
+  function handleOpenOnYouTube() {
+    if (!currentVideo || !currentVideo.yt_video_id) {
+      return;
+    }
+    const url = typeof window.getYTVideoUrl === 'function'
+      ? window.getYTVideoUrl(currentVideo.yt_video_id)
+      : `https://www.youtube.com/watch?v=${currentVideo.yt_video_id}`;
+    window.open(url, '_blank', 'noopener');
+  }
+
+  // ── Confirm dialog ────────────────────────────────────────────────
+
+  function showConfirm() {
+    if (!ui.confirm) {
+      return;
+    }
+    if (ui.confirmMessage) {
+      ui.confirmMessage.textContent = t('playerCloseConfirmMessage');
+    }
+    if (ui.confirmWatch) {
+      ui.confirmWatch.textContent = t('markWatched');
+    }
+    if (ui.confirmLater) {
+      ui.confirmLater.textContent = t('playerContinueLater');
+    }
+    ui.confirm.hidden = false;
+    confirmVisible = true;
+
+    // Pause video while user decides
+    if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+      try { ytPlayer.pauseVideo(); } catch (_e) { /* noop */ }
+    }
+
+    focusables = getFocusableElements();
+    if (ui.confirmWatch) {
+      ui.confirmWatch.focus();
+    }
+  }
+
+  function hideConfirm() {
+    if (ui.confirm) {
+      ui.confirm.hidden = true;
+    }
+    confirmVisible = false;
+  }
+
+  function shouldShowConfirm() {
+    if (!apiAvailable || !playbackStarted || currentWatched || autoMarked) {
+      return false;
+    }
+    if (lastKnownDuration <= 0) {
+      return false;
+    }
+    const ratio = lastKnownPosition / lastKnownDuration;
+    return ratio > 0.01 && ratio < AUTO_MARK_RATIO;
+  }
+
+  // ── Close flow ────────────────────────────────────────────────────
+
+  function doClose({ restore = true } = {}) {
+    hideConfirm();
+    destroyPlayer();
+
+    if (!ui || !ui.root) {
       return;
     }
 
@@ -86,6 +386,12 @@
     currentChannel = null;
     currentMarkWatched = null;
     currentWatched = false;
+    autoMarked = false;
+    playbackStarted = false;
+    lastKnownPosition = 0;
+    lastKnownDuration = 0;
+    saveCounter = 0;
+    resumeSeconds = 0;
     focusables = [];
 
     if (restore) {
@@ -93,24 +399,42 @@
     }
   }
 
-  async function handleMarkWatched() {
-    if (currentWatched || typeof currentMarkWatched !== 'function') {
+  function closeVideoOverlay({ restore = true } = {}) {
+    if (!ui || !ui.root || ui.root.hidden) {
       return;
     }
-    await currentMarkWatched();
-    currentWatched = true;
-    syncWatchedButton();
+
+    // If confirm is already visible, treat as "continue later"
+    if (confirmVisible) {
+      handleContinueLater();
+      return;
+    }
+
+    // Update position before deciding
+    updateLastPosition();
+
+    if (shouldShowConfirm()) {
+      showConfirm();
+      return;
+    }
+
+    doClose({ restore });
   }
 
-  function handleOpenOnYouTube() {
-    if (!currentVideo || !currentVideo.yt_video_id) {
-      return;
-    }
-    const url = typeof window.getYTVideoUrl === 'function'
-      ? window.getYTVideoUrl(currentVideo.yt_video_id)
-      : `https://www.youtube.com/watch?v=${currentVideo.yt_video_id}`;
-    window.open(url, '_blank', 'noopener');
+  async function handleConfirmWatch() {
+    await handleMarkWatched();
+    doClose();
   }
+
+  function handleContinueLater() {
+    updateLastPosition();
+    if (lastKnownPosition > 0 && currentVideo) {
+      saveProgressToServer();
+    }
+    doClose();
+  }
+
+  // ── Keyboard handling ─────────────────────────────────────────────
 
   function onKeydown(event) {
     if (!ui || ui.root.hidden) {
@@ -144,6 +468,8 @@
     }
   }
 
+  // ── Init ──────────────────────────────────────────────────────────
+
   function initPlayerOverlay() {
     ui = {
       root: document.getElementById('player-overlay'),
@@ -156,7 +482,11 @@
       frame: document.getElementById('player-overlay-frame'),
       close: document.getElementById('player-overlay-close'),
       markWatched: document.getElementById('player-overlay-mark-watched'),
-      openYoutube: document.getElementById('player-overlay-open-youtube')
+      openYoutube: document.getElementById('player-overlay-open-youtube'),
+      confirm: document.getElementById('player-overlay-confirm'),
+      confirmMessage: document.getElementById('player-overlay-confirm-message'),
+      confirmWatch: document.getElementById('player-overlay-confirm-watch'),
+      confirmLater: document.getElementById('player-overlay-confirm-later')
     };
 
     if (!ui.root || initialized) {
@@ -187,12 +517,27 @@
       });
     }
 
+    if (ui.confirmWatch) {
+      ui.confirmWatch.addEventListener('click', () => {
+        handleConfirmWatch();
+      });
+    }
+
+    if (ui.confirmLater) {
+      ui.confirmLater.addEventListener('click', () => {
+        handleContinueLater();
+      });
+    }
+
     document.addEventListener('keydown', onKeydown);
     window.addEventListener('layout-mode:changed', event => {
       if (event.detail && !supportsEmbeddedPlayback(event.detail.mode)) {
-        closeVideoOverlay({ restore: false });
+        doClose({ restore: false });
       }
     });
+
+    // Start loading YouTube IFrame API early
+    loadYTApi();
 
     initialized = true;
     return {
@@ -202,7 +547,9 @@
     };
   }
 
-  function openVideoOverlay({ video, channel, watched = false, onMarkWatched = null, origin = null } = {}) {
+  // ── Open overlay ──────────────────────────────────────────────────
+
+  function openVideoOverlay({ video, channel, watched = false, onMarkWatched = null, origin = null, progress = null } = {}) {
     if (!supportsEmbeddedPlayback() || !ui || !ui.root || !video || !video.yt_video_id) {
       return false;
     }
@@ -212,18 +559,33 @@
     currentChannel = channel || null;
     currentWatched = Boolean(watched);
     currentMarkWatched = onMarkWatched;
+    autoMarked = false;
+    playbackStarted = false;
+    lastKnownPosition = 0;
+    lastKnownDuration = 0;
+    saveCounter = 0;
+    confirmVisible = false;
+    resumeSeconds = (progress && typeof progress === 'number' && progress > 0) ? progress : 0;
 
     ui.eyebrow.textContent = currentChannel && currentChannel.title ? t('nowPlayingChannel', { channel: currentChannel.title }) : t('nowPlaying');
     ui.title.textContent = video.title || t('untitledVideo');
     ui.meta.textContent = formatMeta(video, channel);
     ui.description.textContent = (video.description || '').trim();
-    ui.frame.src = getEmbedUrl(video.yt_video_id);
+    ui.frame.src = getEmbedUrl(video.yt_video_id, resumeSeconds);
     ui.openYoutube.textContent = t('openOnYouTube');
     syncWatchedButton();
+    hideConfirm();
 
     ui.root.hidden = false;
     document.body.classList.add('player-overlay-open');
     document.documentElement.classList.add('player-overlay-open');
+
+    // Try to create YT player (API may already be loaded)
+    ytPlayer = null;
+    if (apiAvailable) {
+      // Small delay to let iframe load before wrapping with YT.Player
+      setTimeout(() => tryCreatePlayer(), 500);
+    }
 
     focusables = getFocusableElements();
     window.setTimeout(() => {
@@ -235,10 +597,10 @@
     return true;
   }
 
-  const api = initPlayerOverlay();
+  const overlayApi = initPlayerOverlay();
 
   window.ytcvPlayerOverlay = {
-    ...api,
+    ...overlayApi,
     initPlayerOverlay
   };
 })();

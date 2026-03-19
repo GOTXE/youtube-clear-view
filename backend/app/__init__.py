@@ -20,6 +20,7 @@ from .migrations import (
     ensure_user_channel_schema,
     ensure_user_settings_schema,
     ensure_user_schema,
+    ensure_video_progress_schema,
     ensure_video_schema,
 )
 from .routes import register_routes
@@ -67,6 +68,7 @@ def create_app(config_class=Config):
         ensure_user_channel_schema()
         ensure_channel_schema()
         ensure_video_schema()
+        ensure_video_progress_schema()
         # Category system migrations
         ensure_category_schema()
         ensure_channel_category_schema()

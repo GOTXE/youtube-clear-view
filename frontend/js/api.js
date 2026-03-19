@@ -291,6 +291,17 @@ class APIClient {
     return this.delete(`/api/videos/${videoId}/unwatch`);
   }
 
+  saveProgress(videoId, positionSeconds, durationSeconds) {
+    return this.put(`/api/videos/${videoId}/progress`, {
+      position_seconds: positionSeconds,
+      duration_seconds: durationSeconds
+    });
+  }
+
+  clearProgress(videoId) {
+    return this.delete(`/api/videos/${videoId}/progress`);
+  }
+
   searchVideos(query, filters = {}) {
     const params = { q: query, ...filters };
     return this.get('/api/videos/search', params);

@@ -356,6 +356,7 @@ class Carousel {
             channel,
             watched,
             origin: card,
+            progress: item.progress || null,
             onMarkWatched: async () => {
               await this.markWatched(video, card, details, Boolean(durationText));
             }

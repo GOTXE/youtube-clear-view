@@ -6,7 +6,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Channel, Theme, ThemeChannel, User, UserChannel, Video, WatchedVideo
+from app.models import Channel, Theme, ThemeChannel, User, UserChannel, Video, VideoProgress, WatchedVideo
 
 
 class TestConfig:
@@ -154,5 +154,101 @@ def test_search_requires_query_tracking_id(client, app):
     _login(client, "alice")
     response = client.get("/api/videos/search")
     assert response.status_code == 400
+    data = response.get_json()
+    assert data.get("tracking_id")
+
+
+# ── Video progress tests ─────────────────────────────────────────────
+
+
+def test_save_progress(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    response = client.put(
+        f"/api/videos/{video_id}/progress",
+        json={"position_seconds": 120, "duration_seconds": 600},
+    )
+    assert response.status_code == 204
+
+    # Verify progress appears in latest videos
+    response = client.get("/api/videos/latest?limit=10&offset=0")
+    data = response.get_json()
+    vid1_entry = next(v for v in data["videos"] if v["video"]["yt_video_id"] == "vid1")
+    assert vid1_entry["progress"] == 120
+
+
+def test_save_progress_upsert(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    client.put(f"/api/videos/{video_id}/progress", json={"position_seconds": 60, "duration_seconds": 600})
+    client.put(f"/api/videos/{video_id}/progress", json={"position_seconds": 300, "duration_seconds": 600})
+
+    response = client.get("/api/videos/latest?limit=10&offset=0")
+    data = response.get_json()
+    vid1_entry = next(v for v in data["videos"] if v["video"]["yt_video_id"] == "vid1")
+    assert vid1_entry["progress"] == 300
+
+    # Only one record in DB
+    with app.app_context():
+        count = VideoProgress.query.filter_by(video_id=video_id).count()
+        assert count == 1
+
+
+def test_clear_progress(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    client.put(f"/api/videos/{video_id}/progress", json={"position_seconds": 120, "duration_seconds": 600})
+    response = client.delete(f"/api/videos/{video_id}/progress")
+    assert response.status_code == 204
+
+    response = client.get("/api/videos/latest?limit=10&offset=0")
+    data = response.get_json()
+    vid1_entry = next(v for v in data["videos"] if v["video"]["yt_video_id"] == "vid1")
+    assert vid1_entry.get("progress") is None
+
+
+def test_mark_watched_clears_progress(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    client.put(f"/api/videos/{video_id}/progress", json={"position_seconds": 120, "duration_seconds": 600})
+    client.post(f"/api/videos/{video_id}/watch", json={})
+
+    with app.app_context():
+        progress = VideoProgress.query.filter_by(video_id=video_id).first()
+        assert progress is None
+
+
+def test_save_progress_invalid_position(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    response = client.put(f"/api/videos/{video_id}/progress", json={"position_seconds": -10})
+    assert response.status_code == 400
+
+
+def test_save_progress_video_not_found(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    response = client.put("/api/videos/99999/progress", json={"position_seconds": 60})
+    assert response.status_code == 404
     data = response.get_json()
     assert data.get("tracking_id")

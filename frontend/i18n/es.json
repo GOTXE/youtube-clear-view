@@ -247,6 +247,8 @@
   "markWatched": "Marcar como visto",
   "untitledVideo": "Video sin titulo",
   "watchedBadge": "Visto",
+  "playerCloseConfirmMessage": "No has terminado este video. \u00bfQu\u00e9 quieres hacer?",
+  "playerContinueLater": "Continuar despu\u00e9s",
   "timeJustNow": "justo ahora",
   "timeAgo": "hace {count} {unit}",
   "timeYear": "ano",

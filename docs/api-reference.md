@@ -67,7 +67,8 @@ Endpoints that return lists of videos respond with:
     {
       "video": { "id": 1, "yt_video_id": "abc" },
       "channel": { "id": 1, "title": "Channel" },
-      "watched": false
+      "watched": false,
+      "progress": 120
     }
   ],
   "has_more": true,
@@ -1161,6 +1162,30 @@ Response: `204 No Content`
 Removes watched status.
 
 Response: `204 No Content`
+
+### PUT /api/videos/<video_id>/progress
+
+Saves playback position for resume functionality (upsert).
+
+Request:
+```json
+{ "position_seconds": 120, "duration_seconds": 600 }
+```
+
+- `position_seconds` (required, integer >= 0)
+- `duration_seconds` (optional, integer > 0)
+
+Response: `204 No Content`
+
+### DELETE /api/videos/<video_id>/progress
+
+Clears saved playback position.
+
+Response: `204 No Content`
+
+Notes:
+- Marking a video as watched (`POST .../watch`) automatically clears any saved progress.
+- Video listings include a `progress` field (integer, seconds) when a saved position exists.
 
 ### GET /api/videos/search
 

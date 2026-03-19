@@ -247,6 +247,8 @@
   "markWatched": "Mark watched",
   "untitledVideo": "Untitled video",
   "watchedBadge": "Watched",
+  "playerCloseConfirmMessage": "You haven't finished this video. What would you like to do?",
+  "playerContinueLater": "Continue later",
   "timeJustNow": "just now",
   "timeAgo": "{count} {unit} ago",
   "timeYear": "year",

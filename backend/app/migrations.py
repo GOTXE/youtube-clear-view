@@ -625,3 +625,37 @@ def ensure_user_channel_rating_columns():
             error,
             extra={"tracking_id": generate_tracking_id()},
         )
+
+
+def ensure_video_progress_schema():
+    """Ensure video_progress table exists for playback resume."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(video_progress)")).fetchall()
+            if result:
+                return
+
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS video_progress ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "user_id INTEGER NOT NULL REFERENCES users(id), "
+                "video_id INTEGER NOT NULL REFERENCES videos(id), "
+                "position_seconds INTEGER NOT NULL, "
+                "duration_seconds INTEGER, "
+                "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                "UNIQUE(user_id, video_id))"
+            ))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_video_progress_user_id ON video_progress (user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_video_progress_video_id ON video_progress (video_id)"))
+            logger.info("Created video_progress table")
+    except Exception as error:
+        logger.warning(
+            "Video progress schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )

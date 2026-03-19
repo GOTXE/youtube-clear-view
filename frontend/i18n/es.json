@@ -245,6 +245,8 @@
   "nowPlaying": "Reproduciendo ahora",
   "nowPlayingChannel": "Reproduciendo desde {channel}",
   "openOnYouTube": "Abrir en YouTube",
+  "copyVideoUrl": "Copiar URL",
+  "copiedToClipboard": "Copiado!",
   "markWatched": "Marcar como visto",
   "untitledVideo": "Video sin titulo",
   "watchedBadge": "Visto",

@@ -310,14 +310,50 @@
     clearProgressFromServer();
   }
 
-  function handleOpenOnYouTube() {
+  function getVideoUrl() {
     if (!currentVideo || !currentVideo.yt_video_id) {
-      return;
+      return null;
     }
-    const url = typeof window.getYTVideoUrl === 'function'
+    return typeof window.getYTVideoUrl === 'function'
       ? window.getYTVideoUrl(currentVideo.yt_video_id)
       : `https://www.youtube.com/watch?v=${currentVideo.yt_video_id}`;
-    window.open(url, '_blank', 'noopener');
+  }
+
+  function handleOpenOnYouTube() {
+    const url = getVideoUrl();
+    if (url) {
+      window.open(url, '_blank', 'noopener');
+    }
+  }
+
+  async function handleCopyUrl() {
+    const url = getVideoUrl();
+    if (!url) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (ui.copyUrl) {
+        const original = ui.copyUrl.textContent;
+        ui.copyUrl.textContent = t('copiedToClipboard');
+        setTimeout(() => { ui.copyUrl.textContent = original; }, 1500);
+      }
+    } catch (_err) {
+      // Fallback for insecure contexts
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ui.copyUrl) {
+        const original = ui.copyUrl.textContent;
+        ui.copyUrl.textContent = t('copiedToClipboard');
+        setTimeout(() => { ui.copyUrl.textContent = original; }, 1500);
+      }
+    }
   }
 
   // ── Confirm dialog ────────────────────────────────────────────────
@@ -483,7 +519,8 @@
       markWatched: document.getElementById('player-overlay-mark-watched'),
       openYoutube: document.getElementById('player-overlay-open-youtube'),
       confirmMessage: document.getElementById('player-overlay-confirm-message'),
-      confirmLater: document.getElementById('player-overlay-confirm-later')
+      confirmLater: document.getElementById('player-overlay-confirm-later'),
+      copyUrl: document.getElementById('player-overlay-copy-url')
     };
 
     if (!ui.root || initialized) {
@@ -521,6 +558,12 @@
     if (ui.confirmLater) {
       ui.confirmLater.addEventListener('click', () => {
         handleContinueLater();
+      });
+    }
+
+    if (ui.copyUrl) {
+      ui.copyUrl.addEventListener('click', () => {
+        handleCopyUrl();
       });
     }
 
@@ -568,6 +611,9 @@
     ui.description.textContent = (video.description || '').trim();
     ui.frame.src = getEmbedUrl(video.yt_video_id, resumeSeconds);
     ui.openYoutube.textContent = t('openOnYouTube');
+    if (ui.copyUrl) {
+      ui.copyUrl.textContent = t('copyVideoUrl');
+    }
     syncWatchedButton();
     hideConfirm();
 

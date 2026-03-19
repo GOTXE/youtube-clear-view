@@ -245,6 +245,8 @@
   "nowPlaying": "Now playing",
   "nowPlayingChannel": "Now playing from {channel}",
   "openOnYouTube": "Open on YouTube",
+  "copyVideoUrl": "Copy URL",
+  "copiedToClipboard": "Copied!",
   "markWatched": "Mark watched",
   "untitledVideo": "Untitled video",
   "watchedBadge": "Watched",

@@ -992,16 +992,28 @@ select {
 .button:hover {
   box-shadow: 0 8px 18px var(--shadow);
   transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
 .button:active {
   transform: translateY(0);
+  filter: brightness(0.95);
 }
 
 .button--ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--primary);
+}
+
+.button--ghost:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: var(--primary);
+}
+
+.button--ghost:active {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  transform: translateY(0);
 }
 
 .button:disabled {

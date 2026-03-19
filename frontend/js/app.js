@@ -1812,6 +1812,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Expose for player overlay to refresh after "Continue later" / "Mark watched"
+  window.ytcvReloadCarousels = () => reloadCarousels();
+
   let refreshVisibleTimer = null;
   function scheduleVisibleReload() {
     if (state.searchActive || !state.initialContentReady) {

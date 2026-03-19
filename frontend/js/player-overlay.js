@@ -257,12 +257,12 @@
   // ── Server persistence (progress) ─────────────────────────────────
 
   function getApi() {
-    return window.ytcvApi || null;
+    return window.appApiClient || window.ytcvApi || null;
   }
 
   function saveProgressToServer() {
     const api = getApi();
-    if (!api || !currentVideo || lastKnownPosition <= 0) {
+    if (!api || !currentVideo) {
       return;
     }
     const videoId = currentVideo.id;
@@ -415,14 +415,22 @@
   async function handleConfirmWatch() {
     await handleMarkWatched();
     doClose();
+    if (typeof window.ytcvReloadCarousels === 'function') {
+      window.ytcvReloadCarousels();
+    }
   }
 
   function handleContinueLater() {
     updateLastPosition();
-    if (lastKnownPosition > 0 && currentVideo) {
+    if (currentVideo) {
+      // Save even with position 0 when API is unavailable — marks the video as "watch later"
       saveProgressToServer();
     }
     doClose();
+    // Refresh carousels so "Continue watching" section appears
+    if (typeof window.ytcvReloadCarousels === 'function') {
+      window.ytcvReloadCarousels();
+    }
   }
 
   // ── Keyboard handling ─────────────────────────────────────────────

@@ -327,10 +327,6 @@
       ui.confirmMessage.textContent = t('playerCloseConfirmMessage');
       ui.confirmMessage.hidden = false;
     }
-    if (ui.confirmLater) {
-      ui.confirmLater.textContent = t('playerContinueLater');
-      ui.confirmLater.hidden = false;
-    }
     confirmVisible = true;
 
     // Pause video while user decides
@@ -347,9 +343,6 @@
   function hideConfirm() {
     if (ui.confirmMessage) {
       ui.confirmMessage.hidden = true;
-    }
-    if (ui.confirmLater) {
-      ui.confirmLater.hidden = true;
     }
     confirmVisible = false;
   }

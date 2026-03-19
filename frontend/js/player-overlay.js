@@ -614,6 +614,9 @@
     if (ui.copyUrl) {
       ui.copyUrl.textContent = t('copyVideoUrl');
     }
+    if (ui.confirmLater) {
+      ui.confirmLater.textContent = t('playerContinueLater');
+    }
     syncWatchedButton();
     hideConfirm();
 

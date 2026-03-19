@@ -24,6 +24,11 @@ For repetitive local tasks there is also a helper script:
 ./scripts/dev_docker.sh db-reset --backup
 ```
 
+By default the helper script starts the full dev stack:
+- `backend`
+- `proxy`
+- `log_viewer`
+
 ## Containers
 
 | Service | Image / Build | Ports | Purpose |

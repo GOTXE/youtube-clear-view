@@ -471,6 +471,12 @@
     if (labelEl) labelEl.textContent = t('setupWizardSave');
 
     if (resp.ok && resp.data) {
+      try {
+        window.sessionStorage.setItem('ytcv_onboarding_ready_modal', 'pending');
+      } catch (_) { /* ignore */ }
+      window.__ytcvOnboardingReadyModalPending = true;
+      hide();
+      window.dispatchEvent(new CustomEvent('onboarding:setup-completed'));
       notifyAuthSuccess(resp.data);
       return;
     }

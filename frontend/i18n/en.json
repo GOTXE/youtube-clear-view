@@ -380,6 +380,10 @@
   "setupWizardSave": "Save and continue",
   "setupWizardSaving": "Saving...",
   "setupWizardError": "Could not save setup. Try again.",
+  "onboardingReadyTitle": "We are preparing your library",
+  "onboardingReadyDescription": "Your channels, videos, and categories are being updated right now.",
+  "onboardingReadyDetail": "Everything will be ready shortly. You can enter now and the library will keep filling in while the process finishes.",
+  "onboardingReadyAccept": "Continue",
 
   "authStatusNeedsSetup": "Finish setting up your account.",
 

@@ -22,6 +22,8 @@
   let deviceIdentifier = null;
   let modal = null;
   let lastDeviceTypeError = '';
+  let pendingConfirmationPromise = null;
+  let resolvePendingConfirmation = null;
 
   const ui = {
     deviceLabel: document.getElementById('device-type')
@@ -197,10 +199,6 @@
   }
 
   function buildDeviceModal(suggestedType) {
-    if (modal) {
-      return modal;
-    }
-
     const overlay = document.createElement('div');
     overlay.className = 'modal';
     overlay.id = 'device-type-modal';
@@ -277,7 +275,7 @@
     overlay.appendChild(content);
 
     cancelButton.addEventListener('click', () => {
-      closeDeviceModal();
+      closeDeviceModal(currentDevice || null);
       if (currentDeviceType) {
         setCurrentDevice(currentDeviceType);
       }
@@ -292,7 +290,7 @@
       const ok = await confirmDeviceType(chosenType);
       confirmButton.disabled = false;
       if (ok) {
-        closeDeviceModal();
+        closeDeviceModal(currentDevice);
       } else {
         error.textContent = lastDeviceTypeError || t('unableConfirmDeviceType');
         error.hidden = false;
@@ -301,7 +299,7 @@
 
     overlay.addEventListener('click', event => {
       if (event.target === overlay) {
-        closeDeviceModal();
+        closeDeviceModal(currentDevice || null);
       }
     });
 
@@ -310,18 +308,37 @@
   }
 
   function openDeviceModal(suggestedType) {
+    if (modal && pendingConfirmationPromise) {
+      return pendingConfirmationPromise;
+    }
+
     const overlay = buildDeviceModal(suggestedType);
     if (!overlay.parentNode) {
       document.body.appendChild(overlay);
     }
+    pendingConfirmationPromise = new Promise(resolve => {
+      resolvePendingConfirmation = resolve;
+    });
+    return pendingConfirmationPromise;
   }
 
-  function closeDeviceModal() {
+  function closeDeviceModal(result = null) {
     if (!modal || !modal.parentNode) {
+      if (resolvePendingConfirmation) {
+        resolvePendingConfirmation(result);
+        resolvePendingConfirmation = null;
+        pendingConfirmationPromise = null;
+      }
       return;
     }
 
     modal.parentNode.removeChild(modal);
+    modal = null;
+    if (resolvePendingConfirmation) {
+      resolvePendingConfirmation(result);
+      resolvePendingConfirmation = null;
+      pendingConfirmationPromise = null;
+    }
   }
 
   async function openDeviceTypeModal() {
@@ -331,7 +348,7 @@
         ? suggestion.suggested_type
         : DEVICE_TYPES.DESKTOP
     );
-    openDeviceModal(suggestedType);
+    return openDeviceModal(suggestedType);
   }
 
   async function initDevice() {
@@ -384,6 +401,13 @@
     return lastDeviceTypeError;
   }
 
+  async function waitForDeviceConfirmation() {
+    if (!pendingConfirmationPromise) {
+      return currentDevice;
+    }
+    return pendingConfirmationPromise;
+  }
+
   window.initDevice = initDevice;
   window.detectDevice = detectDevice;
   window.registerDevice = registerDevice;
@@ -394,4 +418,5 @@
   window.getDeviceIdentifier = getDeviceIdentifier;
   window.getLastDeviceTypeError = getLastDeviceTypeError;
   window.openDeviceTypeModal = openDeviceTypeModal;
+  window.waitForDeviceConfirmation = waitForDeviceConfirmation;
 })();

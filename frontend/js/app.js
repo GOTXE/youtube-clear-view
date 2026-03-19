@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.APP_CONFIG.REQUEST_TIMEOUT
   );
   window.appApiClient = api;
+  const initialAuthStatusFromUrl = new URLSearchParams(window.location.search).get('auth_status');
+  const ONBOARDING_READY_MODAL_KEY = 'ytcv_onboarding_ready_modal';
 
   const state = {
     currentUser: null,
@@ -63,7 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initialContentReady: false,
     autoRefreshPromise: null,
     autoRefreshKeepsLoadingState: false,
-    setMenuOpen: null
+    setMenuOpen: null,
+    deferAuthenticatedBootstrap: initialAuthStatusFromUrl === 'needs_setup',
+    authenticatedDataBootstrapPromise: null
   };
 
   const ui = {
@@ -2666,16 +2670,117 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function bootstrapAuthenticated() {
+  async function bootstrapAuthenticatedDevice() {
     if (typeof window.initDevice === 'function') {
       state.currentDevice = await window.initDevice();
+      if (typeof window.waitForDeviceConfirmation === 'function') {
+        state.currentDevice = await window.waitForDeviceConfirmation();
+      }
       if (window.ytcvAccountPanel && typeof window.getDeviceIdentifier === 'function') {
         window.ytcvAccountPanel.setCurrentDeviceIdentifier(window.getDeviceIdentifier());
       }
     }
-    await initCategorySelector();
-    await loadApp();
-    resumeClassifyPollIfActive();
+  }
+
+  async function bootstrapAuthenticatedData() {
+    if (state.authenticatedDataBootstrapPromise) {
+      return state.authenticatedDataBootstrapPromise;
+    }
+
+    state.authenticatedDataBootstrapPromise = (async () => {
+      await loadSettings();
+      await initCategorySelector();
+      await loadApp();
+      resumeClassifyPollIfActive();
+    })()
+      .finally(() => {
+        state.authenticatedDataBootstrapPromise = null;
+      });
+
+    return state.authenticatedDataBootstrapPromise;
+  }
+
+  async function bootstrapAuthenticated() {
+    await bootstrapAuthenticatedDevice();
+    await bootstrapAuthenticatedData();
+  }
+
+  function consumeOnboardingReadyModalFlag() {
+    const pendingGlobalFlag = window.__ytcvOnboardingReadyModalPending === true;
+    if (pendingGlobalFlag) {
+      window.__ytcvOnboardingReadyModalPending = false;
+    }
+
+    try {
+      const pending = window.sessionStorage.getItem(ONBOARDING_READY_MODAL_KEY) === 'pending';
+      if (pending) {
+        window.sessionStorage.removeItem(ONBOARDING_READY_MODAL_KEY);
+      }
+      return pending || pendingGlobalFlag;
+    } catch (error) {
+      return pendingGlobalFlag;
+    }
+  }
+
+  async function showOnboardingReadyModal() {
+    return new Promise(resolve => {
+      const overlay = document.createElement('section');
+      overlay.className = 'confirm-modal-overlay';
+      overlay.id = 'onboarding-ready-modal';
+
+      const modal = document.createElement('div');
+      modal.className = 'confirm-modal account-switcher-modal onboarding-ready-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'onboarding-ready-title');
+
+      const header = document.createElement('header');
+      header.className = 'confirm-modal__header';
+
+      const title = document.createElement('h2');
+      title.id = 'onboarding-ready-title';
+      title.className = 'heading-2';
+      title.textContent = t('onboardingReadyTitle');
+
+      header.appendChild(title);
+
+      const body = document.createElement('div');
+      body.className = 'confirm-modal__body';
+
+      const description = document.createElement('p');
+      description.className = 'body';
+      description.textContent = t('onboardingReadyDescription');
+
+      const detail = document.createElement('p');
+      detail.className = 'caption onboarding-ready-modal__detail';
+      detail.textContent = t('onboardingReadyDetail');
+
+      body.appendChild(description);
+      body.appendChild(detail);
+
+      const footer = document.createElement('footer');
+      footer.className = 'confirm-modal__footer';
+
+      const acceptButton = document.createElement('button');
+      acceptButton.type = 'button';
+      acceptButton.className = 'button account-switcher-modal__primary-action';
+      acceptButton.textContent = t('onboardingReadyAccept');
+
+      const close = () => {
+        overlay.remove();
+        resolve();
+      };
+
+      acceptButton.addEventListener('click', close);
+
+      footer.appendChild(acceptButton);
+      modal.appendChild(header);
+      modal.appendChild(body);
+      modal.appendChild(footer);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      acceptButton.focus();
+    });
   }
 
   async function waitForLoginPageToClose(maxWaitMs = 2000) {
@@ -2715,8 +2820,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           wizard: true,
           username: state.currentUser.username_suggestion || state.currentUser.username || ''
         });
-      } else {
-        await loadSettings();
+        void bootstrapAuthenticatedData();
       }
     }
 
@@ -2782,16 +2886,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentUser = user;
 
     if (user) {
+      if (state.deferAuthenticatedBootstrap) {
+        return;
+      }
       await waitForLoginPageToClose();
-      await loadSettings();
+      const showOnboardingReady = consumeOnboardingReadyModalFlag();
+      if (showOnboardingReady) {
+        const dataBootstrapPromise = bootstrapAuthenticatedData();
+        await bootstrapAuthenticatedDevice();
+        await showOnboardingReadyModal();
+        await dataBootstrapPromise;
+        return;
+      }
       await bootstrapAuthenticated();
     } else {
       state.channels = [];
       state.selectedChannelId = null;
       state.selectedChannelYtId = null;
+      state.authenticatedDataBootstrapPromise = null;
       clearCarousels();
       updateHeaderContext();
     }
+  });
+
+  window.addEventListener('onboarding:setup-completed', () => {
+    state.deferAuthenticatedBootstrap = false;
   });
 
   init();

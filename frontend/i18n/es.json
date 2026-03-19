@@ -380,6 +380,10 @@
   "setupWizardSave": "Guardar y continuar",
   "setupWizardSaving": "Guardando...",
   "setupWizardError": "No se pudo guardar la configuracion. Intentalo de nuevo.",
+  "onboardingReadyTitle": "Estamos preparando tu biblioteca",
+  "onboardingReadyDescription": "Tus canales, videos y categorias se estan actualizando ahora mismo.",
+  "onboardingReadyDetail": "En un rato todo estara listo. Puedes entrar ya y la biblioteca ira apareciendo mientras termina el proceso.",
+  "onboardingReadyAccept": "Aceptar",
 
   "authStatusNeedsSetup": "Completa la configuracion de tu cuenta.",
 

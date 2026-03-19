@@ -44,7 +44,7 @@
   "googleSignInFailed": "Fallo el inicio de sesion con Google. Intentalo de nuevo.",
   "googleLoginUnavailable": "Inicio de sesion con Google no disponible.",
   "signInWithDeviceCode": "Iniciar con codigo de dispositivo",
-  "approveDeviceCode": "Aprobar codigo de dispositivo",
+  "approveDeviceCode": "Aprobar dispositivo",
   "pairingLoginTitle": "Iniciar con codigo de dispositivo",
   "pairingLoginDescription": "Usa un codigo de dispositivo cuando tengas cerca otro dispositivo con sesion iniciada para aprobar este acceso.",
   "pairingCodeLabel": "Codigo de dispositivo",

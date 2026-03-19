@@ -450,7 +450,6 @@
       button.type = 'button';
       button.id = 'new-user-button';
       button.className = 'menu-item';
-      button.textContent = t('newUser');
       button.addEventListener('click', () => {
         openCreateUserModal();
       });
@@ -466,7 +465,6 @@
         button.className = 'menu-item';
         ui.accountActions.appendChild(button);
       }
-      button.textContent = t('signOut');
       button.addEventListener('click', async () => {
         await logout();
       });
@@ -478,7 +476,6 @@
       button.type = 'button';
       button.id = 'switch-google-account-button';
       button.className = 'menu-item';
-      button.textContent = t('switchAccount');
       button.hidden = !isGoogleMode();
       button.addEventListener('click', async () => {
         await openAccountSwitcherModal();
@@ -492,7 +489,6 @@
       button.type = 'button';
       button.id = 'pairing-login-button';
       button.className = 'menu-item';
-      button.textContent = t('signInWithDeviceCode');
       button.hidden = Boolean(currentUser);
       button.addEventListener('click', async () => {
         await openPairingLoginModal();
@@ -506,7 +502,6 @@
       button.type = 'button';
       button.id = 'approve-pairing-button';
       button.className = 'menu-item';
-      button.textContent = t('approveDeviceCode');
       button.hidden = true;
       button.addEventListener('click', async () => {
         await openPairingApproveModal();
@@ -520,7 +515,6 @@
       button.type = 'button';
       button.id = 'fallback-login-button';
       button.className = 'menu-item';
-      button.textContent = t('signInWithTotpOrRecovery');
       button.hidden = Boolean(currentUser);
       button.addEventListener('click', async () => {
         await openFallbackLoginModal();
@@ -534,7 +528,6 @@
       button.type = 'button';
       button.id = 'passkey-login-button';
       button.className = 'menu-item';
-      button.textContent = t('signInWithPasskey');
       button.hidden = !passkeysSupported();
       button.addEventListener('click', async () => {
         await signInWithPasskey();
@@ -548,7 +541,6 @@
       button.type = 'button';
       button.id = 'manage-admin-button';
       button.className = 'menu-item';
-      button.textContent = t('adminObservability');
       button.hidden = true;
       button.addEventListener('click', async () => {
         await openAdminModal();
@@ -567,6 +559,31 @@
       status.id = 'auth-status';
       ui.statusMessage = status;
       ui.userSummary.appendChild(status);
+    }
+
+    if (ui.newUserButton) {
+      ui.newUserButton.textContent = t('newUser');
+    }
+    if (ui.switchUserButton) {
+      ui.switchUserButton.textContent = t('signOut');
+    }
+    if (ui.accountSwitchButton) {
+      ui.accountSwitchButton.textContent = t('switchAccount');
+    }
+    if (ui.pairingLoginButton) {
+      ui.pairingLoginButton.textContent = t('signInWithDeviceCode');
+    }
+    if (ui.pairingApproveButton) {
+      ui.pairingApproveButton.textContent = t('approveDeviceCode');
+    }
+    if (ui.fallbackLoginButton) {
+      ui.fallbackLoginButton.textContent = t('signInWithTotpOrRecovery');
+    }
+    if (ui.passkeyLoginButton) {
+      ui.passkeyLoginButton.textContent = t('signInWithPasskey');
+    }
+    if (ui.manageAdminButton) {
+      ui.manageAdminButton.textContent = t('adminObservability');
     }
 
     updateSwitchUserLabel();
@@ -2811,6 +2828,7 @@
   }
 
   async function initAuth() {
+    await (window.ytcvI18nReady || Promise.resolve());
     await loadAuthProvider();
     handleAuthErrorParam();
 

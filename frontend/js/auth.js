@@ -361,14 +361,6 @@
       ui.passkeyLoginButton.hidden = Boolean(currentUser) || !passkeysSupported();
     }
 
-    if (ui.managePasskeysButton) {
-      ui.managePasskeysButton.hidden = !currentUser || !passkeysSupported();
-    }
-
-    if (ui.manageMfaButton) {
-      ui.manageMfaButton.hidden = !currentUser;
-    }
-
     if (ui.manageAdminButton) {
       ui.manageAdminButton.hidden = !isAdminUser();
     }
@@ -551,34 +543,6 @@
       ui.accountActions.insertBefore(button, ui.googleLoginButton || null);
     }
 
-    if (!ui.managePasskeysButton) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = 'manage-passkeys-button';
-      button.className = 'menu-item';
-      button.textContent = t('managePasskeys');
-      button.hidden = true;
-      button.addEventListener('click', async () => {
-        await openPasskeyModal();
-      });
-      ui.managePasskeysButton = button;
-      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
-    }
-
-    if (!ui.manageMfaButton) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = 'manage-mfa-button';
-      button.className = 'menu-item';
-      button.textContent = t('manageMfa');
-      button.hidden = true;
-      button.addEventListener('click', async () => {
-        await openMfaModal();
-      });
-      ui.manageMfaButton = button;
-      ui.accountActions.insertBefore(button, ui.switchUserButton || null);
-    }
-
     if (!ui.manageAdminButton) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -648,7 +612,8 @@
     ui.userSelector.dataset.listenerAttached = 'true';
   }
 
-  function setAuthenticated(user) {
+  function setAuthenticated(user, options = {}) {
+    const { broadcast = true } = options;
     currentUser = user;
     pendingMfaChallenge = null;
     closeMfaChallengeModal();
@@ -708,14 +673,6 @@
       ui.passkeyLoginButton.hidden = true;
     }
 
-    if (ui.managePasskeysButton) {
-      ui.managePasskeysButton.hidden = !passkeysSupported();
-    }
-
-    if (ui.manageMfaButton) {
-      ui.manageMfaButton.hidden = false;
-    }
-
     if (ui.manageAdminButton) {
       ui.manageAdminButton.hidden = !isAdminUser();
     }
@@ -727,7 +684,9 @@
     if (isGoogleMode()) {
       loadSwitchableAccounts();
     }
-    window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
+    if (broadcast) {
+      window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
+    }
   }
 
   function setUnauthenticated() {
@@ -784,14 +743,6 @@
 
     if (ui.passkeyLoginButton) {
       ui.passkeyLoginButton.hidden = !passkeysSupported();
-    }
-
-    if (ui.managePasskeysButton) {
-      ui.managePasskeysButton.hidden = true;
-    }
-
-    if (ui.manageMfaButton) {
-      ui.manageMfaButton.hidden = true;
     }
 
     if (ui.manageAdminButton) {

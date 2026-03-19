@@ -247,6 +247,17 @@
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = t('accountProfileSave'); }
 
         if (r.ok) {
+          const currentUser = typeof window.getCurrentUser === 'function'
+            ? window.getCurrentUser()
+            : null;
+          const updatedUser = {
+            ...(currentUser || {}),
+            ...(r.data || {})
+          };
+          if (typeof window.notifyAuthenticated === 'function') {
+            window.notifyAuthenticated(updatedUser, { broadcast: false });
+          }
+          renderProfile(updatedUser, container);
           showMsg('ap-profile-msg', t('accountProfileSaved'), 'success');
         } else if (r.status === 409) {
           showMsg('ap-profile-msg', t('accountProfileUsernameTaken'), 'error');

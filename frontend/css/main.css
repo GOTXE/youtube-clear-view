@@ -561,10 +561,19 @@ select {
   text-align: left;
   cursor: pointer;
   font-size: 0.9rem;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
 }
 
 .menu-item:hover {
-  border-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 72%, white);
+  background: color-mix(in srgb, var(--primary) 15%, var(--bg-secondary));
+  box-shadow: 0 14px 32px -24px color-mix(in srgb, var(--primary) 78%, transparent), inset 0 1px 0 color-mix(in srgb, white 48%, transparent);
+  transform: translateY(-1px);
+}
+
+.menu-item:active {
+  transform: translateY(0);
+  box-shadow: 0 10px 20px -20px color-mix(in srgb, var(--primary) 72%, transparent);
 }
 
 .menu-toggle:focus,
@@ -1272,11 +1281,14 @@ select {
 }
 
 .modal__content {
+  position: relative;
+  overflow: visible;
   background: var(--surface);
   border-radius: var(--radius-3);
   padding: var(--space-6);
   max-width: 560px;
   width: 100%;
+  border: 1px solid var(--border);
 }
 
 .layout-mode-modal__tv-options[hidden] {
@@ -1588,6 +1600,8 @@ select {
 }
 
 .category-modal {
+  position: relative;
+  overflow: visible;
   background: var(--surface);
   border-radius: var(--radius-3);
   padding: var(--space-4);
@@ -1651,6 +1665,8 @@ select {
 }
 
 .guide-modal {
+  position: relative;
+  overflow: visible;
   width: min(520px, 92vw);
   background: var(--surface);
   border-radius: var(--radius-3);
@@ -1710,6 +1726,8 @@ select {
 }
 
 .settings-modal {
+  position: relative;
+  overflow: visible;
   width: min(640px, 94vw);
   background: var(--surface);
   border-radius: var(--radius-3);
@@ -1826,12 +1844,46 @@ select {
 }
 
 .confirm-modal {
+  position: relative;
+  overflow: visible;
   width: min(420px, 92vw);
   background: var(--surface);
   border-radius: var(--radius-3);
   padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
   box-shadow: 0 18px 48px var(--shadow);
+}
+
+html[data-theme="light"] .modal__content,
+html[data-theme="light"] .confirm-modal,
+html[data-theme="light"] .category-modal,
+html[data-theme="light"] .guide-modal,
+html[data-theme="light"] .settings-modal,
+html[data-theme="light"] .account-panel__card {
+  border-color: color-mix(in srgb, var(--info) 58%, var(--border));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--info) 58%, transparent),
+    0 0 40px color-mix(in srgb, var(--info) 30%, transparent),
+    0 18px 48px var(--shadow);
+}
+
+html[data-theme="light"] .modal__content::before,
+html[data-theme="light"] .confirm-modal::before,
+html[data-theme="light"] .category-modal::before,
+html[data-theme="light"] .guide-modal::before,
+html[data-theme="light"] .settings-modal::before,
+html[data-theme="light"] .account-panel__card::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: calc(var(--radius-3) + 14px);
+  border: 5px solid color-mix(in srgb, var(--info) 78%, transparent);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--info) 48%, transparent),
+    0 0 52px color-mix(in srgb, var(--info) 28%, transparent),
+    inset 0 0 16px color-mix(in srgb, white 18%, transparent);
+  pointer-events: none;
+  animation: onboarding-halo-pulse 1.8s ease-in-out infinite;
 }
 
 .account-switcher-modal {
@@ -2023,36 +2075,12 @@ body.player-overlay-open {
 }
 
 .onboarding-ready-modal {
-  position: relative;
   width: min(520px, 94vw);
-  overflow: visible;
 }
 
 .onboarding-ready-modal__detail {
   margin: var(--space-2) 0 0;
   opacity: 0.78;
-}
-
-html[data-theme="light"] .onboarding-ready-modal {
-  border-color: color-mix(in srgb, var(--info) 58%, var(--border));
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--info) 58%, transparent),
-    0 0 40px color-mix(in srgb, var(--info) 30%, transparent),
-    0 18px 48px var(--shadow);
-}
-
-html[data-theme="light"] .onboarding-ready-modal::before {
-  content: '';
-  position: absolute;
-  inset: -14px;
-  border-radius: calc(var(--radius-3) + 14px);
-  border: 5px solid color-mix(in srgb, var(--info) 78%, transparent);
-  box-shadow:
-    0 0 24px color-mix(in srgb, var(--info) 48%, transparent),
-    0 0 52px color-mix(in srgb, var(--info) 28%, transparent),
-    inset 0 0 16px color-mix(in srgb, white 18%, transparent);
-  pointer-events: none;
-  animation: onboarding-halo-pulse 1.8s ease-in-out infinite;
 }
 
 .admin-observability-modal__body {
@@ -2341,15 +2369,16 @@ body.login-page-open #app {
 }
 
 .account-panel__card {
+  position: relative;
   width: 100%;
   max-width: 560px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--primary) 20%);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--info) 42%, var(--border));
+  border-radius: calc(var(--radius-3) + 8px);
+  overflow: visible;
 }
 
 .account-panel__header {

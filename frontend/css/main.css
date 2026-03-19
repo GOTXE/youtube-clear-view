@@ -2034,24 +2034,25 @@ body.player-overlay-open {
 }
 
 html[data-theme="light"] .onboarding-ready-modal {
-  border-color: color-mix(in srgb, var(--info) 42%, var(--border));
+  border-color: color-mix(in srgb, var(--info) 58%, var(--border));
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--info) 46%, transparent),
-    0 0 28px color-mix(in srgb, var(--info) 24%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--info) 58%, transparent),
+    0 0 40px color-mix(in srgb, var(--info) 30%, transparent),
     0 18px 48px var(--shadow);
 }
 
 html[data-theme="light"] .onboarding-ready-modal::before {
   content: '';
   position: absolute;
-  inset: -10px;
-  border-radius: calc(var(--radius-3) + 10px);
-  border: 3px solid color-mix(in srgb, var(--info) 55%, transparent);
+  inset: -14px;
+  border-radius: calc(var(--radius-3) + 14px);
+  border: 5px solid color-mix(in srgb, var(--info) 78%, transparent);
   box-shadow:
-    0 0 18px color-mix(in srgb, var(--info) 38%, transparent),
-    0 0 36px color-mix(in srgb, var(--info) 18%, transparent);
+    0 0 24px color-mix(in srgb, var(--info) 48%, transparent),
+    0 0 52px color-mix(in srgb, var(--info) 28%, transparent),
+    inset 0 0 16px color-mix(in srgb, white 18%, transparent);
   pointer-events: none;
-  animation: onboarding-halo-pulse 2.4s ease-in-out infinite;
+  animation: onboarding-halo-pulse 1.8s ease-in-out infinite;
 }
 
 .admin-observability-modal__body {
@@ -2085,12 +2086,12 @@ html[data-theme="light"] .onboarding-ready-modal::before {
 @keyframes onboarding-halo-pulse {
   0%,
   100% {
-    opacity: 0.58;
-    transform: scale(0.995);
+    opacity: 0.62;
+    transform: scale(0.992);
   }
   50% {
-    opacity: 0.96;
-    transform: scale(1.01);
+    opacity: 1;
+    transform: scale(1.02);
   }
 }
 

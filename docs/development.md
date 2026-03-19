@@ -72,6 +72,11 @@ For plain LAN browsing without Google OAuth:
 - `CORS_ORIGINS` should still include the LAN frontend origin if frontend and API are split during development
 - the intended product flow is: first account bootstrap via Google OAuth on a compatible browser, then recurring LAN logins via local username/password, passkey, or pairing
 - keep `GET /api/auth/google/link` available in development if you need to attach Google tokens to an already-created local/test account
+- for first-time Google bootstrap (`auth_status=needs_setup`), the UI flow is:
+  - local `username + password` setup
+  - device-type confirmation
+  - a readiness modal explaining that channels, videos, and categories are being prepared
+- while that onboarding UI is shown, the app may already start importing subscriptions and preparing the first library state in the background
 
 ## Google Account Switching
 

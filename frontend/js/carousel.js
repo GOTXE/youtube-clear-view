@@ -306,6 +306,22 @@ class Carousel {
       thumb.appendChild(badge);
     }
 
+    // Progress bar for in-progress videos
+    if (item.progress != null && video.duration > 0) {
+      const ratio = Math.min(Math.max(item.progress / video.duration, 0), 1);
+      const bar = document.createElement('div');
+      bar.className = 'video-card__progress';
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-valuenow', Math.round(ratio * 100));
+      bar.setAttribute('aria-valuemin', '0');
+      bar.setAttribute('aria-valuemax', '100');
+      const fill = document.createElement('div');
+      fill.className = 'video-card__progress-fill';
+      fill.style.width = `${(ratio * 100).toFixed(1)}%`;
+      bar.appendChild(fill);
+      thumb.appendChild(bar);
+    }
+
     const body = document.createElement('div');
     body.className = 'video-card__body';
 

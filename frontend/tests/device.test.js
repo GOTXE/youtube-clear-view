@@ -134,4 +134,46 @@ describe('device rehydration after user switch', () => {
 
     expect(document.getElementById('device-type-modal')).not.toBeNull();
   });
+
+  it('closes the device modal after confirmation even when the API client returns ok without data', async () => {
+    const setDeviceTypeMock = vi.fn(async () => ({ ok: true }));
+
+    window.APIClient = class APIClient {
+      async detectDevice() {
+        return {
+          ok: true,
+          data: { suggested_type: 'tv', confidence: 0.9 }
+        };
+      }
+
+      async registerDevice() {
+        return {
+          ok: true,
+          data: {
+            id: 42,
+            device_type: 'desktop',
+            device_type_confirmed: false
+          }
+        };
+      }
+
+      async setDeviceType() {
+        return setDeviceTypeMock();
+      }
+    };
+
+    await import('../js/device.js');
+    await window.initDevice();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const modal = document.getElementById('device-type-modal');
+    expect(modal).not.toBeNull();
+
+    modal.querySelectorAll('button.button')[1].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(setDeviceTypeMock).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('device-type-modal')).toBeNull();
+    expect(window.getCurrentDeviceType()).toBe('tv');
+  });
 });

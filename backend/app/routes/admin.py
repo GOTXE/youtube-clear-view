@@ -8,6 +8,7 @@ from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.services.admin_access import is_admin_user
 from app.services.refresh_governance import list_active_refreshes
+from app.services.site_settings import get_password_policy, serialize_password_policy, set_password_policy
 from app.services.sqlite_metrics import get_sqlite_metrics_snapshot, set_sqlite_metrics_enabled
 
 
@@ -111,3 +112,37 @@ def get_runtime_state():
         if user.session_token_hash or user.devices
     ]
     return jsonify({"users": payload})
+
+
+@admin_bp.get("/api/admin/security/password-policy")
+@handle_route_errors
+@require_auth
+def get_password_policy_settings():
+    """Return the active global password policy for admins."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    return jsonify(serialize_password_policy())
+
+
+@admin_bp.put("/api/admin/security/password-policy")
+@handle_route_errors
+@require_auth
+def update_password_policy_settings():
+    """Persist a new global password policy for admins."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    payload = request.get_json(silent=True) or {}
+    policy_name = payload.get("password_policy")
+    if not isinstance(policy_name, str):
+        return _bad_request("Invalid password policy.")
+
+    try:
+        set_password_policy(policy_name)
+    except ValueError:
+        return _bad_request("Invalid password policy.")
+
+    return jsonify(serialize_password_policy())

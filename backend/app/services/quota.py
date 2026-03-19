@@ -1,8 +1,7 @@
 """Quota helpers for YT API usage."""
 
-from datetime import datetime
-
 from app.config import Config
+from app.utils.time import utc_now
 
 
 def get_daily_cap():
@@ -13,7 +12,7 @@ def get_daily_cap():
 
 def reset_quota_if_needed(settings):
     """Reset quota counters if day changed."""
-    today = datetime.utcnow().date().isoformat()
+    today = utc_now().date().isoformat()
     if settings.quota_date != today:
         settings.quota_date = today
         settings.quota_used = 0

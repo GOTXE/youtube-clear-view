@@ -873,6 +873,37 @@ select {
   color: var(--text);
 }
 
+.field__control {
+  position: relative;
+}
+
+.field__input--with-toggle {
+  width: 100%;
+  padding-right: 48px;
+}
+
+.field__toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.field__toggle:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+}
+
 .field__input:focus {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
@@ -2585,4 +2616,3 @@ body.login-page-open #app {
   color: var(--muted);
   padding: var(--space-5) 0;
 }
-

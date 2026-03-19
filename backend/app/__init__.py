@@ -14,6 +14,7 @@ from .migrations import (
     ensure_channel_schema,
     ensure_enrich_settings_columns,
     ensure_login_pairing_schema,
+    ensure_site_settings_schema,
     ensure_user_channel_rating_columns,
     ensure_user_device_schema,
     ensure_user_passkey_schema,
@@ -65,6 +66,7 @@ def create_app(config_class=Config):
         ensure_user_device_schema()
         ensure_user_passkey_schema()
         ensure_login_pairing_schema()
+        ensure_site_settings_schema()
         ensure_user_channel_schema()
         ensure_channel_schema()
         ensure_video_schema()

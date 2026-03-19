@@ -26,6 +26,8 @@ class TestConfig:
     GUNICORN_WORKERS = 1
     ADMIN_USERNAMES = "admin"
     SQLITE_METRICS_ENABLED = False
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
 
     CSRF_ENABLED = False
     RATE_LIMIT_ENABLED = False
@@ -111,3 +113,20 @@ def test_sqlite_observability_rejects_invalid_toggle_payload(client):
     _login(client, "admin")
     response = client.put("/api/admin/observability/sqlite", json={"enabled": "yes"})
     assert response.status_code == 400
+
+
+def test_admin_can_read_and_update_password_policy(client):
+    _login(client, "admin")
+
+    response = client.get("/api/admin/security/password-policy")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["password_policy"] == "simple"
+    assert any(option["value"] == "unbreakable" for option in data["options"])
+
+    response = client.put(
+        "/api/admin/security/password-policy",
+        json={"password_policy": "unbreakable"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["password_policy"] == "unbreakable"

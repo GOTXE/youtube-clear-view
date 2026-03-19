@@ -1,8 +1,7 @@
 """Channel domain models."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class Channel(db.Model):
@@ -17,7 +16,7 @@ class Channel(db.Model):
     thumbnail_cache_path = db.Column(db.String(500))
     thumbnail_cached_at = db.Column(db.DateTime)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     # Classification metadata
     topic_ids = db.Column(db.Text)
@@ -57,7 +56,7 @@ class UserChannel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     channel_id = db.Column(db.Integer, db.ForeignKey("channels.id"), nullable=False, index=True)
-    subscribed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    subscribed_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     last_refreshed_at = db.Column(db.DateTime)
     last_checked_at = db.Column(db.DateTime)
 

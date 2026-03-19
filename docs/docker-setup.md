@@ -16,6 +16,14 @@ Run all commands from the repo root:
 docker compose -f infra/compose/compose.v020.yaml <command>
 ```
 
+For repetitive local tasks there is also a helper script:
+
+```bash
+./scripts/dev_docker.sh up
+./scripts/dev_docker.sh up --build --reset-db
+./scripts/dev_docker.sh db-reset --backup
+```
+
 ## Containers
 
 | Service | Image / Build | Ports | Purpose |

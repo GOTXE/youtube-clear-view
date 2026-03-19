@@ -1,8 +1,7 @@
 """Device domain models."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class UserDevice(db.Model):
@@ -28,7 +27,7 @@ class UserDevice(db.Model):
     viewing_distance_m = db.Column(db.Float)
     user_agent = db.Column(db.String(500))
     last_used_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     user = db.relationship("User", back_populates="devices")
     watched_videos = db.relationship("WatchedVideo", back_populates="device")

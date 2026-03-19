@@ -1,8 +1,7 @@
 """Passkey domain model."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class UserPasskey(db.Model):
@@ -21,8 +20,8 @@ class UserPasskey(db.Model):
     credential_device_type = db.Column(db.String(32))
     credential_backed_up = db.Column(db.Boolean, nullable=False, default=False)
     last_used_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", back_populates="passkeys")
 

@@ -1,8 +1,7 @@
 """Pairing code domain model for secondary-device sign-in."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class LoginPairing(db.Model):
@@ -18,13 +17,13 @@ class LoginPairing(db.Model):
     approved_at = db.Column(db.DateTime)
     expires_at = db.Column(db.DateTime, nullable=False)
     used_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     approved_user = db.relationship("User", back_populates="approved_pairings")
 
     def is_expired(self, now=None):
         """Return whether the pairing request is expired."""
-        now = now or datetime.utcnow()
+        now = now or utc_now()
         return bool(self.expires_at and self.expires_at <= now)
 
     def to_dict(self):

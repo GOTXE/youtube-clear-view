@@ -23,6 +23,8 @@ class TestConfig:
     LOG_VIEWER_PASSWORD = "test"
     LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
 
     CSRF_ENABLED = False
     RATE_LIMIT_ENABLED = False

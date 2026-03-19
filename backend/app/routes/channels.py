@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import requests
 from flask import Blueprint, Response, current_app, g, jsonify, redirect, request, send_file, stream_with_context
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -28,6 +28,7 @@ from app.services.video_ingest import (
 )
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
+from app.utils.time import utc_now
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
@@ -69,7 +70,7 @@ def _thumbnail_is_stale(channel):
     cached_path = os.path.join(cache_dir, channel.thumbnail_cache_path)
     if not os.path.exists(cached_path):
         return True
-    cutoff = datetime.utcnow() - timedelta(days=THUMBNAIL_TTL_DAYS)
+    cutoff = utc_now() - timedelta(days=THUMBNAIL_TTL_DAYS)
     return channel.thumbnail_cached_at < cutoff
 
 
@@ -106,7 +107,7 @@ def _cache_channel_thumbnail(channel):
         file_handle.write(response.content)
 
     channel.thumbnail_cache_path = filename
-    channel.thumbnail_cached_at = datetime.utcnow()
+    channel.thumbnail_cached_at = utc_now()
     db.session.commit()
 
     return cached_path
@@ -225,8 +226,8 @@ def list_channels():
     latest_video_map = {}
 
     if channel_ids:
-        cutoff_7 = datetime.utcnow() - timedelta(days=7)
-        cutoff_30 = datetime.utcnow() - timedelta(days=30)
+        cutoff_7 = utc_now() - timedelta(days=7)
+        cutoff_30 = utc_now() - timedelta(days=30)
 
         latest_rows = (
             db.session.query(Video.channel_id, func.max(Video.published_at))
@@ -264,11 +265,7 @@ def list_channels():
             )
         }
 
-        watched_subquery = (
-            db.session.query(WatchedVideo.video_id)
-            .filter_by(user_id=user.id)
-            .subquery()
-        )
+        watched_subquery = select(WatchedVideo.video_id).filter_by(user_id=user.id)
 
         recent_unwatched_7 = {
             row[0]: row[1]
@@ -457,7 +454,7 @@ def refresh_channels():
         db.session.commit()
 
     service = _get_service()
-    refreshed_at = datetime.utcnow()
+    refreshed_at = utc_now()
     cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
     if not cooldown_decision.get("allowed"):
         return _manual_refresh_block_response(cooldown_decision)
@@ -506,7 +503,7 @@ def refresh_channels_stream():
         db.session.add(settings)
         db.session.commit()
 
-    refreshed_at = datetime.utcnow()
+    refreshed_at = utc_now()
     cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
     if not cooldown_decision.get("allowed"):
         def blocked_generate():
@@ -635,7 +632,7 @@ def import_subscriptions():
             subscription = UserChannel(
                 user_id=user.id,
                 channel_id=channel.id,
-                subscribed_at=subscribed_at or datetime.utcnow(),
+                subscribed_at=subscribed_at or utc_now(),
             )
             db.session.add(subscription)
             new_subscriptions += 1
@@ -814,7 +811,7 @@ def rate_channel(channel_id):
         return _bad_request("Rating must be between 1 and 5.")
 
     subscription.rating = rating
-    subscription.rated_at = datetime.utcnow()
+    subscription.rated_at = utc_now()
     db.session.commit()
 
     return jsonify({

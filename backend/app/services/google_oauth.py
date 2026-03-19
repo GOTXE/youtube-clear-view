@@ -1,6 +1,6 @@
 """Google OAuth helpers for login and token refresh."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import requests
@@ -8,6 +8,7 @@ from flask import current_app
 
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
+from app.utils.time import utc_now
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -112,7 +113,7 @@ def apply_token_response(user, token_data):
     expires_in = token_data.get("expires_in")
     if expires_in:
         try:
-            user.google_token_expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
+            user.google_token_expires_at = utc_now() + timedelta(seconds=int(expires_in))
         except (TypeError, ValueError):
             user.google_token_expires_at = None
 
@@ -126,7 +127,7 @@ def ensure_access_token(user, leeway_seconds=60):
 
     if user.google_access_token and user.google_token_expires_at:
         refresh_at = user.google_token_expires_at - timedelta(seconds=leeway_seconds)
-        if datetime.utcnow() < refresh_at:
+        if utc_now() < refresh_at:
             return user.google_access_token
 
     if user.google_access_token and not user.google_token_expires_at:

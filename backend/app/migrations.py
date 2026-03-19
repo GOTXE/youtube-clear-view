@@ -285,6 +285,46 @@ def ensure_enrich_settings_columns():
         )
 
 
+def ensure_site_settings_schema():
+    """Ensure site_settings table exists for admin-managed global settings."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(site_settings)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS site_settings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        setting_key VARCHAR(100) NOT NULL UNIQUE,
+                        setting_value TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_site_settings_setting_key "
+                    "ON site_settings (setting_key)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Site settings schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_user_device_schema():
     """Ensure newer user device columns exist in SQLite dev databases."""
     engine = db.engine

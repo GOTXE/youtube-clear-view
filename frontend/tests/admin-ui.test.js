@@ -98,10 +98,52 @@ describe('admin observability UI', () => {
         ]
       }
     }));
+    const getAdminPasswordPolicyMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          password_policy: 'strong',
+          options: [
+            { value: 'simple', label: 'Simple' },
+            { value: 'strong', label: 'Strong' },
+            { value: 'unbreakable', label: 'Unbreakable' }
+          ]
+        }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          password_policy: 'unbreakable',
+          options: [
+            { value: 'simple', label: 'Simple' },
+            { value: 'strong', label: 'Strong' },
+            { value: 'unbreakable', label: 'Unbreakable' }
+          ]
+        }
+      });
+    const updateAdminPasswordPolicyMock = vi.fn(async passwordPolicy => ({
+      ok: true,
+      data: {
+        password_policy: passwordPolicy,
+        options: [
+          { value: 'simple', label: 'Simple' },
+          { value: 'strong', label: 'Strong' },
+          { value: 'unbreakable', label: 'Unbreakable' }
+        ]
+      }
+    }));
 
     window.APIClient = class APIClient {
       async getAuthProvider() {
-        return { ok: true, data: { auth_mode: 'google', google_login_url: '/api/auth/google' } };
+        return {
+          ok: true,
+          data: {
+            auth_mode: 'google',
+            google_login_url: '/api/auth/google',
+            local_signup_enabled: false
+          }
+        };
       }
 
       async getCurrentUser() {
@@ -137,6 +179,14 @@ describe('admin observability UI', () => {
         return updateAdminSqliteObservabilityMock(enabled);
       }
 
+      async getAdminPasswordPolicy() {
+        return getAdminPasswordPolicyMock();
+      }
+
+      async updateAdminPasswordPolicy(passwordPolicy) {
+        return updateAdminPasswordPolicyMock(passwordPolicy);
+      }
+
       async logout() {
         return { ok: true };
       }
@@ -155,16 +205,25 @@ describe('admin observability UI', () => {
 
     expect(getAdminSqliteObservabilityMock).toHaveBeenCalledTimes(1);
     expect(getAdminRuntimeStateMock).toHaveBeenCalledTimes(1);
+    expect(getAdminPasswordPolicyMock).toHaveBeenCalledTimes(1);
     expect(document.getElementById('admin-observability-modal').hidden).toBe(false);
     expect(document.getElementById('admin-observability-modal').textContent).toContain('adminMetricsWriteCount');
     expect(document.getElementById('admin-observability-modal').textContent).toContain('UPDATE');
     expect(document.getElementById('admin-observability-modal').textContent).toContain('adminRuntimeState');
     expect(document.getElementById('admin-observability-modal').textContent).toContain('dev-admin');
+    expect(document.getElementById('admin-password-policy-select').value).toBe('strong');
 
     document.getElementById('admin-observability-toggle').click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(updateAdminSqliteObservabilityMock).toHaveBeenCalledWith(true);
     expect(document.getElementById('admin-observability-modal').textContent).toContain('adminMetricsEnabled');
+
+    const policySelect = document.getElementById('admin-password-policy-select');
+    policySelect.value = 'unbreakable';
+    document.getElementById('admin-password-policy-save').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(updateAdminPasswordPolicyMock).toHaveBeenCalledWith('unbreakable');
   });
 });

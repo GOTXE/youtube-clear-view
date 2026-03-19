@@ -108,11 +108,7 @@ class APIClient {
   }
 
   completeSetup(username, password) {
-    const body = { username };
-    if (password) {
-      body.password = password;
-    }
-    return this.post('/api/auth/google/complete-setup', body);
+    return this.post('/api/auth/google/complete-setup', { username, password });
   }
 
   changePassword(currentPassword, newPassword) {
@@ -230,6 +226,14 @@ class APIClient {
 
   getAdminRuntimeState() {
     return this.get('/api/admin/runtime-state');
+  }
+
+  getAdminPasswordPolicy() {
+    return this.get('/api/admin/security/password-policy');
+  }
+
+  updateAdminPasswordPolicy(passwordPolicy) {
+    return this.put('/api/admin/security/password-policy', { password_policy: passwordPolicy });
   }
 
   updateProfile(data) {

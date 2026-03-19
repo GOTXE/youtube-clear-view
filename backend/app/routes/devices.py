@@ -1,7 +1,6 @@
 """Device management routes."""
 
 import math
-from datetime import datetime
 
 from flask import Blueprint, g, jsonify, request
 
@@ -11,6 +10,7 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import UserDevice
+from app.utils.time import utc_now
 
 
 devices_bp = Blueprint("devices", __name__)
@@ -78,7 +78,7 @@ def register_device():
 
     device = UserDevice.query.filter_by(user_id=user.id, device_identifier=device_identifier).first()
     if device:
-        device.last_used_at = datetime.utcnow()
+        device.last_used_at = utc_now()
         if user_agent:
             device.user_agent = user_agent
         db.session.commit()
@@ -88,7 +88,7 @@ def register_device():
         user_id=user.id,
         device_identifier=device_identifier,
         user_agent=user_agent or None,
-        last_used_at=datetime.utcnow(),
+        last_used_at=utc_now(),
         device_type="desktop",
         device_type_confirmed=False,
     )
@@ -177,7 +177,7 @@ def update_device_preferences(device_id):
     device.screen_size_inches = screen_size_inches
     device.viewing_distance_m = viewing_distance_m
     if frontend_mode == "tv" and tv_scale:
-        device.tv_scale_confirmed_at = datetime.utcnow()
+        device.tv_scale_confirmed_at = utc_now()
     else:
         device.tv_scale_confirmed_at = None
     db.session.commit()

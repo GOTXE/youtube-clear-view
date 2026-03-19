@@ -1,9 +1,9 @@
 """User settings model for presets and scheduling."""
 
 import json
-from datetime import datetime
 
 from app.extensions import db
+from app.utils.time import utc_now
 
 DEFAULT_SCHEDULE_HOURS = [7, 12, 17, 21]
 DEFAULT_PRESET = "standard"
@@ -34,8 +34,8 @@ class UserSettings(db.Model):
     quota_date = db.Column(db.String(10))
     quota_used = db.Column(db.Integer, default=0)
     quota_cap = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", back_populates="settings")
 

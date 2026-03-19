@@ -26,6 +26,7 @@ You need one of these:
 YTCV uses Google OAuth to:
 - identify each user
 - read that user's subscribed channels via the official YouTube API
+- bootstrap the first account session before the user defines local credentials
 
 You will need:
 - a Google account
@@ -34,6 +35,9 @@ You will need:
 - OAuth Client ID + Secret
 
 Important: OAuth works best with a stable HTTPS URL (a normal website URL). TVs are especially picky.
+The intended deployment model is:
+- first account creation through Google OAuth on a compatible browser
+- then local LAN sign-in on other devices using username/password, passkeys, or pairing
 
 Reference:
 - Deployment details: [deployment.md](deployment.md)

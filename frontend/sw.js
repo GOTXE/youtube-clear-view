@@ -1,11 +1,12 @@
 // Service worker para YT Clear View — estrategia cache-first para assets estáticos.
-const CACHE_VERSION = 'ytcv-v35';
+const CACHE_VERSION = 'ytcv-v37';
 const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.json'];
 
 // Recursos precacheados en la instalación
 const PRECACHE_URLS = [
   '/',
   '/index.html',
+  '/config.js',
   '/css/main.css',
   '/css/mode-desktop-tablet.css',
   '/css/mode-tv.css',
@@ -23,6 +24,7 @@ const PRECACHE_URLS = [
   '/i18n/en.json',
   '/i18n/es.json',
   '/manifest.json',
+  '/favicon.svg',
 ];
 
 function isStaticAsset(url) {
@@ -100,6 +102,12 @@ self.addEventListener('fetch', event => {
 
   // HTML (navegación): network-first, fallback a cache
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request).catch(async () => {
+      const cachedIndex = await caches.match('/index.html');
+      if (cachedIndex) {
+        return cachedIndex;
+      }
+      return caches.match('/');
+    })
   );
 });

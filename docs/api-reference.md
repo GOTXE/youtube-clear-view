@@ -452,7 +452,7 @@ Request:
 ```
 
 - `current_password` (required if the user already has a password set)
-- `new_password` (required): minimum 8 characters
+- `new_password` (required): validated against the active password policy selected by the site admin (`simple`, `strong`, or `unbreakable`)
 
 Response:
 
@@ -460,7 +460,7 @@ Response:
 { "message": "Password updated." }
 ```
 
-If the user has not yet set a password (e.g. Google-only account), `current_password` can be omitted.
+If the user has not yet set a password, `current_password` can be omitted.
 Setting a password also marks `setup_completed = true` if it was previously false.
 
 ### GET /api/auth/google
@@ -479,6 +479,9 @@ browser to the Google consent screen.
 On callback, the backend stores OAuth tokens against the authenticated user
 instead of creating a new account.
 
+This endpoint is intentionally kept for development, migration, and recovery
+scenarios even when the main public sign-up flow is Google-first.
+
 ### GET /api/auth/google/callback
 
 OAuth callback endpoint. Google redirects here after user consent.
@@ -491,19 +494,20 @@ If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_err
 Requires an authenticated session.
 
 Completes first-time setup for a user who registered via Google OAuth. Allows
-the user to choose a custom username and optionally set a local password.
+the user to choose a custom username and set the local password required for
+later LAN or fallback logins.
 
 Request:
 
 ```json
 {
   "username": "alice",
-  "password": "optional-pass"
+  "password": "correct-horse-battery-staple"
 }
 ```
 
-- `username` (optional): 3-64 characters, must be unique. If omitted, the existing username is kept.
-- `password` (optional): minimum 8 characters. Sets a local password for fallback login.
+- `username` (required): 3-64 characters, must be unique, and may contain only letters, numbers, `.`, `_`, or `-`
+- `password` (required): validated against the active site-wide password policy
 
 Response:
 
@@ -519,7 +523,45 @@ Response:
   "google_avatar_url": "https://...",
   "google_auth_status": "active",
   "totp_enabled": false,
-  "theme_preference": "light"
+  "theme_preference": "light",
+  "has_password": true,
+  "username_suggestion": "alice"
+}
+```
+
+### GET /api/admin/security/password-policy
+
+Requires an authenticated admin session.
+
+Returns the active global password policy and the allowed options.
+
+Response:
+
+```json
+{
+  "password_policy": "strong",
+  "options": [
+    { "value": "simple", "label": "Simple" },
+    { "value": "strong", "label": "Strong" },
+    { "value": "unbreakable", "label": "Unbreakable" }
+  ]
+}
+```
+
+### PUT /api/admin/security/password-policy
+
+Requires an authenticated admin session.
+
+Updates the global password policy used by:
+- local registration when enabled
+- post-Google account setup
+- password changes
+
+Request:
+
+```json
+{
+  "password_policy": "unbreakable"
 }
 ```
 

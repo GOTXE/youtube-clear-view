@@ -6,6 +6,7 @@
   let listenersReady = false;
   let authMode = 'local';
   let googleLoginUrl = null;
+  let localSignupEnabled = false;
   let pendingMfaChallenge = null;
 
   const userSelector = document.getElementById('user-selector');
@@ -60,7 +61,8 @@
 
   const adminState = {
     metrics: null,
-    runtimeState: null
+    runtimeState: null,
+    passwordPolicy: null
   };
 
   const t = (key, vars) => (
@@ -336,7 +338,7 @@
     }
 
     if (ui.newUserButton) {
-      ui.newUserButton.hidden = googleMode || Boolean(currentUser);
+      ui.newUserButton.hidden = googleMode || !localSignupEnabled || Boolean(currentUser);
     }
 
     if (ui.googleLoginButton) {
@@ -407,6 +409,7 @@
     if (response.ok && response.data && response.data.auth_mode) {
       authMode = response.data.auth_mode;
       googleLoginUrl = response.data.google_login_url;
+      localSignupEnabled = Boolean(response.data.local_signup_enabled);
       window.dispatchEvent(new CustomEvent('auth:provider-loaded', { detail: response.data }));
     }
 
@@ -1704,6 +1707,23 @@
     return response.data;
   }
 
+  async function loadAdminPasswordPolicy() {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return null;
+    }
+
+    const response = await api.getAdminPasswordPolicy();
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadAdminPasswordPolicy'), 'error');
+      return null;
+    }
+
+    adminState.passwordPolicy = response.data;
+    return response.data;
+  }
+
   function buildAdminModal() {
     if (ui.adminModal) {
       return ui.adminModal;
@@ -1773,11 +1793,16 @@
     runtime.className = 'field admin-runtime-state';
     runtime.id = 'admin-runtime-state';
 
+    const security = document.createElement('div');
+    security.className = 'field admin-security-settings';
+    security.id = 'admin-security-settings';
+
     body.appendChild(description);
     body.appendChild(controls);
     body.appendChild(metrics);
     body.appendChild(recent);
     body.appendChild(runtime);
+    body.appendChild(security);
 
     modal.appendChild(header);
     modal.appendChild(body);
@@ -1808,8 +1833,9 @@
     const metricsNode = ui.adminModal.querySelector('#admin-observability-metrics');
     const recentNode = ui.adminModal.querySelector('#admin-observability-recent');
     const runtimeNode = ui.adminModal.querySelector('#admin-runtime-state');
+    const securityNode = ui.adminModal.querySelector('#admin-security-settings');
     const toggleButton = ui.adminModal.querySelector('#admin-observability-toggle');
-    if (!metricsNode || !recentNode || !runtimeNode || !toggleButton) {
+    if (!metricsNode || !recentNode || !runtimeNode || !securityNode || !toggleButton) {
       return;
     }
 
@@ -1861,18 +1887,17 @@
       empty.className = 'caption';
       empty.textContent = t('adminNoRecentWrites');
       recentNode.appendChild(empty);
-      return;
+    } else {
+      const list = document.createElement('div');
+      list.className = 'admin-observability-recent__list';
+      recentWrites.slice(0, 8).forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'field__group';
+        row.textContent = `${entry.statement || 'WRITE'} · ${entry.duration_ms || 0}ms`;
+        list.appendChild(row);
+      });
+      recentNode.appendChild(list);
     }
-
-    const list = document.createElement('div');
-    list.className = 'admin-observability-recent__list';
-    recentWrites.slice(0, 8).forEach(entry => {
-      const row = document.createElement('div');
-      row.className = 'field__group';
-      row.textContent = `${entry.statement || 'WRITE'} · ${entry.duration_ms || 0}ms`;
-      list.appendChild(row);
-    });
-    recentNode.appendChild(list);
 
     runtimeNode.innerHTML = '';
     const runtimeLabel = document.createElement('span');
@@ -1888,54 +1913,95 @@
       empty.className = 'caption';
       empty.textContent = t('adminNoRuntimeUsers');
       runtimeNode.appendChild(empty);
-      return;
+    } else {
+      const runtimeList = document.createElement('div');
+      runtimeList.className = 'admin-runtime-state__list';
+      users.forEach(user => {
+        const userCard = document.createElement('article');
+        userCard.className = 'admin-runtime-state__card';
+
+        const heading = document.createElement('h3');
+        heading.className = 'heading-3';
+        heading.textContent = user.display_name || user.username || user.email || `#${user.id}`;
+
+        const summary = document.createElement('p');
+        summary.className = 'caption';
+        summary.textContent = t('adminRuntimeUserSummary', {
+          devices: user.device_count || 0,
+          session: user.has_active_session ? t('yes') : t('no')
+        });
+
+        userCard.appendChild(heading);
+        userCard.appendChild(summary);
+
+        const devices = Array.isArray(user.devices) ? user.devices : [];
+        if (devices.length) {
+          const deviceList = document.createElement('div');
+          deviceList.className = 'admin-runtime-state__devices';
+          devices.forEach(device => {
+            const item = document.createElement('div');
+            item.className = 'field__group';
+            const mode = device.frontend_mode || '--';
+            item.textContent = `${device.device_type} · ${mode} · ${device.device_identifier}`;
+            deviceList.appendChild(item);
+          });
+          userCard.appendChild(deviceList);
+        }
+
+        runtimeList.appendChild(userCard);
+      });
+      runtimeNode.appendChild(runtimeList);
     }
 
-    const runtimeList = document.createElement('div');
-    runtimeList.className = 'admin-runtime-state__list';
-    users.forEach(user => {
-      const userCard = document.createElement('article');
-      userCard.className = 'admin-runtime-state__card';
+    securityNode.innerHTML = '';
+    const securityLabel = document.createElement('span');
+    securityLabel.className = 'field__label';
+    securityLabel.textContent = t('adminSecuritySettings');
+    securityNode.appendChild(securityLabel);
 
-      const heading = document.createElement('h3');
-      heading.className = 'heading-3';
-      heading.textContent = user.display_name || user.username || user.email || `#${user.id}`;
+    const securityDescription = document.createElement('p');
+    securityDescription.className = 'caption';
+    securityDescription.textContent = t('adminPasswordPolicyDescription');
+    securityNode.appendChild(securityDescription);
 
-      const summary = document.createElement('p');
-      summary.className = 'caption';
-      summary.textContent = t('adminRuntimeUserSummary', {
-        devices: user.device_count || 0,
-        session: user.has_active_session ? t('yes') : t('no')
-      });
+    const policySelect = document.createElement('select');
+    policySelect.className = 'field__input';
+    policySelect.id = 'admin-password-policy-select';
 
-      userCard.appendChild(heading);
-      userCard.appendChild(summary);
-
-      const devices = Array.isArray(user.devices) ? user.devices : [];
-      if (devices.length) {
-        const deviceList = document.createElement('div');
-        deviceList.className = 'admin-runtime-state__devices';
-        devices.forEach(device => {
-          const item = document.createElement('div');
-          item.className = 'field__group';
-          const mode = device.frontend_mode || '--';
-          item.textContent = `${device.device_type} · ${mode} · ${device.device_identifier}`;
-          deviceList.appendChild(item);
-        });
-        userCard.appendChild(deviceList);
-      }
-
-      runtimeList.appendChild(userCard);
+    const options = adminState.passwordPolicy && Array.isArray(adminState.passwordPolicy.options)
+      ? adminState.passwordPolicy.options
+      : [];
+    options.forEach(option => {
+      const node = document.createElement('option');
+      node.value = option.value;
+      node.textContent = option.label || option.value;
+      node.selected = option.value === adminState.passwordPolicy.password_policy;
+      policySelect.appendChild(node);
     });
-    runtimeNode.appendChild(runtimeList);
+
+    const policySaveButton = document.createElement('button');
+    policySaveButton.type = 'button';
+    policySaveButton.className = 'button button--ghost';
+    policySaveButton.id = 'admin-password-policy-save';
+    policySaveButton.textContent = t('saveSecuritySettings');
+    policySaveButton.addEventListener('click', async () => {
+      await updateAdminPasswordPolicy(policySelect.value, policySaveButton);
+    });
+
+    const securityControls = document.createElement('div');
+    securityControls.className = 'field__group';
+    securityControls.appendChild(policySelect);
+    securityControls.appendChild(policySaveButton);
+    securityNode.appendChild(securityControls);
   }
 
   async function refreshAdminModal() {
-    const [metrics, runtimeState] = await Promise.all([
+    const [metrics, runtimeState, passwordPolicy] = await Promise.all([
       loadAdminObservability(),
-      loadAdminRuntimeState()
+      loadAdminRuntimeState(),
+      loadAdminPasswordPolicy()
     ]);
-    if (!metrics || !runtimeState) {
+    if (!metrics || !runtimeState || !passwordPolicy) {
       return false;
     }
     renderAdminObservability();
@@ -1971,6 +2037,34 @@
     return true;
   }
 
+  async function updateAdminPasswordPolicy(passwordPolicy, button = null) {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = await api.updateAdminPasswordPolicy(passwordPolicy);
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok || !response.data) {
+      setStatusMessage(response.error || t('unableSaveAdminPasswordPolicy'), 'error');
+      return false;
+    }
+
+    adminState.passwordPolicy = response.data;
+    renderAdminObservability();
+    setStatusMessage(t('adminPasswordPolicyUpdated'), 'success');
+    return true;
+  }
+
   async function openAdminModal() {
     if (!isAdminUser()) {
       return;
@@ -1981,11 +2075,12 @@
       document.body.appendChild(modal);
     }
 
-    const [metrics, runtimeState] = await Promise.all([
+    const [metrics, runtimeState, passwordPolicy] = await Promise.all([
       loadAdminObservability(),
-      loadAdminRuntimeState()
+      loadAdminRuntimeState(),
+      loadAdminPasswordPolicy()
     ]);
-    if (!metrics || !runtimeState) {
+    if (!metrics || !runtimeState || !passwordPolicy) {
       return;
     }
 

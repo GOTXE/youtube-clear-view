@@ -1,6 +1,6 @@
 """Video route tests."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -26,6 +26,8 @@ class TestConfig:
     LOG_VIEWER_PASSWORD = "test"
     LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
 
     CSRF_ENABLED = False
     RATE_LIMIT_ENABLED = False
@@ -64,6 +66,7 @@ def _login(client, username):
 def _seed_data(app):
     with app.app_context():
         user = User(username="alice", display_name="Alice")
+        user.set_password("testpassword123")
         db.session.add(user)
         db.session.flush()
 
@@ -78,13 +81,13 @@ def _seed_data(app):
             yt_video_id="vid1",
             channel_id=channel.id,
             title="Video 1",
-            published_at=datetime.utcnow() - timedelta(days=1),
+            published_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1),
         )
         video2 = Video(
             yt_video_id="vid2",
             channel_id=channel.id,
             title="Video 2",
-            published_at=datetime.utcnow(),
+            published_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.session.add_all([video1, video2])
         db.session.flush()

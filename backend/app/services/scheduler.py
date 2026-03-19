@@ -2,7 +2,7 @@
 
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from app.config import Config
@@ -13,6 +13,7 @@ from app.services.presets import DEFAULT_PRESET
 from app.services.quota import can_consume, consume, mark_quota_exhausted, reset_quota_if_needed
 from app.services.yt_api import YTService
 from app.services.video_ingest import refresh_user_channels
+from app.utils.time import utc_now
 
 logger = get_logger(__name__)
 
@@ -65,7 +66,7 @@ def run_backfill_step(user, settings, service):
     subscriptions.sort(key=lambda sub: sub.channel_id)
     start_idx = settings.backfill_cursor or 0
     max_channels = Config.BACKFILL_MAX_CHANNELS
-    now = datetime.utcnow()
+    now = utc_now()
 
     processed = 0
     idx = start_idx
@@ -100,10 +101,10 @@ def _run_scheduled_refresh(user, settings, service):
     reset_quota_if_needed(settings)
     if not can_consume(settings, Config.YT_REFRESH_COST):
         return
-    result = refresh_user_channels(user, settings, service, now=datetime.utcnow())
+    result = refresh_user_channels(user, settings, service, now=utc_now())
     if result.get("rate_limited"):
         mark_quota_exhausted(settings)
-    settings.last_schedule_run_at = datetime.utcnow()
+    settings.last_schedule_run_at = utc_now()
 
 
 def scheduler_tick():
@@ -113,7 +114,7 @@ def scheduler_tick():
 
     api_key = Config.YT_API_KEY
     service = YTService(api_key)
-    now = datetime.utcnow()
+    now = utc_now()
 
     for user in User.query.all():
         settings = _get_or_create_settings(user)

@@ -1,4 +1,4 @@
-"""Utility helpers package."""
+"""Time helpers."""
 
 from datetime import UTC, datetime
 

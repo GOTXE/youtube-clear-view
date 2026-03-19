@@ -70,6 +70,8 @@ For OAuth from other devices, use one of these:
 For plain LAN browsing without Google OAuth:
 - `FRONTEND_URL` may stay on `localhost`
 - `CORS_ORIGINS` should still include the LAN frontend origin if frontend and API are split during development
+- the intended product flow is: first account bootstrap via Google OAuth on a compatible browser, then recurring LAN logins via local username/password, passkey, or pairing
+- keep `GET /api/auth/google/link` available in development if you need to attach Google tokens to an already-created local/test account
 
 ## Google Account Switching
 
@@ -134,7 +136,8 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 
 ### Google OAuth Account Linking/Unlinking
 
-- Users can link their account to Google OAuth to enable YouTube API access (subscription import, video refresh).
+- The preferred production flow is Google-first account bootstrap, followed by mandatory local username/password setup in the post-Google wizard.
+- `GET /api/auth/google/link` is still useful for development, migration, and support cases where an existing account must receive Google tokens later.
 - `POST /api/auth/google/unlink` revokes the local Google linkage and clears stored OAuth credentials.
 - Google auth state is tracked per user with statuses: `not_linked`, `active`, `needs_reauth`, `revoked`.
 

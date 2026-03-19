@@ -57,7 +57,9 @@ class Config:
     BACKFILL_MAX_CHANNELS = int(os.getenv("BACKFILL_MAX_CHANNELS", "50"))
 
     AUTH_MODE = os.getenv("AUTH_MODE", "local")
+    LOCAL_SIGNUP_ENABLED = os.getenv("LOCAL_SIGNUP_ENABLED", "false").lower() == "true"
     AUTH_TOKEN_ENCRYPTION_KEY = os.getenv("AUTH_TOKEN_ENCRYPTION_KEY")
+    PASSWORD_POLICY = os.getenv("PASSWORD_POLICY", "strong").strip().lower() or "strong"
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
@@ -102,6 +104,9 @@ class Config:
         auth_mode = (Config.AUTH_MODE or "local").lower()
         if auth_mode not in ("local", "google"):
             raise ValueError("AUTH_MODE must be 'local' or 'google'.")
+
+        if Config.PASSWORD_POLICY not in {"simple", "strong", "unbreakable"}:
+            raise ValueError("PASSWORD_POLICY must be 'simple', 'strong', or 'unbreakable'.")
 
         if auth_mode == "google":
             missing = []

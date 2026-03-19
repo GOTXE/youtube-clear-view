@@ -21,6 +21,7 @@
   let currentDevice = null;
   let deviceIdentifier = null;
   let modal = null;
+  let lastDeviceTypeError = '';
 
   const ui = {
     deviceLabel: document.getElementById('device-type')
@@ -167,15 +168,23 @@
   async function confirmDeviceType(type) {
     const api = getApiClient();
     if (!api || !currentDeviceId) {
+      lastDeviceTypeError = t('unableConfirmDeviceType');
       return false;
     }
 
     const response = await api.setDeviceType(currentDeviceId, type);
     if (!response.ok) {
+      lastDeviceTypeError = response.error || t('unableConfirmDeviceType');
       return false;
     }
 
-    currentDevice = response.data;
+    lastDeviceTypeError = '';
+    currentDevice = response.data || {
+      ...(currentDevice || {}),
+      id: currentDeviceId,
+      device_type: type,
+      device_type_confirmed: true
+    };
     currentDeviceConfirmed = true;
     setCurrentDevice(type);
     if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
@@ -208,6 +217,10 @@
     const message = document.createElement('p');
     message.className = 'body';
     message.textContent = t('confirmDeviceMessage', { device: getDeviceLabel(suggestedType) });
+
+    const error = document.createElement('p');
+    error.className = 'login-page__error body';
+    error.hidden = true;
 
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'field';
@@ -257,6 +270,7 @@
 
     content.appendChild(title);
     content.appendChild(message);
+    content.appendChild(error);
     content.appendChild(fieldset);
     content.appendChild(actions);
 
@@ -273,10 +287,15 @@
       const selected = overlay.querySelector('input[name="device-type"]:checked');
       const chosenType = selected ? selected.value : suggestedType;
       confirmButton.disabled = true;
+      error.hidden = true;
+      error.textContent = '';
       const ok = await confirmDeviceType(chosenType);
       confirmButton.disabled = false;
       if (ok) {
         closeDeviceModal();
+      } else {
+        error.textContent = lastDeviceTypeError || t('unableConfirmDeviceType');
+        error.hidden = false;
       }
     });
 
@@ -361,6 +380,10 @@
     return deviceIdentifier;
   }
 
+  function getLastDeviceTypeError() {
+    return lastDeviceTypeError;
+  }
+
   window.initDevice = initDevice;
   window.detectDevice = detectDevice;
   window.registerDevice = registerDevice;
@@ -369,5 +392,6 @@
   window.getCurrentDeviceType = getCurrentDeviceType;
   window.getCurrentDevice = getCurrentDevice;
   window.getDeviceIdentifier = getDeviceIdentifier;
+  window.getLastDeviceTypeError = getLastDeviceTypeError;
   window.openDeviceTypeModal = openDeviceTypeModal;
 })();

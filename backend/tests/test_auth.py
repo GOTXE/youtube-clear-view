@@ -1,7 +1,7 @@
 """Authentication endpoint tests."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -34,6 +34,8 @@ class TestConfig:
     PASSKEY_RP_ID = "localhost"
     PASSKEY_ORIGIN = "http://localhost"
     ADMIN_USERNAMES = "admin"
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
     CSRF_ENABLED = False
     RATE_LIMIT_ENABLED = False
 
@@ -80,34 +82,25 @@ def client_google(app_google):
     return app_google.test_client()
 
 
-def test_login_creates_user_and_cookie(client, app):
-    """Legacy user (no password_hash) can log in; response includes needs_setup: true."""
+def test_login_requires_password_when_local_password_not_configured(client, app):
+    """Users without a local password must finish setup before local login works."""
     with app.app_context():
         user = User(username="alice", display_name="Alice")
         db.session.add(user)
         db.session.commit()
 
     response = client.post("/api/auth/login", json={"username": "alice"})
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["username"] == "alice"
-    assert data.get("needs_setup") is True
-    assert "session_token" not in data
-
-    cookie = response.headers.get("Set-Cookie", "")
-    assert "ytcv_session=" in cookie
-    assert "HttpOnly" in cookie
-    assert "Secure" in cookie
-    assert "SameSite=Lax" in cookie
+    assert response.status_code == 401
 
 
 def test_login_persists_hashed_session_only(client, app):
     with app.app_context():
         user = User(username="alice", display_name="Alice")
+        user.set_password("password123")
         db.session.add(user)
         db.session.commit()
 
-    client.post("/api/auth/login", json={"username": "alice"})
+    client.post("/api/auth/login", json={"username": "alice", "password": "password123"})
 
     with app.app_context():
         user = User.query.filter_by(username="alice").first()
@@ -132,12 +125,13 @@ def test_current_user_requires_cookie(client):
 def test_login_with_totp_enabled_returns_mfa_challenge(client, app):
     with app.app_context():
         user = User(username="mfa-login", display_name="MFA Login")
+        user.set_password("password123")
         user.totp_secret = "JBSWY3DPEHPK3PXP"
         user.totp_enabled = True
         db.session.add(user)
         db.session.commit()
 
-    response = client.post("/api/auth/login", json={"username": "mfa-login"})
+    response = client.post("/api/auth/login", json={"username": "mfa-login", "password": "password123"})
     assert response.status_code == 200
     data = response.get_json()
     assert data["authenticated"] is False
@@ -175,12 +169,13 @@ def test_current_user_marks_admin_when_configured(client):
 def test_verify_mfa_challenge_with_totp_creates_session(client, app):
     with app.app_context():
         user = User(username="mfa-verify", display_name="MFA Verify")
+        user.set_password("password123")
         user.totp_secret = "JBSWY3DPEHPK3PXP"
         user.totp_enabled = True
         db.session.add(user)
         db.session.commit()
 
-    client.post("/api/auth/login", json={"username": "mfa-verify"})
+    client.post("/api/auth/login", json={"username": "mfa-verify", "password": "password123"})
     response = client.post(
         "/api/auth/mfa/verify",
         json={"method": "totp", "code": generate_totp_code("JBSWY3DPEHPK3PXP")},
@@ -280,6 +275,9 @@ def test_auth_provider_defaults_local(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["auth_mode"] == "local"
+    assert data["registration_mode"] == "google_first"
+    assert data["local_signup_enabled"] is True
+    assert data["password_policy"] == "simple"
 
 
 def test_ensure_user_schema_normalizes_legacy_google_status(app_google):
@@ -474,6 +472,7 @@ def test_passkey_authentication_creates_session(client, app, monkeypatch):
 def test_list_and_delete_passkeys(client, app):
     with app.app_context():
         user = User(username="owner", display_name="Owner")
+        user.set_password("ownerpassword")
         db.session.add(user)
         db.session.commit()
         passkey = UserPasskey(
@@ -486,7 +485,7 @@ def test_list_and_delete_passkeys(client, app):
         db.session.add(passkey)
         db.session.commit()
 
-    client.post("/api/auth/login", json={"username": "owner"})
+    client.post("/api/auth/login", json={"username": "owner", "password": "ownerpassword"})
 
     list_response = client.get("/api/auth/passkeys")
     assert list_response.status_code == 200
@@ -611,6 +610,7 @@ def test_google_switch_account_with_totp_enabled_returns_mfa_challenge(client_go
 def test_pairing_flow_start_approve_claim(client, app):
     with app.app_context():
         user = User(username="pair-owner", display_name="Pair Owner")
+        user.set_password("pairpassword")
         db.session.add(user)
         db.session.commit()
 
@@ -621,7 +621,7 @@ def test_pairing_flow_start_approve_claim(client, app):
     assert start_data["pairing_code"]
     assert start_data["public_id"]
 
-    client.post("/api/auth/login", json={"username": "pair-owner"})
+    client.post("/api/auth/login", json={"username": "pair-owner", "password": "pairpassword"})
     approve_response = client.post(
         "/api/auth/pairing/approve",
         json={"code": start_data["pairing_code"]},
@@ -652,11 +652,12 @@ def test_pairing_claim_returns_pending_until_approved(client):
 def test_pairing_claim_is_single_use(client, app):
     with app.app_context():
         user = User(username="pair-once", display_name="Pair Once")
+        user.set_password("pairpassword")
         db.session.add(user)
         db.session.commit()
 
     start_data = client.post("/api/auth/pairing/start").get_json()
-    client.post("/api/auth/login", json={"username": "pair-once"})
+    client.post("/api/auth/login", json={"username": "pair-once", "password": "pairpassword"})
     client.post("/api/auth/pairing/approve", json={"code": start_data["pairing_code"]})
 
     claim_client = app.test_client()
@@ -674,7 +675,7 @@ def test_pairing_expiry_is_enforced(client, app):
         from app.models import LoginPairing
 
         pairing = LoginPairing.query.filter_by(public_id=start_data["public_id"]).first()
-        pairing.expires_at = datetime.utcnow() - timedelta(minutes=1)
+        pairing.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
         db.session.commit()
 
     claim_response = client.post("/api/auth/pairing/claim", json={"public_id": start_data["public_id"]})
@@ -854,20 +855,14 @@ def test_login_rate_limiting_locks_account(client):
     assert response.status_code == 423
 
 
-def test_login_legacy_user_without_password_succeeds_with_needs_setup(client, app):
+def test_login_legacy_user_without_password_is_rejected(client, app):
     with app.app_context():
         user = User(username="legacy-nopw", display_name="Legacy No Password")
         db.session.add(user)
         db.session.commit()
 
     response = client.post("/api/auth/login", json={"username": "legacy-nopw"})
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["username"] == "legacy-nopw"
-    assert data.get("needs_setup") is True
-
-    cookie = response.headers.get("Set-Cookie", "")
-    assert "ytcv_session=" in cookie
+    assert response.status_code == 401
 
 
 def test_change_password_requires_auth(client):
@@ -902,10 +897,11 @@ def test_google_complete_setup_updates_username_and_sets_flag(client, app):
     """complete-setup should rename the user and mark setup_completed."""
     with app.app_context():
         user = User(username="g_123", display_name="G User", setup_completed=False)
+        user.set_password("temporarypass")
         db.session.add(user)
         db.session.commit()
 
-    client.post("/api/auth/login", json={"username": "g_123"})
+    client.post("/api/auth/login", json={"username": "g_123", "password": "temporarypass"})
 
     response = client.post(
         "/api/auth/google/complete-setup",
@@ -938,15 +934,38 @@ def test_google_complete_setup_rejects_duplicate_username(client, app):
         existing = User(username="taken", display_name="Taken", setup_completed=True)
         existing.set_password("pass12345")
         newcomer = User(username="g_new", display_name="New", setup_completed=False)
+        newcomer.set_password("temporarypass")
         db.session.add_all([existing, newcomer])
         db.session.commit()
 
-    client.post("/api/auth/login", json={"username": "g_new"})
+    client.post("/api/auth/login", json={"username": "g_new", "password": "temporarypass"})
     response = client.post(
         "/api/auth/google/complete-setup",
-        json={"username": "taken"},
+        json={"username": "taken", "password": "validpassword1"},
     )
     assert response.status_code == 409
+
+
+def test_google_complete_setup_requires_password(client, app):
+    with app.app_context():
+        user = User(username="g_missing_pw", display_name="G User", setup_completed=False)
+        user.set_password("temporarypass")
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "g_missing_pw", "password": "temporarypass"})
+    response = client.post(
+        "/api/auth/google/complete-setup",
+        json={"username": "valid-user"},
+    )
+    assert response.status_code == 400
+
+
+def test_register_can_be_disabled_by_config(app):
+    app.config["LOCAL_SIGNUP_ENABLED"] = False
+    client = app.test_client()
+    response = client.post("/api/auth/register", json={"username": "blocked", "password": "longenough"})
+    assert response.status_code == 403
 
 
 def test_google_link_requires_auth(client):

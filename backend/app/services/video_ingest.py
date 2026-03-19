@@ -12,6 +12,7 @@ from app.models import ChannelCategory, UserChannel, Video
 from app.services.classification_service import ClassificationService
 from app.services.presets import get_preset
 from app.services.quota import consume, mark_quota_exhausted, reset_quota_if_needed
+from app.utils.time import utc_now
 
 logger = get_logger(__name__)
 
@@ -159,7 +160,7 @@ def iter_refresh_user_channels(
     now=None,
 ):
     """Yield incremental refresh progress for a user with per-channel caps."""
-    now = now or datetime.utcnow()
+    now = now or utc_now()
     preset = get_preset(settings.preset)
     recent_days = preset["recent_days"]
     older_min_days = preset["older_min_days"]

@@ -1,8 +1,7 @@
 """Video domain models."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class Video(db.Model):
@@ -20,7 +19,7 @@ class Video(db.Model):
     thumbnail_url = db.Column(db.String(500))
     published_at = db.Column(db.DateTime)
     duration = db.Column(db.Integer)
-    fetched_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     channel = db.relationship("Channel", back_populates="videos")
     watched_entries = db.relationship("WatchedVideo", back_populates="video", cascade="all, delete-orphan")
@@ -50,7 +49,7 @@ class WatchedVideo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=False, index=True)
-    watched_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    watched_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     device_id = db.Column(db.Integer, db.ForeignKey("user_devices.id"), index=True)
 
     user = db.relationship("User", back_populates="watched_videos")
@@ -82,7 +81,7 @@ class VideoProgress(db.Model):
     video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=False, index=True)
     position_seconds = db.Column(db.Integer, nullable=False)
     duration_seconds = db.Column(db.Integer)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", backref="video_progress_entries")
     video = db.relationship("Video", backref="progress_entries")

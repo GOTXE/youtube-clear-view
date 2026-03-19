@@ -1,11 +1,10 @@
 """User domain models."""
 
-from datetime import datetime
-
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.services.auth_security import decrypt_secret, encrypt_secret
+from app.utils.time import utc_now
 
 
 class User(db.Model):
@@ -37,8 +36,8 @@ class User(db.Model):
     _legacy_session_token = db.Column("session_token", db.String(255), index=True)
     session_token_hash = db.Column(db.String(64), index=True)
     session_created_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     # Relationships
     themes = db.relationship("Theme", back_populates="user", cascade="all, delete-orphan")
@@ -129,7 +128,7 @@ class User(db.Model):
         """Return True if account is temporarily locked due to failed attempts."""
         if self.login_locked_until is None:
             return False
-        return datetime.utcnow() < self.login_locked_until
+        return utc_now() < self.login_locked_until
 
     @property
     def has_any_credential(self):

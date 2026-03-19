@@ -1,7 +1,7 @@
 """Video management routes."""
 
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
@@ -12,6 +12,7 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, VideoProgress, WatchedVideo
+from app.utils.time import utc_now
 
 videos_bp = Blueprint("videos", __name__)
 logger = get_logger(__name__)
@@ -136,11 +137,11 @@ def _apply_video_filters(query, user_id, content_type, since_days, older_than_da
         query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
 
     if since_days:
-        cutoff = datetime.utcnow() - timedelta(days=since_days)
+        cutoff = utc_now() - timedelta(days=since_days)
         query = query.filter(Video.published_at.isnot(None), Video.published_at >= cutoff)
 
     if older_than_days:
-        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+        cutoff = utc_now() - timedelta(days=older_than_days)
         query = query.filter(Video.published_at.isnot(None), Video.published_at < cutoff)
 
     if only_unwatched:
@@ -221,7 +222,7 @@ def latest_videos():
         only_unwatched,
     )
     if randomize:
-        seed = int(datetime.utcnow().strftime("%Y%j"))
+        seed = int(utc_now().strftime("%Y%j"))
         payload, has_more, next_offset = _paginate_videos_random(
             query, user.id, limit, offset, seed
         )
@@ -411,7 +412,7 @@ def save_progress(video_id):
     if progress:
         progress.position_seconds = int(position)
         progress.duration_seconds = int(duration) if duration else progress.duration_seconds
-        progress.updated_at = datetime.utcnow()
+        progress.updated_at = utc_now()
     else:
         progress = VideoProgress(
             user_id=user.id,

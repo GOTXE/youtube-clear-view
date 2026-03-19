@@ -23,7 +23,7 @@
   // ── State ─────────────────────────────────────────────────────────────────
 
   let overlay = null;
-  let currentView = 'login'; // 'login' | 'register' | 'wizard' | 'pairing'
+  let currentView = 'login'; // 'login' | 'wizard' | 'pairing'
   let authProviderData = null;
   let visible = false;
   let _pairingPollTimer = null;
@@ -98,7 +98,7 @@
   function showView(view, options = {}) {
     if (currentView === 'pairing' && view !== 'pairing') _stopPairingPoll();
     currentView = view;
-    const views = ['login', 'register', 'wizard', 'pairing'];
+    const views = ['login', 'wizard', 'pairing'];
     views.forEach(v => {
       const panel = el(`lp-${v}`);
       if (panel) panel.hidden = v !== view;
@@ -117,6 +117,21 @@
       const node = el(id);
       if (node) { node.textContent = ''; node.hidden = true; }
     });
+  }
+
+  function togglePasswordVisibility(inputId, buttonId) {
+    const input = el(inputId);
+    const button = el(buttonId);
+    if (!input || !button) {
+      return;
+    }
+
+    const nextType = input.type === 'password' ? 'text' : 'password';
+    input.type = nextType;
+    const isVisible = nextType === 'text';
+    button.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+    button.setAttribute('aria-label', t(isVisible ? 'hidePassword' : 'showPassword'));
+    button.textContent = isVisible ? '🙈' : '👁';
   }
 
   // ── Build DOM ─────────────────────────────────────────────────────────────
@@ -167,33 +182,6 @@
           </p>
         </div>
 
-        <!-- REGISTER PANEL -->
-        <div id="lp-register" class="login-page__panel" hidden>
-          <h2 class="heading-2 login-page__title" data-i18n="registerTitle">Create account</h2>
-          <form id="lp-register-form" class="login-page__form" novalidate>
-            <label class="field">
-              <span class="field__label" data-i18n="registerUsername">Username</span>
-              <input id="lp-register-username" class="field__input" type="text" autocomplete="username" autocapitalize="none" required>
-            </label>
-            <label class="field">
-              <span class="field__label" data-i18n="registerPassword">Password</span>
-              <input id="lp-register-password" class="field__input" type="password" autocomplete="new-password" required>
-            </label>
-            <label class="field">
-              <span class="field__label" data-i18n="registerConfirmPassword">Confirm password</span>
-              <input id="lp-register-confirm" class="field__input" type="password" autocomplete="new-password" required>
-            </label>
-            <p id="lp-register-error" class="login-page__error body" role="alert" hidden></p>
-            <button id="lp-register-submit" class="button login-page__submit" type="submit">
-              <span id="register-submit-label" data-i18n="registerSubmit">Create account</span>
-            </button>
-          </form>
-          <p class="login-page__switch caption">
-            <span data-i18n="registerHaveAccount">Already have an account?</span>
-            <button id="lp-go-login" class="login-page__link" type="button" data-i18n="registerLoginLink">Sign in</button>
-          </p>
-        </div>
-
         <!-- PAIRING PANEL -->
         <div id="lp-pairing" class="login-page__panel" hidden>
           <h2 class="heading-2 login-page__title" data-i18n="pairingLoginTitle">Sign in with device code</h2>
@@ -221,15 +209,40 @@
               <span class="field__hint caption" data-i18n="setupWizardUsernameHint">This is how you sign in locally.</span>
             </label>
             <label class="field">
-              <span class="field__label" data-i18n="setupWizardPasswordLabel">Set a password (optional)</span>
-              <input id="lp-wizard-password" class="field__input" type="password" autocomplete="new-password">
-              <span class="field__hint caption" data-i18n="setupWizardPasswordHint">Lets you sign in without Google on local networks.</span>
+              <span class="field__label" data-i18n="setupWizardPasswordLabel">Set a password</span>
+              <div class="field__control">
+                <input id="lp-wizard-password" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-wizard-password-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-wizard-password"
+                >👁</button>
+              </div>
+              <span class="field__hint caption" data-i18n="setupWizardPasswordHint">Required for local sign-in on LAN devices.</span>
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="setupWizardPasswordConfirmLabel">Confirm password</span>
+              <div class="field__control">
+                <input id="lp-wizard-password-confirm" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-wizard-password-confirm-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-wizard-password-confirm"
+                >👁</button>
+              </div>
             </label>
             <p id="lp-wizard-error" class="login-page__error body" role="alert" hidden></p>
             <button id="lp-wizard-submit" class="button login-page__submit" type="submit">
               <span id="wizard-submit-label" data-i18n="setupWizardSave">Save and continue</span>
             </button>
-            <button id="lp-wizard-skip" class="button button--ghost" type="button" data-i18n="setupWizardSkipPassword">Skip — use Google only</button>
           </form>
         </div>
       </div>
@@ -248,6 +261,13 @@
       const translated = t(key);
       if (translated && translated !== key) {
         node.textContent = translated;
+      }
+    });
+    overlay.querySelectorAll('[data-i18n-aria-label]').forEach(node => {
+      const key = node.getAttribute('data-i18n-aria-label');
+      const translated = t(key);
+      if (translated && translated !== key) {
+        node.setAttribute('aria-label', translated);
       }
     });
   }
@@ -304,36 +324,28 @@
       });
     }
 
-    // Register form
-    const registerForm = el('lp-register-form');
-    if (registerForm) {
-      registerForm.addEventListener('submit', async e => {
-        e.preventDefault();
-        await handleRegister();
-      });
-    }
-
     // Wizard form
     const wizardForm = el('lp-wizard-form');
     if (wizardForm) {
       wizardForm.addEventListener('submit', async e => {
         e.preventDefault();
-        await handleWizardSave(false);
+        await handleWizardSave();
       });
     }
 
-    // Wizard skip button
-    const wizardSkip = el('lp-wizard-skip');
-    if (wizardSkip) {
-      wizardSkip.addEventListener('click', () => handleWizardSave(true));
-    }
-
-    // Switch views
     const goRegister = el('lp-go-register');
-    if (goRegister) goRegister.addEventListener('click', () => showView('register'));
-
-    const goLogin = el('lp-go-login');
-    if (goLogin) goLogin.addEventListener('click', () => showView('login'));
+    if (goRegister) {
+      goRegister.addEventListener('click', () => {
+        if (!authProviderData || !authProviderData.google_login_url) {
+          setError('lp-login-error', t('googleLoginUnavailable'));
+          return;
+        }
+        const url = resolveOAuthUrl(authProviderData.google_login_url);
+        if (url) {
+          window.location.href = url;
+        }
+      });
+    }
 
     // Google
     const googleBtn = el('lp-google-button');
@@ -373,6 +385,17 @@
     if (pairingNew) {
       pairingNew.addEventListener('click', () => startPairingFlow());
     }
+
+    ['lp-wizard-password-toggle', 'lp-wizard-password-confirm-toggle'].forEach(buttonId => {
+      const button = el(buttonId);
+      if (!button) {
+        return;
+      }
+      button.addEventListener('click', () => {
+        const inputId = button.getAttribute('data-password-toggle-for');
+        togglePasswordVisibility(inputId, buttonId);
+      });
+    });
   }
 
   // ── Action handlers ───────────────────────────────────────────────────────
@@ -419,69 +442,32 @@
     setError('lp-login-error', t('loginFailed'));
   }
 
-  async function handleRegister() {
-    const username = (el('lp-register-username') || {}).value || '';
-    const password = (el('lp-register-password') || {}).value || '';
-    const confirm = (el('lp-register-confirm') || {}).value || '';
-    const submitBtn = el('lp-register-submit');
-    const labelEl = el('register-submit-label');
-
-    if (!username.trim()) return;
-
-    if (password !== confirm) {
-      setError('lp-register-error', t('registerPasswordMismatch'));
-      return;
-    }
-    if (password.length < 8) {
-      setError('lp-register-error', t('registerPasswordShort'));
-      return;
-    }
-
-    if (submitBtn) submitBtn.disabled = true;
-    if (labelEl) labelEl.textContent = t('registerCreating');
-    setError('lp-register-error', '');
-
-    const api = getApi();
-    if (!api) return;
-
-    const resp = await api.register(username.trim(), password);
-
-    if (submitBtn) submitBtn.disabled = false;
-    if (labelEl) labelEl.textContent = t('registerSubmit');
-
-    if (resp.ok && resp.data) {
-      notifyAuthSuccess(resp.data);
-      return;
-    }
-
-    if (resp.status === 409) {
-      setError('lp-register-error', t('registerUsernameTaken'));
-      return;
-    }
-    setError('lp-register-error', t('registerFailed'));
-  }
-
-  async function handleWizardSave(skip) {
+  async function handleWizardSave() {
     const username = (el('lp-wizard-username') || {}).value || '';
-    const password = skip ? '' : ((el('lp-wizard-password') || {}).value || '');
+    const password = (el('lp-wizard-password') || {}).value || '';
+    const passwordConfirm = (el('lp-wizard-password-confirm') || {}).value || '';
     const submitBtn = el('lp-wizard-submit');
-    const skipBtn = el('lp-wizard-skip');
     const labelEl = el('wizard-submit-label');
 
-    if (!username.trim()) return;
+    if (!username.trim() || !password || !passwordConfirm) {
+      setError('lp-wizard-error', t('setupWizardError'));
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setError('lp-wizard-error', t('registerPasswordMismatch'));
+      return;
+    }
 
     if (submitBtn) submitBtn.disabled = true;
-    if (skipBtn) skipBtn.disabled = true;
     if (labelEl) labelEl.textContent = t('setupWizardSaving');
     setError('lp-wizard-error', '');
 
     const api = getApi();
     if (!api) return;
 
-    const resp = await api.completeSetup(username.trim(), password || null);
+    const resp = await api.completeSetup(username.trim(), password);
 
     if (submitBtn) submitBtn.disabled = false;
-    if (skipBtn) skipBtn.disabled = false;
     if (labelEl) labelEl.textContent = t('setupWizardSave');
 
     if (resp.ok && resp.data) {
@@ -493,7 +479,7 @@
       setError('lp-wizard-error', t('registerUsernameTaken'));
       return;
     }
-    setError('lp-wizard-error', t('setupWizardError'));
+    setError('lp-wizard-error', resp.error || t('setupWizardError'));
   }
 
   // ── Pairing flow (device code login) ─────────────────────────────────────

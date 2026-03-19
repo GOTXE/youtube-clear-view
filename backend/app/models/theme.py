@@ -1,8 +1,7 @@
 """Theme domain models."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class Theme(db.Model):
@@ -14,7 +13,7 @@ class Theme(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     name = db.Column(db.String(120), nullable=False)
     color = db.Column(db.String(20))
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     user = db.relationship("User", back_populates="themes")
     theme_channels = db.relationship("ThemeChannel", back_populates="theme", cascade="all, delete-orphan")

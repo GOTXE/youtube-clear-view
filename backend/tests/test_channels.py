@@ -1,6 +1,6 @@
 """Channel route tests with mocked YT service."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -29,6 +29,8 @@ class TestConfig:
     GUNICORN_WORKERS = 1
     MANUAL_REFRESH_FULL_COOLDOWN_SECONDS = 0
     MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS = 0
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
 
     CSRF_ENABLED = False
     RATE_LIMIT_ENABLED = False
@@ -53,7 +55,7 @@ class FakeYTService:
         }
 
     def get_channel_videos(self, channel_id, max_results=50, page_token=None):
-        published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return {
             "videos": [
                 {
@@ -233,7 +235,7 @@ def test_refresh_updates_existing_video_evidence(client, app, monkeypatch):
 
         def get_channel_videos(self, channel_id, max_results=50, page_token=None):
             self.call_count += 1
-            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             if self.call_count == 1:
                 return {
                     "videos": [
@@ -297,7 +299,7 @@ def test_enrich_video_evidence_classifies_unclassified_channel(client, app, monk
     """Manual video-evidence enrichment should classify channels without topic metadata."""
     class EvidenceService(FakeYTService):
         def get_channel_videos(self, channel_id, max_results=50, page_token=None):
-            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             return {
                 "videos": [
                     {

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.config import Config
 from app.models import UserChannel
+from app.utils.time import utc_now
 
 
 _active_refreshes = {}
@@ -44,7 +45,7 @@ def get_manual_refresh_cooldown(channel_id=None):
 
 def evaluate_manual_refresh(user_id, channel_id=None, now=None):
     """Return whether a manual refresh is allowed for the current freshness window."""
-    now = now or datetime.utcnow()
+    now = now or utc_now()
     cooldown_seconds = get_manual_refresh_cooldown(channel_id)
     subscriptions = _get_relevant_subscriptions(user_id, channel_id=channel_id)
     latest_activity = None
@@ -115,7 +116,7 @@ def list_active_refreshes():
 @contextmanager
 def acquire_manual_refresh(user_id, channel_id=None, now=None):
     """Acquire a user-level manual refresh lease, if possible."""
-    now = now or datetime.utcnow()
+    now = now or utc_now()
     scope = build_scope(channel_id)
 
     with _active_refreshes_lock:

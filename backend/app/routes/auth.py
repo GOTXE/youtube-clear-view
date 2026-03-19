@@ -2,7 +2,7 @@
 
 import json
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, current_app, g, jsonify, redirect, request, session
 from sqlalchemy import or_
@@ -23,6 +23,11 @@ from app.services.google_oauth import (
     revoke_google_tokens,
 )
 from app.services.admin_access import is_admin_user
+from app.services.auth_policy import (
+    sanitize_username_candidate,
+    validate_password,
+    validate_username,
+)
 from app.services.passkey_auth import (
     build_authentication_options,
     build_challenge_payload,
@@ -33,6 +38,7 @@ from app.services.passkey_auth import (
     verify_authentication_credential,
     verify_registration_credential,
 )
+from app.services.site_settings import get_password_policy
 from app.services.totp_auth import (
     build_totp_uri,
     consume_recovery_code,
@@ -41,6 +47,7 @@ from app.services.totp_auth import (
     hash_recovery_codes,
     verify_totp_code,
 )
+from app.utils.time import utc_now
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -249,7 +256,7 @@ def _issue_session_for_user(user):
     """Create and persist a fresh server-side session token for a user."""
     session_token = secrets.token_urlsafe(32)
     bind_session_token(user, session_token)
-    user.session_created_at = datetime.utcnow()
+    user.session_created_at = utc_now()
     return session_token
 
 
@@ -267,7 +274,30 @@ def _serialize_authenticated_user(user):
         "totp_enabled": user.totp_enabled,
         "is_admin": is_admin_user(user),
         "theme_preference": user.theme_preference,
+        "has_password": bool(user.password_hash),
+        "username_suggestion": _build_google_username_suggestion(
+            email=user.email,
+            display_name=user.display_name,
+            fallback_username=user.username,
+        ),
     }
+
+
+def _build_google_username_suggestion(email=None, display_name=None, fallback_username=None):
+    """Derive a safe editable username suggestion from Google profile data."""
+    candidates = []
+    if email and "@" in email:
+        candidates.append(email.split("@", 1)[0])
+    if display_name:
+        candidates.append(display_name)
+    if fallback_username:
+        candidates.append(fallback_username)
+
+    for candidate in candidates:
+        sanitized = sanitize_username_candidate(candidate)
+        if sanitized:
+            return sanitized
+    return ""
 
 
 def _find_user_for_identifier(identifier):
@@ -293,7 +323,7 @@ def _store_mfa_challenge(user):
     """Persist a short-lived MFA challenge in the signed browser session."""
     session[MFA_CHALLENGE_KEY] = {
         "user_id": user.id,
-        "created_at": datetime.utcnow().timestamp(),
+        "created_at": utc_now().timestamp(),
     }
     session.modified = True
 
@@ -320,7 +350,7 @@ def _load_mfa_challenge():
         _clear_mfa_challenge()
         return None
 
-    if datetime.utcnow().timestamp() - created_at > MFA_CHALLENGE_MAX_AGE_SECONDS:
+    if utc_now().timestamp() - created_at > MFA_CHALLENGE_MAX_AGE_SECONDS:
         _clear_mfa_challenge()
         return None
 
@@ -379,7 +409,7 @@ def _create_login_pairing(device_identifier=None):
             public_id=secrets.token_urlsafe(16),
             pairing_code=_generate_pairing_code(),
             device_identifier=(device_identifier or "").strip()[:128] or None,
-            expires_at=datetime.utcnow() + timedelta(minutes=PAIRING_CODE_TTL_MINUTES),
+            expires_at=utc_now() + timedelta(minutes=PAIRING_CODE_TTL_MINUTES),
         )
         db.session.add(pairing)
         try:
@@ -410,7 +440,7 @@ def _record_failed_login(user):
     """Increment failed login counter and lock account if threshold reached."""
     user.login_attempts = (user.login_attempts or 0) + 1
     if user.login_attempts >= _MAX_LOGIN_ATTEMPTS:
-        user.login_locked_until = datetime.utcnow() + timedelta(minutes=_LOCKOUT_MINUTES)
+        user.login_locked_until = utc_now() + timedelta(minutes=_LOCKOUT_MINUTES)
         get_logger(__name__).warning(
             "Account locked after %s failed attempts: user_id=%s",
             _MAX_LOGIN_ATTEMPTS,
@@ -453,13 +483,14 @@ def login():
             423,
         )
 
-    # Legacy users (no password yet) are let through but flagged for setup completion.
-    if user.password_hash:
-        if not user.check_password(password):
-            _record_failed_login(user)
-            db.session.commit()
-            return _unauthorized("Invalid credentials.")
-        _reset_login_attempts(user)
+    if not user.password_hash:
+        return _unauthorized("Local password is not configured for this user.")
+
+    if not user.check_password(password):
+        _record_failed_login(user)
+        db.session.commit()
+        return _unauthorized("Invalid credentials.")
+    _reset_login_attempts(user)
 
     if _user_requires_mfa(user):
         _clear_existing_session_from_cookie()
@@ -486,6 +517,9 @@ def login():
 @handle_route_errors
 def register():
     """Create a new local user account with username and password."""
+    if not current_app.config.get("LOCAL_SIGNUP_ENABLED", False):
+        return _forbidden("Local sign-up is disabled.")
+
     if not _validate_csrf():
         tracking_id = generate_tracking_id()
         return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
@@ -502,16 +536,12 @@ def register():
     password = data.get("password") or ""
     display_name = (data.get("display_name") or "").strip() or None
 
-    if not username or len(username) < 3 or len(username) > 64:
-        return (
-            jsonify({"error": "Username must be between 3 and 64 characters.", "status": 400}),
-            400,
-        )
-    if not password or len(password) < 8:
-        return (
-            jsonify({"error": "Password must be at least 8 characters.", "status": 400}),
-            400,
-        )
+    username_ok, username_error = validate_username(username)
+    if not username_ok:
+        return jsonify({"error": username_error, "status": 400}), 400
+    password_ok, password_error = validate_password(password, get_password_policy())
+    if not password_ok:
+        return jsonify({"error": password_error, "status": 400}), 400
     if User.query.filter_by(username=username).first():
         return (
             jsonify({"error": "Username already taken.", "status": 409}),
@@ -706,6 +736,9 @@ def auth_provider():
         "auth_mode": mode,
         "google_login_url": "/api/auth/google" if google_configured else None,
         "google_link_url": "/api/auth/google/link" if google_configured else None,
+        "local_signup_enabled": bool(current_app.config.get("LOCAL_SIGNUP_ENABLED", False)),
+        "registration_mode": "google_first",
+        "password_policy": get_password_policy(),
         "csrf_token": _get_or_create_csrf_token(),
     })
 
@@ -859,7 +892,7 @@ def google_callback():
     db.session.commit()
 
     # Redirect with needs_setup flag so the frontend shows the setup wizard.
-    redirect_url = "needs_setup" if not user.setup_completed else None
+    redirect_url = "needs_setup" if (not user.setup_completed or not user.password_hash) else None
     response = _redirect_to_frontend(redirect_url)
     _set_session_cookie(response, session_token)
     _clear_state_cookie(response)
@@ -873,35 +906,38 @@ def google_complete_setup():
     """Complete first-time setup for a user who registered via Google OAuth."""
     user = g.current_user
     data = request.get_json(silent=True) or {}
+    password_policy = get_password_policy()
 
     new_username = (data.get("username") or "").strip()
     new_password = data.get("password") or ""
 
-    if new_username and new_username != user.username:
-        if len(new_username) < 3 or len(new_username) > 64:
-            return (
-                jsonify({"error": "Username must be between 3 and 64 characters.", "status": 400}),
-                400,
-            )
-        if User.query.filter(User.username == new_username, User.id != user.id).first():
-            return (
-                jsonify({"error": "Username already taken.", "status": 409}),
-                409,
-            )
-        user.username = new_username
+    username_ok, username_error = validate_username(new_username)
+    if not username_ok:
+        return jsonify({"error": username_error, "status": 400}), 400
+    password_ok, password_error = validate_password(new_password, password_policy)
+    if not password_ok:
+        return jsonify({"error": password_error, "status": 400}), 400
+    if User.query.filter(User.username == new_username, User.id != user.id).first():
+        return jsonify({"error": "Username already taken.", "status": 409}), 409
 
-    if new_password:
-        if len(new_password) < 8:
-            return (
-                jsonify({"error": "Password must be at least 8 characters.", "status": 400}),
-                400,
-            )
-        user.set_password(new_password)
+    user.username = new_username
+    user.set_password(new_password)
 
     user.setup_completed = True
     db.session.commit()
 
-    return jsonify(_serialize_authenticated_user(user) | {"authenticated": True, "setup_completed": True})
+    return jsonify(
+        _serialize_authenticated_user(user)
+        | {
+            "authenticated": True,
+            "setup_completed": True,
+            "username_suggestion": _build_google_username_suggestion(
+                email=user.email,
+                display_name=user.display_name,
+                fallback_username=user.username,
+            ),
+        }
+    )
 
 
 @auth_bp.get("/api/auth/current")
@@ -969,7 +1005,7 @@ def approve_pairing():
         return jsonify({"error": "Conflict.", "tracking_id": tracking_id, "status": 409}), 409
 
     pairing.approved_user_id = g.current_user.id
-    pairing.approved_at = datetime.utcnow()
+    pairing.approved_at = utc_now()
     db.session.commit()
     return jsonify(_serialize_pairing_status(pairing, "approved"))
 
@@ -1001,7 +1037,7 @@ def claim_pairing():
         tracking_id = generate_tracking_id()
         return jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}), 404
 
-    pairing.used_at = datetime.utcnow()
+    pairing.used_at = utc_now()
     session_token = _issue_session_for_user(user)
     db.session.commit()
 
@@ -1031,19 +1067,12 @@ def update_profile():
 
     # Username change
     if new_username is not None:
-        import re
-
         cleaned_username = new_username.strip()
-        if not cleaned_username or len(cleaned_username) < 3 or len(cleaned_username) > 64:
+        username_ok, username_error = validate_username(cleaned_username)
+        if not username_ok:
             tracking_id = generate_tracking_id()
             return (
-                jsonify({"error": "Username must be 3-64 characters.", "tracking_id": tracking_id, "status": 400}),
-                400,
-            )
-        if not re.match(r"^[A-Za-z0-9_.-]+$", cleaned_username):
-            tracking_id = generate_tracking_id()
-            return (
-                jsonify({"error": "Username contains invalid characters.", "tracking_id": tracking_id, "status": 400}),
+                jsonify({"error": username_error, "tracking_id": tracking_id, "status": 400}),
                 400,
             )
         existing = User.query.filter(
@@ -1083,12 +1112,9 @@ def change_password():
     data = request.get_json(silent=True) or {}
     current_password = data.get("current_password") or ""
     new_password = data.get("new_password") or ""
-
-    if not new_password or len(new_password) < 8:
-        return (
-            jsonify({"error": "New password must be at least 8 characters.", "status": 400}),
-            400,
-        )
+    password_ok, password_error = validate_password(new_password, get_password_policy())
+    if not password_ok:
+        return jsonify({"error": password_error, "status": 400}), 400
 
     user = g.current_user
     if user.password_hash and not user.check_password(current_password):
@@ -1286,7 +1312,7 @@ def passkey_authentication_verify():
 
     verified = verify_authentication_credential(credential, passkey, pending["challenge"])
     passkey.sign_count = verified.new_sign_count
-    passkey.last_used_at = datetime.utcnow()
+    passkey.last_used_at = utc_now()
     passkey.credential_device_type = str(verified.credential_device_type.value)
     passkey.credential_backed_up = verified.credential_backed_up
 

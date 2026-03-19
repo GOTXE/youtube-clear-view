@@ -1,7 +1,5 @@
 """User settings routes."""
 
-from datetime import datetime
-
 from flask import Blueprint, g, jsonify, request
 
 from app.config import Config
@@ -16,6 +14,7 @@ from app.services.quota import reset_quota_if_needed
 from app.services.scheduler import run_backfill_step
 from app.services.video_ingest import refresh_user_channels
 from app.services.yt_api import YTService
+from app.utils.time import utc_now
 
 settings_bp = Blueprint("settings", __name__)
 logger = get_logger(__name__)
@@ -111,7 +110,7 @@ def update_settings():
         if start_backfill:
             settings.backfill_active = True
             settings.backfill_cursor = 0
-            settings.backfill_started_at = datetime.utcnow()
+            settings.backfill_started_at = utc_now()
             settings.backfill_last_run_at = None
 
             service = YTService(Config.YT_API_KEY)
@@ -120,8 +119,8 @@ def update_settings():
     run_now = bool(payload.get("run_now"))
     if run_now and (schedule_changed or preset_changed):
         service = YTService(Config.YT_API_KEY)
-        refresh_user_channels(user, settings, service, now=datetime.utcnow())
-        settings.last_schedule_run_at = datetime.utcnow()
+        refresh_user_channels(user, settings, service, now=utc_now())
+        settings.last_schedule_run_at = utc_now()
 
     reset_quota_if_needed(settings)
     db.session.commit()

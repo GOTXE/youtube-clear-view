@@ -2678,6 +2678,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     resumeClassifyPollIfActive();
   }
 
+  async function waitForLoginPageToClose(maxWaitMs = 2000) {
+    if (!window.ytcvLoginPage || typeof window.ytcvLoginPage.isVisible !== 'function') {
+      return;
+    }
+
+    const startedAt = Date.now();
+    while (window.ytcvLoginPage.isVisible()) {
+      if (Date.now() - startedAt >= maxWaitMs) {
+        return;
+      }
+      await new Promise(resolve => window.setTimeout(resolve, 50));
+    }
+  }
+
   async function init() {
     if (typeof window.initTheme === 'function') {
       window.initTheme();
@@ -2697,7 +2711,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } else {
       if (authStatus === 'needs_setup' && window.ytcvLoginPage) {
-        window.ytcvLoginPage.show({ wizard: true });
+        window.ytcvLoginPage.show({
+          wizard: true,
+          username: state.currentUser.username_suggestion || state.currentUser.username || ''
+        });
       } else {
         await loadSettings();
       }
@@ -2765,6 +2782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentUser = user;
 
     if (user) {
+      await waitForLoginPageToClose();
       await loadSettings();
       await bootstrapAuthenticated();
     } else {

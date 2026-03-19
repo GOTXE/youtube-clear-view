@@ -3,7 +3,6 @@
 import json
 import threading
 import time
-from datetime import datetime
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -12,6 +11,7 @@ from app.models import Channel, ChannelCategory, UserChannel, UserSettings
 from app.services import ClassificationService
 from app.services.video_ingest import upsert_channel_video_evidence
 from app.services.yt_api import YTService
+from app.utils.time import utc_now
 
 logger = get_logger(__name__)
 
@@ -57,7 +57,7 @@ def start_enrich_task(app, user, settings):
     if total == 0:
         return None
 
-    now = datetime.utcnow()
+    now = utc_now()
     settings.enrich_active = True
     settings.enrich_phase = "topic_ids"
     settings.enrich_cursor = 0

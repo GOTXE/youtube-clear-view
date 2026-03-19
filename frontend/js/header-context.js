@@ -58,13 +58,14 @@
         : t('headerContextOverviewEmpty'),
       media: null,
       metrics: [
-        { label: t('headerMetricSubscriptions'), value: String(list.length) },
-        { label: t('headerMetricUnwatched'), value: String(unwatchedTotal) },
+        { key: 'subscriptions', label: t('headerMetricSubscriptions'), value: String(list.length) },
+        { key: 'unwatched', label: t('headerMetricUnwatched'), value: String(unwatchedTotal) },
         {
+          key: 'updated',
           label: t('headerMetricUpdated'),
           value: latest ? formatRelative(latest.toISOString(), t) : t('headerMetricNone')
         },
-        { label: t('headerMetricUnclassified'), value: String(unclassifiedTotal) }
+        { key: 'unclassified', label: t('headerMetricUnclassified'), value: String(unclassifiedTotal) }
       ]
     };
   }
@@ -91,18 +92,22 @@
         : null,
       metrics: [
         {
+          key: 'category',
           label: t('headerMetricCategory'),
           value: category ? category.name : t('headerMetricNone')
         },
         {
+          key: 'unwatched',
           label: t('headerMetricUnwatched'),
           value: String(Number(channel && channel.unwatched_total ? channel.unwatched_total : 0))
         },
         {
+          key: 'recent',
           label: t('headerMetricRecent'),
           value: String(Number(channel && channel.recent_total_30 ? channel.recent_total_30 : 0))
         },
         {
+          key: 'updated',
           label: t('headerMetricUpdated'),
           value: lastSignal ? formatRelative(lastSignal, t) : t('headerMetricNone')
         }

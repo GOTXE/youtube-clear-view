@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     channelFilterQuery: '',
     autoImportAttempted: false,
     autoRefreshAttempted: false,
+    unclassifiedMetric: {
+      active: false,
+      remaining: null
+    },
     categoryManager: null,
     categorySelector: null,
     categoriesLoaded: false,
@@ -929,12 +933,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       (context.metrics || []).slice(0, 4).forEach(metric => {
         const wrapper = document.createElement('div');
         wrapper.className = 'header-context__metric';
+        if (metric && metric.key) {
+          wrapper.dataset.metricKey = metric.key;
+        }
 
         const title = document.createElement('dt');
         title.textContent = metric.label || '';
 
         const value = document.createElement('dd');
-        value.textContent = metric.value || '';
+        let metricValue = metric.value || '';
+        if (
+          metric
+          && metric.key === 'unclassified'
+          && state.unclassifiedMetric.active
+          && typeof state.unclassifiedMetric.remaining === 'number'
+        ) {
+          metricValue = String(Math.max(0, state.unclassifiedMetric.remaining));
+          wrapper.classList.add('header-context__metric--updating');
+        }
+        value.textContent = metricValue;
 
         wrapper.appendChild(title);
         wrapper.appendChild(value);
@@ -1650,6 +1667,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.channels = channelsResponse.data || [];
     }
     return state.channels;
+  }
+
+  function countUnclassifiedChannels(channels = state.channels) {
+    return (Array.isArray(channels) ? channels : []).filter(channel => (
+      !(channel && channel.category && channel.category.category)
+    )).length;
+  }
+
+  function setUnclassifiedMetricProgress(active, remaining = null) {
+    state.unclassifiedMetric.active = Boolean(active);
+    state.unclassifiedMetric.remaining = typeof remaining === 'number'
+      ? Math.max(0, remaining)
+      : null;
+    updateHeaderContext();
   }
 
   async function syncVisibleStateAfterRefresh() {
@@ -2464,17 +2495,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function classifyUnclassifiedChannels(progressCallback) {
     const report = progressCallback || (() => {});
+    const initialUnclassified = countUnclassifiedChannels();
 
     // Start the background task on the backend
     const startResp = await api.startClassifyTask();
     // Nothing to classify
     if (startResp.ok && startResp.data && startResp.data.active === false) {
+      setUnclassifiedMetricProgress(false);
       return 0;
     }
     // 409 means already running — continue to poll
     if (!startResp.ok && startResp.status !== 409) {
+      setUnclassifiedMetricProgress(false);
       throw new Error('Failed to start classify task');
     }
+
+    setUnclassifiedMetricProgress(true, initialUnclassified);
 
     // Poll until done
     return new Promise((resolve, reject) => {
@@ -2483,11 +2519,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           const resp = await api.getClassifyStatus();
           if (!resp.ok) {
             clearInterval(poll);
+            setUnclassifiedMetricProgress(false);
             reject(new Error('Failed to get classify status'));
             return;
           }
           const s = resp.data;
           if (s.active) {
+            const remaining = Math.max(0, initialUnclassified - Number(s.classified || 0));
+            setUnclassifiedMetricProgress(true, remaining);
             report(t('classifyProgress', {
               cursor: s.cursor,
               total: s.total,
@@ -2499,13 +2538,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Refresh UI
             await syncChannelsState();
             renderChannelList(state.channels);
+            updateHeaderContext();
             if (state.categoryManager) {
               await state.categoryManager.init();
             }
+            setUnclassifiedMetricProgress(false);
             resolve(s.classified || 0);
           }
         } catch (err) {
           clearInterval(poll);
+          setUnclassifiedMetricProgress(false);
           reject(err);
         }
       }, 3000);
@@ -2567,12 +2609,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     ui.reclassifyBtn.addEventListener('click', async () => {
+      const confirmed = await openConfirmModal(t('reclassifyConfirmMessage'));
+      if (!confirmed) {
+        return;
+      }
+
       ui.reclassifyBtn.disabled = true;
       try {
         let totalEvidenceChannels = 0;
         let totalVideosCreated = 0;
         let totalVideosUpdated = 0;
         let remaining = 999;
+        setUnclassifiedMetricProgress(true, countUnclassifiedChannels());
 
         // Step 1: Enrich unclassified channels with recent video evidence.
         ui.reclassifyBtn.textContent = 'Obteniendo evidencia de videos...';
@@ -2586,6 +2634,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           totalVideosCreated += enrichResponse.data.videos_created || 0;
           totalVideosUpdated += enrichResponse.data.videos_updated || 0;
           remaining = enrichResponse.data.remaining_unclassified || 0;
+          setUnclassifiedMetricProgress(true, remaining);
           ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEvidenceChannels} canales)`;
 
           if (enrichResponse.data.channels_processed === 0) {
@@ -2613,6 +2662,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (channelsResponse.ok) {
             state.channels = channelsResponse.data || [];
             renderChannelList(state.channels);
+            updateHeaderContext();
           }
 
           if (state.categoryManager) {
@@ -2622,6 +2672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
         }
       } finally {
+        setUnclassifiedMetricProgress(false);
         ui.reclassifyBtn.disabled = false;
         ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
       }

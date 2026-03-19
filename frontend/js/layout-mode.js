@@ -420,7 +420,7 @@
 
     const previewMeta = document.createElement('div');
     previewMeta.className = 'layout-mode-preview__meta';
-    previewMeta.textContent = t('tvScalePreviewMeta');
+    previewMeta.textContent = t('tvScalePreviewMetaValue', { scale: scaleSelect.value || currentTvScale || inferDefaultTvScale() });
 
     previewCard.appendChild(previewTitle);
     previewCard.appendChild(previewBody);
@@ -446,19 +446,29 @@
     saveButton.className = 'button';
     saveButton.textContent = t('save');
 
+    const tvAdvancedButton = document.createElement('button');
+    tvAdvancedButton.type = 'button';
+    tvAdvancedButton.className = 'button button--tv-advanced';
+    tvAdvancedButton.textContent = t('tvAdvanced');
+
     actions.appendChild(cancelButton);
     actions.appendChild(saveButton);
+    actions.appendChild(tvAdvancedButton);
 
     function updateTvOptionsVisibility() {
       const selectedMode = overlay.querySelector('input[name="layout-mode"]:checked');
-      tvOptions.hidden = !selectedMode || selectedMode.value !== MODES.TV;
+      const isTvMode = Boolean(selectedMode && selectedMode.value === MODES.TV);
+      tvOptions.hidden = !isTvMode;
+      tvAdvancedButton.setAttribute('aria-pressed', isTvMode ? 'true' : 'false');
     }
 
     function updateTvRecommendation() {
       const recommendedScale = calculateRecommendedTvScale(sizeInput.value, distanceInput.value);
       recommendationValue.textContent = t('tvScaleRecommendationValue', { scale: recommendedScale });
       recommendationButton.dataset.scale = recommendedScale;
-      preview.dataset.tvScale = scaleSelect.value || recommendedScale;
+      const activeScale = scaleSelect.value || recommendedScale;
+      preview.dataset.tvScale = activeScale;
+      previewMeta.textContent = t('tvScalePreviewMetaValue', { scale: activeScale });
     }
 
     modeFieldset.addEventListener('change', updateTvOptionsVisibility);
@@ -468,6 +478,16 @@
     recommendationButton.addEventListener('click', () => {
       scaleSelect.value = recommendationButton.dataset.scale || inferDefaultTvScale();
       updateTvRecommendation();
+    });
+    tvAdvancedButton.addEventListener('click', () => {
+      const tvModeInput = overlay.querySelector(`input[name="layout-mode"][value="${MODES.TV}"]`);
+      if (tvModeInput && !tvModeInput.checked) {
+        tvModeInput.checked = true;
+        updateTvOptionsVisibility();
+      }
+      tvOptions.hidden = false;
+      tvOptions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      recommendationButton.focus();
     });
     updateTvOptionsVisibility();
     updateTvRecommendation();

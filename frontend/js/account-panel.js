@@ -17,6 +17,7 @@
   let overlay = null;
   let activeTab = 'profile';
   let currentDeviceIdentifier = null;
+  let deviceDeleteConfirmOverlay = null;
 
   // ── Public API ────────────────────────────────────────────────────────────
 
@@ -33,6 +34,61 @@
     if (!overlay) return;
     overlay.style.display = 'none';
     document.body.classList.remove('account-panel-open');
+  }
+
+  function closeDeviceDeleteConfirm(result = false) {
+    if (!deviceDeleteConfirmOverlay || !deviceDeleteConfirmOverlay.parentNode) {
+      return Boolean(result);
+    }
+    deviceDeleteConfirmOverlay.parentNode.removeChild(deviceDeleteConfirmOverlay);
+    deviceDeleteConfirmOverlay = null;
+    return Boolean(result);
+  }
+
+  function openDeviceDeleteConfirm(label) {
+    if (deviceDeleteConfirmOverlay && deviceDeleteConfirmOverlay.parentNode) {
+      deviceDeleteConfirmOverlay.parentNode.removeChild(deviceDeleteConfirmOverlay);
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    modal.innerHTML = `
+      <div class="modal__content account-panel__confirm-card">
+        <h3 class="heading-3">${t('accountDeviceDeleteTitle')}</h3>
+        <p class="body">${t('accountDeviceDeleteConfirm', { device: label || '—' })}</p>
+        <div class="account-panel__actions">
+          <button type="button" class="button button--ghost" data-action="cancel">${t('cancel')}</button>
+          <button type="button" class="button" data-action="confirm">${t('confirm')}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    deviceDeleteConfirmOverlay = modal;
+
+    return new Promise(resolve => {
+      const finish = value => {
+        closeDeviceDeleteConfirm(value);
+        resolve(Boolean(value));
+      };
+
+      modal.addEventListener('click', event => {
+        if (event.target === modal) {
+          finish(false);
+        }
+      });
+
+      const cancelBtn = modal.querySelector('[data-action="cancel"]');
+      const confirmBtn = modal.querySelector('[data-action="confirm"]');
+      if (cancelBtn) cancelBtn.addEventListener('click', () => finish(false));
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => finish(true));
+        confirmBtn.focus();
+      }
+    });
   }
 
   // ── Build DOM ─────────────────────────────────────────────────────────────
@@ -627,8 +683,14 @@
 
   function renderDevices(devices) {
     const container = document.getElementById('ap-devices-list');
+    const msgEl = document.getElementById('ap-devices-msg');
     if (!container) return;
     container.innerHTML = '';
+    if (msgEl) {
+      msgEl.hidden = true;
+      msgEl.textContent = '';
+      msgEl.className = 'account-panel__msg';
+    }
 
     if (!devices.length) {
       const p = document.createElement('p');
@@ -638,6 +700,7 @@
       return;
     }
 
+    const removableDevices = [];
     devices.forEach(device => {
       const isCurrent = device.device_identifier === currentDeviceIdentifier;
       const row = document.createElement('div');
@@ -652,13 +715,60 @@
           <span class="account-panel__row-name body">${escapeHtml(label)}${isCurrent ? ` <span class="account-panel__badge">${t('accountDeviceThisDevice')}</span>` : ''}</span>
           <span class="account-panel__row-meta caption">${t('accountDeviceLastUsed', { date: lastUsed })}</span>
         </div>
-        ${isCurrent ? '' : `<button class="button button--ghost button--sm" data-id="${device.id}" data-action="revoke-device">${t('accountDeviceRevoke')}</button>`}
       `;
       container.appendChild(row);
+
+      if (!isCurrent) {
+        removableDevices.push({
+          id: device.id,
+          label: `${label} · ${t('accountDeviceLastUsed', { date: lastUsed })}`
+        });
+      }
     });
 
-    container.querySelectorAll('[data-action="revoke-device"]').forEach(btn => {
-      btn.addEventListener('click', () => handleRevokeDevice(Number(btn.dataset.id), btn));
+    const controls = document.createElement('div');
+    controls.className = 'account-panel__actions account-panel__device-actions';
+
+    const selectLabel = document.createElement('label');
+    selectLabel.className = 'field account-panel__inline-field';
+    selectLabel.innerHTML = `
+      <span class="field__label">${t('accountDeviceSelectLabel')}</span>
+      <select id="ap-device-delete-select" class="field__input">
+        <option value="">${t('accountDeviceSelectPlaceholder')}</option>
+        ${removableDevices.map(device => (
+          `<option value="${device.id}">${escapeHtml(device.label)}</option>`
+        )).join('')}
+      </select>
+    `;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'button button--ghost';
+    deleteBtn.id = 'ap-device-delete-btn';
+    deleteBtn.textContent = t('accountDeviceDeleteSelected');
+    deleteBtn.disabled = removableDevices.length === 0;
+
+    controls.appendChild(selectLabel);
+    controls.appendChild(deleteBtn);
+    container.appendChild(controls);
+
+    deleteBtn.addEventListener('click', async () => {
+      const select = document.getElementById('ap-device-delete-select');
+      const selectedId = select ? Number(select.value) : NaN;
+      const selectedOption = select ? select.options[select.selectedIndex] : null;
+      if (!selectedId) {
+        showMsg('ap-devices-msg', t('accountDeviceSelectRequired'), 'error');
+        return;
+      }
+
+      const confirmed = await openDeviceDeleteConfirm(
+        selectedOption ? selectedOption.textContent : ''
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      await handleRevokeDevice(selectedId, deleteBtn);
     });
   }
 

@@ -91,6 +91,14 @@
     return 'L';
   }
 
+  function isTvPresentationMode(mode) {
+    return mode === MODES.TV || mode === MODES.DESKTOP_TABLET;
+  }
+
+  function resolvePresentationMode(mode) {
+    return isTvPresentationMode(mode) ? MODES.TV : mode;
+  }
+
   function getViewportWidth() {
     return window.innerWidth || (window.screen ? window.screen.width : 0) || 0;
   }
@@ -129,8 +137,11 @@
 
   function applyMode(mode) {
     currentMode = mode;
-    document.documentElement.dataset.mode = mode;
-    document.body.dataset.mode = mode;
+    const presentationMode = resolvePresentationMode(mode);
+    document.documentElement.dataset.mode = presentationMode;
+    document.body.dataset.mode = presentationMode;
+    document.documentElement.dataset.logicalMode = mode;
+    document.body.dataset.logicalMode = mode;
   }
 
   function applyTvScale(scale) {
@@ -184,7 +195,7 @@
 
   function resolveTvScale(device = null, mode = null) {
     const effectiveMode = mode || currentMode || resolveMode(device);
-    if (effectiveMode !== MODES.TV) {
+    if (!isTvPresentationMode(effectiveMode)) {
       return null;
     }
 
@@ -210,9 +221,44 @@
       viewing_distance_m: device && device.viewing_distance_m ? device.viewing_distance_m : currentPreferences && currentPreferences.viewing_distance_m
     });
     window.dispatchEvent(new CustomEvent('layout-mode:changed', {
-      detail: { mode, tvScale }
+      detail: { mode, tvScale, presentationMode: resolvePresentationMode(mode) }
     }));
     return { mode, tvScale };
+  }
+
+  async function applyDeviceTypeDefaults(deviceType) {
+    if (deviceType === 'desktop' || deviceType === 'tablet') {
+      return persistPreferences({
+        frontend_mode: MODES.DESKTOP_TABLET,
+        tv_scale: 'M',
+        screen_size_inches: currentPreferences && currentPreferences.screen_size_inches
+          ? currentPreferences.screen_size_inches
+          : null,
+        viewing_distance_m: currentPreferences && currentPreferences.viewing_distance_m
+          ? currentPreferences.viewing_distance_m
+          : null
+      });
+    }
+
+    if (deviceType === 'tv') {
+      return persistPreferences({
+        frontend_mode: MODES.TV,
+        tv_scale: currentTvScale || inferDefaultTvScale(),
+        screen_size_inches: currentPreferences && currentPreferences.screen_size_inches
+          ? currentPreferences.screen_size_inches
+          : null,
+        viewing_distance_m: currentPreferences && currentPreferences.viewing_distance_m
+          ? currentPreferences.viewing_distance_m
+          : null
+      });
+    }
+
+    return persistPreferences({
+      frontend_mode: MODES.PHONE,
+      tv_scale: null,
+      screen_size_inches: null,
+      viewing_distance_m: null
+    });
   }
 
   async function persistPreferences(preferences) {
@@ -457,9 +503,10 @@
 
     function updateTvOptionsVisibility() {
       const selectedMode = overlay.querySelector('input[name="layout-mode"]:checked');
-      const isTvMode = Boolean(selectedMode && selectedMode.value === MODES.TV);
-      tvOptions.hidden = !isTvMode;
-      tvAdvancedButton.setAttribute('aria-pressed', isTvMode ? 'true' : 'false');
+      const selectedValue = selectedMode ? selectedMode.value : null;
+      const isTvLikeMode = isTvPresentationMode(selectedValue);
+      tvOptions.hidden = !isTvLikeMode;
+      tvAdvancedButton.setAttribute('aria-pressed', isTvLikeMode ? 'true' : 'false');
     }
 
     function updateTvRecommendation() {
@@ -480,10 +527,13 @@
       updateTvRecommendation();
     });
     tvAdvancedButton.addEventListener('click', () => {
-      const tvModeInput = overlay.querySelector(`input[name="layout-mode"][value="${MODES.TV}"]`);
-      if (tvModeInput && !tvModeInput.checked) {
-        tvModeInput.checked = true;
-        updateTvOptionsVisibility();
+      const selectedMode = overlay.querySelector('input[name="layout-mode"]:checked');
+      if (!selectedMode || !isTvPresentationMode(selectedMode.value)) {
+        const desktopInput = overlay.querySelector(`input[name="layout-mode"][value="${MODES.DESKTOP_TABLET}"]`);
+        if (desktopInput) {
+          desktopInput.checked = true;
+          updateTvOptionsVisibility();
+        }
       }
       tvOptions.hidden = false;
       tvOptions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -501,11 +551,12 @@
       const selectedMode = overlay.querySelector('input[name="layout-mode"]:checked');
       const deviceType = selectedDeviceType ? selectedDeviceType.value : currentDeviceType;
       const frontendMode = selectedMode ? selectedMode.value : currentMode || inferModeFromViewport();
+      const usesTvPresentation = isTvPresentationMode(frontendMode);
       const payload = {
         frontend_mode: frontendMode,
-        tv_scale: frontendMode === MODES.TV ? scaleSelect.value : null,
-        screen_size_inches: frontendMode === MODES.TV ? sizeInput.value : null,
-        viewing_distance_m: frontendMode === MODES.TV ? distanceInput.value : null
+        tv_scale: usesTvPresentation ? scaleSelect.value : null,
+        screen_size_inches: usesTvPresentation ? sizeInput.value : null,
+        viewing_distance_m: usesTvPresentation ? distanceInput.value : null
       };
 
       saveButton.disabled = true;
@@ -613,6 +664,7 @@
     inferDefaultTvScale,
     calculateRecommendedTvScale,
     mapDeviceTypeToMode,
+    applyDeviceTypeDefaults,
     resolveMode,
     resolveTvScale,
     syncFromDevice,

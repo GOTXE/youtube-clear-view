@@ -189,7 +189,12 @@
     };
     currentDeviceConfirmed = true;
     setCurrentDevice(type);
-    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.applyDeviceTypeDefaults === 'function') {
+      const applied = await window.ytcvLayoutMode.applyDeviceTypeDefaults(type);
+      if (!applied && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+        window.ytcvLayoutMode.syncFromDevice(currentDevice);
+      }
+    } else if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
       window.ytcvLayoutMode.syncFromDevice(currentDevice);
     }
     window.dispatchEvent(new CustomEvent('device:changed', {

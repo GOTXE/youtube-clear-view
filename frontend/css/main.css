@@ -2712,6 +2712,16 @@ body.login-page-open #app {
   text-transform: uppercase;
 }
 
+.account-panel__device-actions {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.account-panel__confirm-card {
+  max-width: 420px;
+}
+
 /* Pairing code display (login page) */
 .login-page__pairing-code {
   text-align: center;

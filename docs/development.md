@@ -95,6 +95,56 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - On startup, SQLite migrations also normalize legacy Google users so older rows with persisted tokens move back to `active` automatically unless they were explicitly `revoked`.
 - `POST /api/auth/google/unlink` revokes local Google linkage and clears stored OAuth credentials for the current user.
 
+## Authentication & Security
+
+### MFA (TOTP + Recovery Codes)
+
+- Users can enroll TOTP from the hamburger menu via `Manage MFA`.
+- TOTP setup returns a provisioning URI and a QR code; the user confirms enrollment by submitting a valid 6-digit code.
+- Recovery codes are generated on TOTP confirmation and can be regenerated at any time after validating a current TOTP code.
+- Each recovery code can only be consumed once.
+- MFA is enforced on primary auth flows: local login, Google OAuth callback, and Google account switching. When a user has TOTP enabled, those flows pause at a pending MFA challenge that requires either a current TOTP code or a valid recovery code.
+
+### Fallback Login
+
+- Returning users with TOTP enabled have a direct recurring login path that does not require repeating Google OAuth:
+  - username or email + current TOTP code
+  - username or email + recovery code
+- This provides a recovery mechanism if the Google session expires or the user loses access to the Google account.
+
+### Password Support
+
+- Local accounts (`AUTH_MODE=local`) support username + password authentication.
+- Passwords are hashed before storage; plaintext passwords are never persisted.
+
+### Passkey (WebAuthn/FIDO2)
+
+- Authenticated users can register one or more passkeys from the passkey management modal (accessible via the header menu).
+- Unauthenticated users can sign in with a registered passkey when the browser supports WebAuthn.
+- Passkey credentials are persisted per user in the backend.
+- Registration and authentication follow the standard WebAuthn ceremony flow with server-generated challenges.
+- Passkey configuration is controlled by `PASSKEY_RP_NAME`, `PASSKEY_RP_ID`, `PASSKEY_ORIGIN`, and `PASSKEY_ALLOWED_ORIGINS`.
+
+### Device Pairing (TV / Cross-Device Auth)
+
+- Unauthenticated devices (typically TVs) can request a short-lived pairing code via `POST /api/auth/pairing/start`.
+- An authenticated user approves the code from the hamburger menu (`Approve device code`) via `POST /api/auth/pairing/approve`.
+- The waiting device polls `POST /api/auth/pairing/claim` until approval arrives, then receives a normal backend session cookie.
+- This allows TV and secondary devices to authenticate without entering credentials on a limited input device.
+
+### Google OAuth Account Linking/Unlinking
+
+- Users can link their account to Google OAuth to enable YouTube API access (subscription import, video refresh).
+- `POST /api/auth/google/unlink` revokes the local Google linkage and clears stored OAuth credentials.
+- Google auth state is tracked per user with statuses: `not_linked`, `active`, `needs_reauth`, `revoked`.
+
+### Token Encryption at Rest
+
+- Google access tokens, refresh tokens, and OAuth scopes are encrypted at rest using Fernet symmetric encryption.
+- The encryption key can be set explicitly via `AUTH_TOKEN_ENCRYPTION_KEY`.
+- If not set, the app derives a stable Fernet key from `FLASK_SECRET_KEY`.
+- This ensures sensitive OAuth credentials are not stored in plaintext in the SQLite database.
+
 ## MFA Enrollment Foundation
 
 - Auth v2 now has a backend foundation for TOTP and recovery codes.
@@ -216,6 +266,75 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   - the modal shows a live TV preview before saving
   - saving a valid TV setup marks the TV scale as confirmed for that device
 
+## Player Overlay & Playback Progress
+
+### Embedded Player
+
+- Desktop/tablet and TV modes keep video playback inside the app with an embedded player overlay.
+- The player uses the YouTube IFrame Player API with `enablejsapi=1` to enable programmatic control from the host page.
+- Phone mode intentionally keeps the external YouTube redirect behavior.
+
+### Auto-Mark Watched at 75%
+
+- The player monitors playback progress via the IFrame API.
+- When the user reaches 75% of the video duration, the video is automatically marked as watched without any user interaction.
+- This threshold is designed to match natural viewing behavior where the remaining content is typically end screens or credits.
+
+### Confirm Dialog on Close
+
+- If the user closes the player overlay before reaching the 75% threshold, a confirm dialog appears with two options:
+  - **Mark watched**: marks the video as watched and closes the overlay.
+  - **Continue later**: saves the current playback position and closes the overlay without marking as watched.
+- This prevents accidental loss of watch state when partially viewing a video.
+
+### Progress Auto-Save
+
+- While a video is playing, the frontend periodically saves the current playback position to the backend (approximately every 30 seconds).
+- This ensures that progress is not lost if the browser crashes, the tab is closed, or the device loses power.
+
+### Resume Playback
+
+- When opening a video that has saved progress, the player automatically resumes from the last saved position.
+- The IFrame API `seekTo()` method is used to jump to the saved timestamp after the player loads.
+
+### Graceful Degradation
+
+- Some browser extensions (ad blockers, privacy tools) block the YouTube IFrame API from loading.
+- When the IFrame API is unavailable, the player falls back gracefully: the embed still renders but programmatic features (auto-mark, progress tracking, resume) are disabled.
+- Users can still manually mark videos as watched and open them on YouTube directly.
+
+### "Continue Watching" Carousel
+
+- The main feed includes a "Continue watching" carousel that shows videos with saved in-progress playback.
+- This carousel is hidden when there are no in-progress videos, so it does not take up space unnecessarily.
+- Clicking a video in the carousel opens the player overlay and resumes from the saved position.
+
+## TV Mode
+
+### Compact Layout
+
+- TV mode uses a compact header and footer optimized for large screens viewed from a distance.
+- The header minimizes navigation chrome to maximize content area.
+- The footer is condensed to show only essential information.
+
+### Video Card Enhancements
+
+- Video cards in TV mode display the channel name directly on the card surface.
+- Metric alignment and colors are tuned for readability at TV viewing distances.
+
+### Keyboard Navigation
+
+- TV mode supports full keyboard navigation for use with remote controls and wireless keyboards.
+- Arrow keys navigate between video cards in the carousel.
+- Enter/OK activates the selected card (opens the player overlay).
+- Escape closes overlays and modals.
+
+### Sidebar Toggle
+
+- The subscriptions sidebar can be toggled open and closed to maximize the video browsing area.
+- The sidebar state persists across sessions.
+- When collapsed, the full viewport width is available for video carousels.
+
 ## Subscription Sidebar Search
 
 - The subscriptions sidebar has its own local search field above the channel list.
@@ -308,6 +427,65 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - Deterministic recent-video-category heuristics run before TF-IDF text
   similarity when the signal is clear enough.
 - `TF-IDF` is intentionally stricter and may abstain instead of forcing a weak label.
+
+## Environment Variables Reference
+
+### Core
+
+| Variable | Description | Default |
+|---|---|---|
+| `FLASK_SECRET_KEY` | Session encryption key | (required) |
+| `YT_API_KEY` | YouTube Data API key | (required) |
+| `GOOGLE_CLIENT_ID` | OAuth client ID | (required for Google auth) |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret | (required for Google auth) |
+| `GOOGLE_REDIRECT_URI` | OAuth callback URL | (required for Google auth) |
+| `FRONTEND_URL` | Frontend origin for CORS | (required) |
+| `AUTH_MODE` | `local` or `google` | `local` |
+| `DATABASE_URI` | SQLite connection string | `sqlite:///yt_clear_view.db` |
+
+### Administration
+
+| Variable | Description | Default |
+|---|---|---|
+| `ADMIN_USERNAMES` | Comma-separated list of admin usernames | (none) |
+
+### SQLite Metrics
+
+| Variable | Description | Default |
+|---|---|---|
+| `SQLITE_METRICS_ENABLED` | Enable SQLite write metrics collection | `false` |
+| `SQLITE_METRICS_SLOW_WRITE_MS` | Threshold in milliseconds for slow write warnings | `100` |
+
+### Token Encryption
+
+| Variable | Description | Default |
+|---|---|---|
+| `AUTH_TOKEN_ENCRYPTION_KEY` | Explicit Fernet key for encrypting OAuth tokens at rest | Derived from `FLASK_SECRET_KEY` |
+
+### Refresh Governance
+
+| Variable | Description | Default |
+|---|---|---|
+| `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS` | Cooldown between full-library manual refreshes | `7200` |
+| `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS` | Cooldown between per-channel manual refreshes | `1800` |
+
+### WebAuthn / Passkeys
+
+| Variable | Description | Default |
+|---|---|---|
+| `PASSKEY_RP_NAME` | Relying party display name shown during WebAuthn ceremonies | (required for passkeys) |
+| `PASSKEY_RP_ID` | Relying party identifier (typically the domain name) | (required for passkeys) |
+| `PASSKEY_ORIGIN` | Primary origin for WebAuthn verification | (required for passkeys) |
+| `PASSKEY_ALLOWED_ORIGINS` | Comma-separated list of additional allowed origins for WebAuthn | (optional) |
+
+### Optional Integrations
+
+| Variable | Description | Default |
+|---|---|---|
+| `SCHEDULER_ENABLED` | Enable automatic refresh scheduler | `false` |
+| `OLLAMA_HOST` | Ollama server URL for LLM classification | (none) |
+| `OLLAMA_MODEL` | Ollama model name | (none) |
+| `CLASSIFICATION_METHOD` | Classification strategy: `auto`, `youtube_topics`, `tfidf`, `ollama`, `hybrid` | `auto` |
 
 ## Run Tests
 

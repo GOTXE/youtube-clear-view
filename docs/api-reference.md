@@ -175,6 +175,48 @@ Response example:
 
 ## Authentication
 
+### POST /api/auth/register
+
+Creates a new local user account with username and password.
+
+Rate-limited per IP address.
+
+Request:
+
+```json
+{
+  "username": "alice",
+  "password": "secret123",
+  "display_name": "Alice"
+}
+```
+
+- `username` (required): 3-64 characters
+- `password` (required): minimum 8 characters
+- `display_name` (optional): defaults to `username`
+
+Response (`201`):
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "auth_provider": "local",
+  "email": null,
+  "google_avatar_url": null,
+  "google_auth_status": "not_linked",
+  "totp_enabled": false,
+  "theme_preference": "light"
+}
+```
+
+Error responses:
+- `400` if username or password requirements are not met
+- `409` if the username is already taken
+- `429` if rate limit is exceeded
+
 ### POST /api/auth/login
 
 Local login (only when `AUTH_MODE=local`).
@@ -394,10 +436,48 @@ Response:
 }
 ```
 
+### POST /api/auth/profile/password
+
+Requires an authenticated session.
+
+Changes the password for the current user.
+
+Request:
+
+```json
+{
+  "current_password": "old-pass",
+  "new_password": "new-pass-123"
+}
+```
+
+- `current_password` (required if the user already has a password set)
+- `new_password` (required): minimum 8 characters
+
+Response:
+
+```json
+{ "message": "Password updated." }
+```
+
+If the user has not yet set a password (e.g. Google-only account), `current_password` can be omitted.
+Setting a password also marks `setup_completed = true` if it was previously false.
+
 ### GET /api/auth/google
 
 Starts the Google OAuth flow (only when `AUTH_MODE=google`).
 This endpoint redirects the browser to the consent screen.
+
+### GET /api/auth/google/link
+
+Requires an authenticated session.
+
+Starts the Google OAuth flow with a "link" intent, allowing the current user to
+attach YouTube/Google credentials to their existing account. Redirects the
+browser to the Google consent screen.
+
+On callback, the backend stores OAuth tokens against the authenticated user
+instead of creating a new account.
 
 ### GET /api/auth/google/callback
 
@@ -405,6 +485,43 @@ OAuth callback endpoint. Google redirects here after user consent.
 On success, the backend sets a session cookie, remembers that Google account for this browser, and redirects the browser to `FRONTEND_URL`.
 
 If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
+
+### POST /api/auth/google/complete-setup
+
+Requires an authenticated session.
+
+Completes first-time setup for a user who registered via Google OAuth. Allows
+the user to choose a custom username and optionally set a local password.
+
+Request:
+
+```json
+{
+  "username": "alice",
+  "password": "optional-pass"
+}
+```
+
+- `username` (optional): 3-64 characters, must be unique. If omitted, the existing username is kept.
+- `password` (optional): minimum 8 characters. Sets a local password for fallback login.
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "setup_completed": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_avatar_url": "https://...",
+  "google_auth_status": "active",
+  "totp_enabled": false,
+  "theme_preference": "light"
+}
+```
 
 ### POST /api/auth/google/unlink
 
@@ -705,9 +822,13 @@ Response:
 ```json
 {
   "secret": "JBSWY3DPEHPK3PXP...",
-  "otpauth_url": "otpauth://totp/YT%20Clear%20View:alice%40example.com?secret=..."
+  "otpauth_url": "otpauth://totp/YT%20Clear%20View:alice%40example.com?secret=...",
+  "qr_code": "data:image/svg+xml;base64,..."
 }
 ```
+
+`qr_code` is a base64-encoded SVG data URL suitable for rendering in an `<img>` tag.
+It may be `null` if the server-side QR generation library is unavailable.
 
 ### POST /api/auth/totp/confirm
 
@@ -726,6 +847,31 @@ Response:
   "totp_enabled": true,
   "recovery_codes": ["ABCD-EFGH", "JKMN-PQRS"]
 }
+```
+
+### DELETE /api/auth/totp
+
+Requires an authenticated session with TOTP enabled.
+
+Disables TOTP for the current user and removes all recovery codes.
+Requires either a valid TOTP code or the user's password for confirmation.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+or:
+
+```json
+{ "password": "user-password" }
+```
+
+Response:
+
+```json
+{ "totp_enabled": false }
 ```
 
 ### POST /api/auth/recovery-codes/regenerate
@@ -1186,6 +1332,20 @@ Response: `204 No Content`
 Notes:
 - Marking a video as watched (`POST .../watch`) automatically clears any saved progress.
 - Video listings include a `progress` field (integer, seconds) when a saved position exists.
+
+### GET /api/videos/in-progress
+
+Requires an authenticated session.
+
+Returns videos with saved playback progress for the current user, ordered by
+most recently updated first.
+
+Query params:
+- `limit` (optional, default 20, max 100)
+- `offset` (optional, default 0)
+
+Response: see Pagination format. Each entry includes a `progress` field with the
+saved position in seconds.
 
 ### GET /api/videos/search
 

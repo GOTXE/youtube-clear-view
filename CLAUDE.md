@@ -44,7 +44,7 @@ Runner:
 The app runs locally as 3 Docker containers (proxy/Caddy, backend, log_viewer).
 Frontend files are baked into the proxy image — **any frontend change requires rebuilding the proxy container** and bumping `CACHE_VERSION` in `frontend/sw.js`.
 
-Full details: [`docs/docker-setup.md`](docs/docker-setup.md)
+Full details: [`docs/deployment.md`](docs/deployment.md)
 
 ## Build, Test, and Development Commands
 
@@ -122,8 +122,12 @@ Commands below apply once `backend/` and related modules exist:
 
 **Optional:**
 - `SCHEDULER_ENABLED`: Enable automatic refresh scheduler
-- `OLLAMA_HOST`, `OLLAMA_MODEL`: LLM-based classification
-- `CLASSIFICATION_METHOD`: `auto`, `youtube_topics`, `tfidf`, `ollama`, or `hybrid`
+- `AUTH_TOKEN_ENCRYPTION_KEY`: Fernet key for encrypting stored OAuth tokens (derived from SECRET_KEY if not set)
+- `PASSKEY_RP_NAME`, `PASSKEY_RP_ID`, `PASSKEY_ORIGIN`: WebAuthn/passkey configuration
+- `ADMIN_USERNAMES`: Comma-separated admin usernames for admin endpoints
+- `SQLITE_METRICS_ENABLED`: Enable SQLite write metrics (default: false)
+- `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`: Cooldown between full refreshes (default: 7200)
+- `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`: Per-channel refresh cooldown (default: 1800)
 
 ## Coding Style & Naming Conventions
 

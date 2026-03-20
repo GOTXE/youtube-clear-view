@@ -8,7 +8,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import User
+from app.models import Channel, ChannelCategory, User, UserDevice, Video
 from app.services.admin_access import is_admin_user
 from app.services.auth_policy import validate_password
 from app.services.refresh_governance import list_active_refreshes
@@ -41,6 +41,15 @@ def _require_admin():
 
 def _serialize_admin_user(user):
     """Serialize a user summary for admin management."""
+    last_device_use = None
+    if user.devices:
+        timestamps = [device.last_used_at or device.created_at for device in user.devices if (device.last_used_at or device.created_at)]
+        if timestamps:
+            last_device_use = max(timestamps)
+    last_activity_at = max(
+        [value for value in (user.session_created_at, last_device_use, user.updated_at) if value is not None],
+        default=None,
+    )
     return {
         "id": user.id,
         "username": user.username,
@@ -54,6 +63,7 @@ def _serialize_admin_user(user):
         "is_active": bool(user.is_active),
         "must_change_password": bool(user.must_change_password),
         "session_created_at": user.session_created_at.isoformat() if user.session_created_at else None,
+        "last_activity_at": last_activity_at.isoformat() if last_activity_at else None,
         "device_count": len(user.devices or []),
     }
 
@@ -141,6 +151,40 @@ def get_runtime_state():
         if user.session_token_hash or user.devices
     ]
     return jsonify({"users": payload})
+
+
+@admin_bp.get("/api/admin/summary")
+@handle_route_errors
+@require_auth
+def get_admin_summary():
+    """Return high-level admin counters for the dedicated admin page."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    total_users = db.session.query(func.count(User.id)).scalar() or 0
+    active_users = db.session.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
+    admin_users = db.session.query(func.count(User.id)).filter(User.is_admin.is_(True)).scalar() or 0
+    disabled_users = db.session.query(func.count(User.id)).filter(User.is_active.is_(False)).scalar() or 0
+    total_devices = db.session.query(func.count(UserDevice.id)).scalar() or 0
+    total_channels = db.session.query(func.count(Channel.id)).scalar() or 0
+    total_videos = db.session.query(func.count(Video.id)).scalar() or 0
+    unclassified_channels = db.session.query(func.count(Channel.id)).outerjoin(
+        ChannelCategory,
+        ChannelCategory.channel_id == Channel.id,
+    ).filter(ChannelCategory.id.is_(None)).scalar() or 0
+
+    return jsonify({
+        "users_total": total_users,
+        "users_active": active_users,
+        "users_admin": admin_users,
+        "users_disabled": disabled_users,
+        "devices_total": total_devices,
+        "channels_total": total_channels,
+        "videos_total": total_videos,
+        "channels_unclassified": unclassified_channels,
+        "active_refreshes": len(list_active_refreshes()),
+    })
 
 
 @admin_bp.get("/api/admin/users")

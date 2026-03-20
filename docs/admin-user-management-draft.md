@@ -35,6 +35,26 @@ Hace falta una superficie admin para soporte operativo:
 
 ## Alcance funcional inicial
 
+### 0. Pagina admin dedicada
+
+La administracion no debe vivir solo en un modal.
+
+Decision:
+
+- crear una vista dedicada en `/gestor`
+- el bootstrap del primer admin debe aterrizar en esa pagina
+- la biblioteca de videos no debe abrirse automaticamente tras crear el primer admin
+- el acceso posterior al gestor se hace entrando manualmente a `/gestor`
+- cerrar sesión desde el gestor debe devolver al login normal en `/`
+
+Secciones iniciales:
+
+- resumen del sistema
+- gestion de usuarios
+- seguridad
+- estado tecnico
+- runtime
+
 ### 1. Listado de usuarios
 
 Nueva sección en admin:

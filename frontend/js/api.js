@@ -152,6 +152,10 @@ class APIClient {
     return this.get('/api/admin/users', query ? { q: query } : {});
   }
 
+  getAdminSummary() {
+    return this.get('/api/admin/summary');
+  }
+
   disableAdminUser(userId) {
     return this.post(`/api/admin/users/${userId}/disable`);
   }

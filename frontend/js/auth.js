@@ -120,6 +120,13 @@
   }
 
   function applyThemePreference(themePreference) {
+    if (document.body && document.body.classList.contains('gestor-body')) {
+      if (ui.appRoot) {
+        ui.appRoot.setAttribute('data-theme', 'light');
+      }
+      document.documentElement.setAttribute('data-theme', 'light');
+      return;
+    }
     const theme = themePreference === 'light' ? 'light' : 'dark';
     if (ui.appRoot) {
       ui.appRoot.setAttribute('data-theme', theme);
@@ -544,6 +551,10 @@
       button.className = 'menu-item';
       button.hidden = true;
       button.addEventListener('click', async () => {
+        if (window.location.pathname !== '/gestor' && window.location.pathname !== '/gestor/') {
+          window.location.assign('/gestor');
+          return;
+        }
         await openAdminModal();
       });
       ui.manageAdminButton = button;
@@ -584,7 +595,7 @@
       ui.passkeyLoginButton.textContent = t('signInWithPasskey');
     }
     if (ui.manageAdminButton) {
-      ui.manageAdminButton.textContent = t('adminObservability');
+      ui.manageAdminButton.textContent = t('adminPanel');
     }
 
     updateSwitchUserLabel();

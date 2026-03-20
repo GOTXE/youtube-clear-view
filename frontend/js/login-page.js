@@ -33,6 +33,10 @@
 
   function el(id) { return document.getElementById(id); }
 
+  function isGestorSurface() {
+    return document.body && document.body.classList.contains('gestor-body');
+  }
+
   function setError(containerId, message) {
     const container = el(containerId);
     if (!container) return;
@@ -169,7 +173,18 @@
             </label>
             <label class="field">
               <span class="field__label" data-i18n="loginPassword">Password</span>
-              <input id="lp-login-password" class="field__input" type="password" autocomplete="current-password" required>
+              <div class="field__control">
+                <input id="lp-login-password" class="field__input field__input--with-toggle" type="password" autocomplete="current-password" required>
+                <button
+                  id="lp-login-password-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-login-password"
+                >👁</button>
+              </div>
             </label>
             <p id="lp-login-error" class="login-page__error body" role="alert" hidden></p>
             <button id="lp-login-submit" class="button login-page__submit" type="submit">
@@ -375,6 +390,21 @@
         node.setAttribute('aria-label', translated);
       }
     });
+
+    if (isGestorSurface()) {
+      const title = overlay.querySelector('#lp-login .login-page__title');
+      if (title) {
+        title.textContent = t('gestorLoginTitle');
+      }
+      const googleButton = el('lp-google-button');
+      if (googleButton) {
+        googleButton.hidden = true;
+      }
+      const switchLine = overlay.querySelector('#lp-login .login-page__switch');
+      if (switchLine) {
+        switchLine.hidden = true;
+      }
+    }
   }
 
   // ── Auth provider buttons ─────────────────────────────────────────────────
@@ -401,7 +431,7 @@
     const deviceBtn = el('lp-device-button');
     const divider = el('lp-divider');
 
-    const hasGoogle = authProviderData && authProviderData.google_login_url;
+    const hasGoogle = !isGestorSurface() && authProviderData && authProviderData.google_login_url;
     const hasPasskeys = Boolean(
       window.ytcvPasskeys
       && typeof window.ytcvPasskeys.isSupported === 'function'
@@ -411,7 +441,7 @@
 
     if (googleBtn) googleBtn.hidden = !hasGoogle;
     if (passkeyBtn) passkeyBtn.hidden = !hasPasskeys;
-    if (deviceBtn) deviceBtn.hidden = false; // always available
+    if (deviceBtn) deviceBtn.hidden = isGestorSurface() ? true : false;
 
     const anyAlt = hasGoogle || hasPasskeys || true;
     if (divider) divider.hidden = !anyAlt;
@@ -508,6 +538,7 @@
     }
 
     [
+      'lp-login-password-toggle',
       'lp-wizard-password-toggle',
       'lp-wizard-password-confirm-toggle',
       'lp-bootstrap-password-toggle',
@@ -649,6 +680,7 @@
     if (labelEl) labelEl.textContent = t('adminBootstrapSubmit');
 
     if (resp.ok && resp.data) {
+      window.location.assign('/gestor');
       notifyAuthSuccess(resp.data);
       return;
     }

@@ -24,6 +24,7 @@ describe('admin observability UI', () => {
       API_BASE_URL: '',
       REQUEST_TIMEOUT: 5000
     };
+    window.history.replaceState({}, '', '/gestor');
     window.appApiClient = null;
     window.ytcvI18n = { t: translate };
     window.ytcvPasskeys = {

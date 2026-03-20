@@ -12,6 +12,12 @@
     reverse_proxy log_viewer:5551
   }
 
+  @gestor path /gestor /gestor/*
+  handle @gestor {
+    try_files {path} {path}/ /gestor/index.html
+    file_server
+  }
+
   # Cache agresivo para assets estáticos (JS, CSS, imágenes, fuentes)
   @static {
     path *.js *.css *.png *.jpg *.jpeg *.svg *.ico *.woff *.woff2

@@ -7,9 +7,12 @@ DIST_DIR="${FRONTEND_DIR}/dist"
 
 rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
-mkdir -p "${DIST_DIR}/css" "${DIST_DIR}/js" "${DIST_DIR}/i18n" "${DIST_DIR}/error" "${DIST_DIR}/assets"
+mkdir -p "${DIST_DIR}/css" "${DIST_DIR}/js" "${DIST_DIR}/i18n" "${DIST_DIR}/error" "${DIST_DIR}/assets" "${DIST_DIR}/gestor"
 
 cp "${FRONTEND_DIR}/index.html" "${DIST_DIR}/index.html"
+if [[ -f "${FRONTEND_DIR}/gestor/index.html" ]]; then
+  cp "${FRONTEND_DIR}/gestor/index.html" "${DIST_DIR}/gestor/index.html"
+fi
 
 if [[ -f "${FRONTEND_DIR}/config.js" ]]; then
   cp "${FRONTEND_DIR}/config.js" "${DIST_DIR}/config.js"

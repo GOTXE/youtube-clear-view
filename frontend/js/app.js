@@ -2874,7 +2874,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         void bootstrapAuthenticatedData();
       }
     }
-
     setupFilters();
     setupChannelSidebarSearch();
     setupSearch();

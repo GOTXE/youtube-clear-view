@@ -4,7 +4,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import User
+from app.models import Channel, User, UserDevice, Video
 from app.services.sqlite_metrics import reset_sqlite_metrics_for_tests, set_sqlite_metrics_enabled
 
 
@@ -113,6 +113,38 @@ def test_admin_can_inspect_runtime_state(client):
     assert "users" in data
     assert any(user["username"] == "admin" for user in data["users"])
     assert any(user["device_count"] >= 1 for user in data["users"])
+
+
+def test_admin_can_read_summary_metrics(client):
+    _login(client, "admin")
+    _login(client, "alice")
+    _login(client, "admin")
+
+    with client.application.app_context():
+        channel = Channel(yt_channel_id="chan-1", title="Channel One")
+        db.session.add(channel)
+        db.session.flush()
+        db.session.add(Video(channel_id=channel.id, yt_video_id="vid-1", title="Video One"))
+        db.session.add(
+            UserDevice(
+                user_id=1,
+                device_identifier="admin-tv",
+                device_type="tv",
+                user_agent="ua",
+            )
+        )
+        db.session.commit()
+
+    response = client.get("/api/admin/summary")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["users_total"] >= 2
+    assert data["users_admin"] >= 1
+    assert data["devices_total"] >= 1
+    assert data["channels_total"] >= 1
+    assert data["videos_total"] >= 1
+    assert "channels_unclassified" in data
+    assert "active_refreshes" in data
 
 
 def test_sqlite_observability_rejects_invalid_toggle_payload(client):

@@ -9,6 +9,8 @@ Se deja intencionadamente abierto para añadir más operaciones y reglas más ad
 
 Permitir que el administrador del sitio gestione cuentas desde la UI admin sin tocar directamente la base de datos.
 
+Además, el sistema debe poder crear el primer admin mediante una pantalla de bootstrap y recuperar el acceso administrativo sin borrar la base de datos.
+
 Casos iniciales:
 
 - listar usuarios
@@ -140,6 +142,7 @@ Entidades a revisar:
 
 En `User`:
 
+- `is_admin = db.Column(db.Boolean, nullable=False, default=False)`
 - `is_active = db.Column(db.Boolean, nullable=False, default=True)`
 - `must_change_password = db.Column(db.Boolean, nullable=False, default=False)`
 - opcional futuro:
@@ -148,6 +151,93 @@ En `User`:
   - `password_reset_by_admin_at`
 
 ## Cambios backend propuestos
+
+### Bootstrap del primer admin
+
+Regla principal:
+
+- `bootstrap_required = (count(users where is_admin = true) == 0)`
+
+Consecuencias:
+
+- no hace falta un flag separado tipo `admin_bootstrap_completed`
+- el sistema entra automáticamente en modo bootstrap cuando no existe ningún admin
+- en cuanto se crea el primer admin, el bootstrap desaparece
+
+Endpoints propuestos:
+
+#### GET `/api/bootstrap/status`
+
+Devuelve si el sistema necesita bootstrap inicial.
+
+Respuesta ejemplo:
+
+```json
+{
+  "bootstrap_required": true
+}
+```
+
+#### POST `/api/bootstrap/admin`
+
+Solo disponible cuando `bootstrap_required == true`.
+
+Body propuesto:
+
+```json
+{
+  "username": "admin",
+  "display_name": "Administrador",
+  "password": "StrongPassword123!",
+  "confirm_password": "StrongPassword123!"
+}
+```
+
+Efecto:
+
+- crea el primer usuario admin
+- `is_admin = true`
+- `is_active = true`
+- `must_change_password = false`
+- inicia sesión normal con cookie de sesión
+
+Guardas:
+
+- si ya existe algún admin, devolver `409`
+- validar `username` único y restringido a caracteres permitidos
+- validar password con la política global activa
+
+### Recuperación admin desde variables del stack
+
+Objetivo:
+
+- recuperar acceso administrativo sin borrar la base de datos
+- no tocar usuarios no admin
+- no tocar canales, vídeos, categorías ni resto de datos del sistema
+
+Variables propuestas en entorno:
+
+- `ADMIN_BOOTSTRAP_USERNAME`
+- `ADMIN_BOOTSTRAP_PASSWORD`
+- `ADMIN_BOOTSTRAP_DISPLAY_NAME`
+- `ADMIN_FORCE_RESET`
+
+Modo recomendado:
+
+- si `ADMIN_FORCE_RESET` está activado:
+  - invalidar sesión de usuarios admin
+  - quitar `is_admin` y desactivar cuentas admin actuales
+  - no borrar la base de datos
+  - no tocar usuarios no admin
+- si tras eso no quedan admins:
+  - el sistema vuelve a `bootstrap_required = true`
+  - la web muestra otra vez la pantalla de bootstrap admin
+
+Notas:
+
+- este flujo debe requerir activación explícita por variable
+- no debe ejecutarse silenciosamente en arranques normales
+- puede existir un modo más agresivo de borrado duro en el futuro, pero no se recomienda como primera opción
 
 ### Nuevos endpoints admin
 
@@ -192,6 +282,7 @@ Elimina usuario.
 
 En `POST /api/auth/login`:
 
+- si `is_admin == false` no pasa nada especial; login normal
 - si `is_active == false`:
   - rechazar login
 - si login válido y `must_change_password == true`:
@@ -255,6 +346,8 @@ Condición:
 - eliminar cuenta debe pedir confirmación fuerte
 - impedir que un admin se deshabilite o elimine a sí mismo por accidente
 - revisar qué hacer con el último admin activo
+- impedir que la recuperación admin toque datos no administrativos
+- la recuperación admin no debe borrar la BBDD ni requerir reset completo del stack de datos
 
 Recomendación:
 
@@ -277,6 +370,8 @@ Recomendación:
 
 ### Fase 1
 
+- `is_admin`, `is_active`, `must_change_password`
+- bootstrap del primer admin
 - columnas `is_active` y `must_change_password`
 - listado admin de usuarios
 - disable / enable
@@ -284,6 +379,7 @@ Recomendación:
 
 ### Fase 2
 
+- recuperación admin por variables del stack
 - delete account
 - invalidación de sesiones activas
 - guardas para último admin
@@ -298,10 +394,18 @@ Recomendación:
 
 Escenarios mínimos a cubrir:
 
+- sin admins en BBDD:
+  - `GET /api/bootstrap/status` devuelve `bootstrap_required=true`
+- crear primer admin:
+  - crea sesión y deja de pedir bootstrap
 - usuario activo puede iniciar sesión
 - usuario deshabilitado no puede iniciar sesión
 - reset password marca `must_change_password`
 - login con password temporal obliga a cambiar password
 - tras cambiar password se limpia `must_change_password`
+- recuperación admin por entorno:
+  - no borra la BBDD
+  - no toca usuarios no admin
+  - vuelve a activar bootstrap si no queda ningún admin
 - delete elimina o desactiva todas las relaciones según la política elegida
 - no se puede romper el acceso del último admin

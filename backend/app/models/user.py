@@ -25,6 +25,9 @@ class User(db.Model):
     _google_scopes = db.Column("google_scopes", db.Text)
     google_auth_status = db.Column(db.String(32), nullable=False, default="not_linked")
     password_hash = db.Column(db.String(255))
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False)
     setup_completed = db.Column(db.Boolean, nullable=False, default=False)
     login_attempts = db.Column(db.Integer, nullable=False, default=0)
     login_locked_until = db.Column(db.DateTime)
@@ -145,6 +148,9 @@ class User(db.Model):
             "auth_provider": self.auth_provider,
             "google_avatar_url": self.google_avatar_url,
             "google_auth_status": self.google_auth_status,
+            "is_admin": bool(self.is_admin),
+            "is_active": bool(self.is_active),
+            "must_change_password": bool(self.must_change_password),
             "totp_enabled": self.totp_enabled,
             "setup_completed": self.setup_completed,
             "has_password": bool(self.password_hash),

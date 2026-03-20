@@ -62,7 +62,8 @@
   const adminState = {
     metrics: null,
     runtimeState: null,
-    passwordPolicy: null
+    passwordPolicy: null,
+    users: null
   };
 
   const t = (key, vars) => (
@@ -1692,6 +1693,27 @@
     return response.data;
   }
 
+  async function loadAdminUsers(query = '') {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return null;
+    }
+    if (typeof api.getAdminUsers !== 'function') {
+      adminState.users = { users: [] };
+      return adminState.users;
+    }
+
+    const response = await api.getAdminUsers(query);
+    if (!response.ok || !response.data) {
+      setStatusMessage(t('unableLoadAdminUsers'), 'error');
+      return null;
+    }
+
+    adminState.users = response.data;
+    return response.data;
+  }
+
   function buildAdminModal() {
     if (ui.adminModal) {
       return ui.adminModal;
@@ -1765,12 +1787,17 @@
     security.className = 'field admin-security-settings';
     security.id = 'admin-security-settings';
 
+    const userManagement = document.createElement('div');
+    userManagement.className = 'field admin-user-management';
+    userManagement.id = 'admin-user-management';
+
     body.appendChild(description);
     body.appendChild(controls);
     body.appendChild(metrics);
     body.appendChild(recent);
     body.appendChild(runtime);
     body.appendChild(security);
+    body.appendChild(userManagement);
 
     modal.appendChild(header);
     modal.appendChild(body);
@@ -1802,8 +1829,9 @@
     const recentNode = ui.adminModal.querySelector('#admin-observability-recent');
     const runtimeNode = ui.adminModal.querySelector('#admin-runtime-state');
     const securityNode = ui.adminModal.querySelector('#admin-security-settings');
+    const userManagementNode = ui.adminModal.querySelector('#admin-user-management');
     const toggleButton = ui.adminModal.querySelector('#admin-observability-toggle');
-    if (!metricsNode || !recentNode || !runtimeNode || !securityNode || !toggleButton) {
+    if (!metricsNode || !recentNode || !runtimeNode || !securityNode || !userManagementNode || !toggleButton) {
       return;
     }
 
@@ -1873,10 +1901,10 @@
     runtimeLabel.textContent = t('adminRuntimeState');
     runtimeNode.appendChild(runtimeLabel);
 
-    const users = adminState.runtimeState && Array.isArray(adminState.runtimeState.users)
+    const runtimeUsers = adminState.runtimeState && Array.isArray(adminState.runtimeState.users)
       ? adminState.runtimeState.users
       : [];
-    if (!users.length) {
+    if (!runtimeUsers.length) {
       const empty = document.createElement('p');
       empty.className = 'caption';
       empty.textContent = t('adminNoRuntimeUsers');
@@ -1884,7 +1912,7 @@
     } else {
       const runtimeList = document.createElement('div');
       runtimeList.className = 'admin-runtime-state__list';
-      users.forEach(user => {
+      runtimeUsers.forEach(user => {
         const userCard = document.createElement('article');
         userCard.className = 'admin-runtime-state__card';
 
@@ -1961,15 +1989,192 @@
     securityControls.appendChild(policySelect);
     securityControls.appendChild(policySaveButton);
     securityNode.appendChild(securityControls);
+
+    userManagementNode.innerHTML = '';
+    const userLabel = document.createElement('span');
+    userLabel.className = 'field__label';
+    userLabel.textContent = t('adminUserManagement');
+    userManagementNode.appendChild(userLabel);
+
+    const userDescription = document.createElement('p');
+    userDescription.className = 'caption';
+    userDescription.textContent = t('adminUserManagementDescription');
+    userManagementNode.appendChild(userDescription);
+
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'field__group';
+
+    const searchInput = document.createElement('input');
+    searchInput.className = 'field__input';
+    searchInput.id = 'admin-user-search';
+    searchInput.placeholder = t('adminUserSearchPlaceholder');
+
+    const searchButton = document.createElement('button');
+    searchButton.type = 'button';
+    searchButton.className = 'button button--ghost';
+    searchButton.textContent = t('search');
+    searchButton.addEventListener('click', async () => {
+      await refreshAdminUsers(searchInput.value || '');
+    });
+
+    searchWrap.appendChild(searchInput);
+    searchWrap.appendChild(searchButton);
+    userManagementNode.appendChild(searchWrap);
+
+    const adminUsers = adminState.users && Array.isArray(adminState.users.users)
+      ? adminState.users.users
+      : [];
+    if (!adminUsers.length) {
+      const empty = document.createElement('p');
+      empty.className = 'caption';
+      empty.textContent = t('adminNoUsers');
+      userManagementNode.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'admin-runtime-state__list';
+
+    adminUsers.forEach(user => {
+      const card = document.createElement('article');
+      card.className = 'admin-runtime-state__card';
+
+      const heading = document.createElement('h3');
+      heading.className = 'heading-3';
+      heading.textContent = user.display_name || user.username || user.email || `#${user.id}`;
+
+      const summary = document.createElement('p');
+      summary.className = 'caption';
+      summary.textContent = t('adminUserSummary', {
+        username: user.username || '—',
+        status: user.is_active ? t('yes') : t('no'),
+        admin: user.is_admin ? t('yes') : t('no')
+      });
+
+      const meta = document.createElement('p');
+      meta.className = 'caption';
+      meta.textContent = [
+        user.email || '—',
+        user.auth_provider || '—',
+        user.has_password ? t('adminHasPassword') : t('adminNoPassword'),
+        user.must_change_password ? t('adminMustChangePassword') : ''
+      ].filter(Boolean).join(' · ');
+
+      const actionRow = document.createElement('div');
+      actionRow.className = 'field__group';
+
+      const toggleUserButton = document.createElement('button');
+      toggleUserButton.type = 'button';
+      toggleUserButton.className = 'button button--ghost';
+      toggleUserButton.textContent = user.is_active ? t('adminDisableUser') : t('adminEnableUser');
+      toggleUserButton.addEventListener('click', async () => {
+        await toggleAdminUser(user, toggleUserButton);
+      });
+
+      const tempPasswordInput = document.createElement('input');
+      tempPasswordInput.className = 'field__input';
+      tempPasswordInput.type = 'text';
+      tempPasswordInput.placeholder = t('adminTemporaryPasswordPlaceholder');
+
+      const resetButton = document.createElement('button');
+      resetButton.type = 'button';
+      resetButton.className = 'button';
+      resetButton.textContent = t('adminResetPassword');
+      resetButton.addEventListener('click', async () => {
+        await resetAdminManagedPassword(user, tempPasswordInput.value || '', resetButton);
+      });
+
+      actionRow.appendChild(toggleUserButton);
+      actionRow.appendChild(tempPasswordInput);
+      actionRow.appendChild(resetButton);
+
+      card.appendChild(heading);
+      card.appendChild(summary);
+      card.appendChild(meta);
+      card.appendChild(actionRow);
+      list.appendChild(card);
+    });
+
+    userManagementNode.appendChild(list);
+  }
+
+  async function refreshAdminUsers(query = '') {
+    const users = await loadAdminUsers(query);
+    if (!users) {
+      return false;
+    }
+    renderAdminObservability();
+    return true;
+  }
+
+  async function toggleAdminUser(user, button = null) {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = user.is_active
+      ? await api.disableAdminUser(user.id)
+      : await api.enableAdminUser(user.id);
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok || !response.data) {
+      setStatusMessage(response.error || t('unableUpdateAdminUser'), 'error');
+      return false;
+    }
+
+    await refreshAdminUsers();
+    setStatusMessage(t('adminUserUpdated'), 'success');
+    return true;
+  }
+
+  async function resetAdminManagedPassword(user, temporaryPassword, button = null) {
+    const api = getApiClient();
+    if (!api) {
+      setStatusMessage(t('apiClientNotReady'), 'error');
+      return false;
+    }
+    if (!temporaryPassword.trim()) {
+      setStatusMessage(t('adminTemporaryPasswordRequired'), 'error');
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const response = await api.resetAdminUserPassword(user.id, temporaryPassword.trim());
+
+    if (button) {
+      button.disabled = false;
+    }
+
+    if (!response.ok || !response.data) {
+      setStatusMessage(response.error || t('unableResetAdminPassword'), 'error');
+      return false;
+    }
+
+    await refreshAdminUsers();
+    setStatusMessage(t('adminPasswordResetSuccess'), 'success');
+    return true;
   }
 
   async function refreshAdminModal() {
-    const [metrics, runtimeState, passwordPolicy] = await Promise.all([
+    const [metrics, runtimeState, passwordPolicy, users] = await Promise.all([
       loadAdminObservability(),
       loadAdminRuntimeState(),
-      loadAdminPasswordPolicy()
+      loadAdminPasswordPolicy(),
+      loadAdminUsers()
     ]);
-    if (!metrics || !runtimeState || !passwordPolicy) {
+    if (!metrics || !runtimeState || !passwordPolicy || !users) {
       return false;
     }
     renderAdminObservability();
@@ -2043,12 +2248,13 @@
       document.body.appendChild(modal);
     }
 
-    const [metrics, runtimeState, passwordPolicy] = await Promise.all([
+    const [metrics, runtimeState, passwordPolicy, users] = await Promise.all([
       loadAdminObservability(),
       loadAdminRuntimeState(),
-      loadAdminPasswordPolicy()
+      loadAdminPasswordPolicy(),
+      loadAdminUsers()
     ]);
-    if (!metrics || !runtimeState || !passwordPolicy) {
+    if (!metrics || !runtimeState || !passwordPolicy || !users) {
       return;
     }
 
@@ -2862,6 +3068,11 @@
 
     if (response.ok && response.data && response.data.mfa_required) {
       setPendingMfaChallenge(response.data);
+      return null;
+    }
+
+    if (response.ok && response.data && response.data.password_change_required) {
+      window.dispatchEvent(new CustomEvent('login-page:password-change-required', { detail: response.data }));
       return null;
     }
 

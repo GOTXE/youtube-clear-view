@@ -25,6 +25,7 @@ from .migrations import (
     ensure_video_schema,
 )
 from .routes import register_routes
+from .services.admin_bootstrap import apply_admin_recovery_if_requested
 from .services.scheduler import start_scheduler
 from .services.sqlite_metrics import initialize_sqlite_metrics
 
@@ -76,6 +77,7 @@ def create_app(config_class=Config):
         ensure_channel_category_schema()
         ensure_channel_classification_columns()
         ensure_user_channel_rating_columns()
+        apply_admin_recovery_if_requested()
         os.makedirs(os.path.join(app.instance_path, "channel_thumbnails"), exist_ok=True)
 
     logger = get_logger(__name__)

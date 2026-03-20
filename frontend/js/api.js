@@ -139,6 +139,33 @@ class APIClient {
     return this.get('/api/auth/current');
   }
 
+  bootstrapAdmin(username, displayName, password, confirmPassword) {
+    return this.post('/api/bootstrap/admin', {
+      username,
+      display_name: displayName,
+      password,
+      confirm_password: confirmPassword
+    });
+  }
+
+  getAdminUsers(query = '') {
+    return this.get('/api/admin/users', query ? { q: query } : {});
+  }
+
+  disableAdminUser(userId) {
+    return this.post(`/api/admin/users/${userId}/disable`);
+  }
+
+  enableAdminUser(userId) {
+    return this.post(`/api/admin/users/${userId}/enable`);
+  }
+
+  resetAdminUserPassword(userId, temporaryPassword) {
+    return this.post(`/api/admin/users/${userId}/reset-password`, {
+      temporary_password: temporaryPassword
+    });
+  }
+
   getSwitchableAccounts() {
     return this.get('/api/auth/accounts');
   }

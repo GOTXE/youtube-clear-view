@@ -23,6 +23,7 @@ from app.services.google_oauth import (
     revoke_google_tokens,
 )
 from app.services.admin_access import is_admin_user
+from app.services.admin_bootstrap import is_bootstrap_required
 from app.services.auth_policy import (
     sanitize_username_candidate,
     validate_password,
@@ -59,6 +60,8 @@ PASSKEY_REGISTRATION_KEY = "passkey_registration"
 PASSKEY_AUTHENTICATION_KEY = "passkey_authentication"
 MFA_CHALLENGE_KEY = "mfa_challenge"
 MFA_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
+PASSWORD_CHANGE_CHALLENGE_KEY = "password_change_challenge"
+PASSWORD_CHANGE_CHALLENGE_MAX_AGE_SECONDS = 15 * 60
 PAIRING_CODE_TTL_MINUTES = 10
 
 # Rate limiting: register / passkey-verify
@@ -383,6 +386,68 @@ def _serialize_mfa_required(user):
     }
 
 
+def _store_password_change_challenge(user):
+    """Persist a short-lived password-change challenge in the signed browser session."""
+    session[PASSWORD_CHANGE_CHALLENGE_KEY] = {
+        "user_id": user.id,
+        "created_at": utc_now().timestamp(),
+    }
+    session.modified = True
+
+
+def _clear_password_change_challenge():
+    """Clear any pending password-change challenge."""
+    if PASSWORD_CHANGE_CHALLENGE_KEY in session:
+        session.pop(PASSWORD_CHANGE_CHALLENGE_KEY, None)
+        session.modified = True
+
+
+def _load_password_change_challenge():
+    """Load and validate the pending password-change challenge payload."""
+    raw = session.get(PASSWORD_CHANGE_CHALLENGE_KEY)
+    if not isinstance(raw, dict):
+        return None
+
+    user_id = raw.get("user_id")
+    created_at = raw.get("created_at")
+    try:
+        user_id = int(user_id)
+        created_at = float(created_at)
+    except (TypeError, ValueError):
+        _clear_password_change_challenge()
+        return None
+
+    if utc_now().timestamp() - created_at > PASSWORD_CHANGE_CHALLENGE_MAX_AGE_SECONDS:
+        _clear_password_change_challenge()
+        return None
+
+    return {"user_id": user_id, "created_at": created_at}
+
+
+def _get_pending_password_change_user():
+    """Resolve the user behind a pending password-change challenge if one exists."""
+    challenge = _load_password_change_challenge()
+    if not challenge:
+        return None
+
+    user = User.query.filter_by(id=challenge["user_id"]).first()
+    if not user or not user.must_change_password:
+        _clear_password_change_challenge()
+        return None
+    return user
+
+
+def _serialize_password_change_required(user):
+    """Serialize the pending password-change challenge payload."""
+    return {
+        "authenticated": False,
+        "password_change_required": True,
+        "user_id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+    }
+
+
 def _clear_existing_session_from_cookie():
     """Invalidate the currently active persisted session, if any."""
     token = request.cookies.get(COOKIE_NAME)
@@ -392,6 +457,18 @@ def _clear_existing_session_from_cookie():
     current_user = find_user_by_session_token(token)
     if current_user:
         clear_session_token(current_user)
+
+
+def _handle_password_change_required(user):
+    """Return a limited challenge response forcing a password change."""
+    _clear_existing_session_from_cookie()
+    _clear_mfa_challenge()
+    _store_password_change_challenge(user)
+    db.session.commit()
+
+    response = jsonify(_serialize_password_change_required(user))
+    _clear_session_cookie(response)
+    return response
 
 
 def _generate_pairing_code():
@@ -476,6 +553,8 @@ def login():
     user = User.query.filter_by(username=username).first()
     if not user:
         return _unauthorized("Invalid credentials.")
+    if not user.is_active:
+        return jsonify({"error": "Account is disabled.", "status": 403}), 403
 
     if user.is_locked:
         return (
@@ -500,6 +579,9 @@ def login():
         response = jsonify(_serialize_mfa_required(user))
         _clear_session_cookie(response)
         return response
+
+    if user.must_change_password:
+        return _handle_password_change_required(user)
 
     session_token = _issue_session_for_user(user)
     db.session.commit()
@@ -740,7 +822,62 @@ def auth_provider():
         "registration_mode": "google_first",
         "password_policy": get_password_policy(),
         "csrf_token": _get_or_create_csrf_token(),
+        "bootstrap_required": is_bootstrap_required(),
     })
+
+
+@auth_bp.get("/api/bootstrap/status")
+@handle_route_errors
+def bootstrap_status():
+    """Return whether the application still requires an admin bootstrap."""
+    return jsonify({"bootstrap_required": is_bootstrap_required()})
+
+
+@auth_bp.post("/api/bootstrap/admin")
+@handle_route_errors
+def bootstrap_admin():
+    """Create the first administrator account when none exists yet."""
+    if not is_bootstrap_required():
+        return jsonify({"error": "Bootstrap already completed.", "status": 409}), 409
+
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    display_name = (data.get("display_name") or "").strip() or None
+    password = data.get("password") or ""
+    confirm_password = data.get("confirm_password") or ""
+
+    username_ok, username_error = validate_username(username)
+    if not username_ok:
+        return jsonify({"error": username_error, "status": 400}), 400
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match.", "status": 400}), 400
+    password_ok, password_error = validate_password(password, get_password_policy())
+    if not password_ok:
+        return jsonify({"error": password_error, "status": 400}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "Username already taken.", "status": 409}), 409
+
+    user = User(
+        username=username,
+        display_name=display_name or username,
+        auth_provider="local",
+        is_admin=True,
+        is_active=True,
+        must_change_password=False,
+        setup_completed=True,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
+    _set_session_cookie(response, session_token)
+    return response, 201
 
 
 _GOOGLE_OAUTH_INTENT_KEY = "google_oauth_intent"
@@ -946,6 +1083,9 @@ def current_user():
     """Return the current authenticated user if a valid session exists."""
     token = request.cookies.get(COOKIE_NAME)
     if not token:
+        pending_password_user = _get_pending_password_change_user()
+        if pending_password_user:
+            return jsonify(_serialize_password_change_required(pending_password_user))
         pending_user = _get_pending_mfa_user()
         if pending_user:
             return jsonify(_serialize_mfa_required(pending_user))
@@ -953,11 +1093,23 @@ def current_user():
 
     user = find_user_by_session_token(token)
     if not user:
+        pending_password_user = _get_pending_password_change_user()
+        if pending_password_user:
+            response = jsonify(_serialize_password_change_required(pending_password_user))
+            _clear_session_cookie(response)
+            return response
         pending_user = _get_pending_mfa_user()
         if pending_user:
             response = jsonify(_serialize_mfa_required(pending_user))
             _clear_session_cookie(response)
             return response
+        response = jsonify({"authenticated": False})
+        _clear_session_cookie(response)
+        return response
+
+    if not user.is_active:
+        clear_session_token(user)
+        db.session.commit()
         response = jsonify({"authenticated": False})
         _clear_session_cookie(response)
         return response
@@ -1100,13 +1252,13 @@ def update_profile():
             "display_name": user.display_name,
             "theme_preference": user.theme_preference,
             "auth_provider": user.auth_provider,
+            "is_admin": is_admin_user(user),
         }
     )
 
 
 @auth_bp.post("/api/auth/profile/password")
 @handle_route_errors
-@require_auth
 def change_password():
     """Change the authenticated user's password."""
     data = request.get_json(silent=True) or {}
@@ -1116,16 +1268,30 @@ def change_password():
     if not password_ok:
         return jsonify({"error": password_error, "status": 400}), 400
 
-    user = g.current_user
+    token = request.cookies.get(COOKIE_NAME)
+    user = find_user_by_session_token(token) if token else None
+    if user and not user.is_active:
+        clear_session_token(user)
+        db.session.commit()
+        user = None
+    user = user or _get_pending_password_change_user()
+    if not user:
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Unauthorized.", "tracking_id": tracking_id, "status": 401}), 401
     if user.password_hash and not user.check_password(current_password):
         return _unauthorized("Current password is incorrect.")
 
     user.set_password(new_password)
+    user.must_change_password = False
     if not user.setup_completed:
         user.setup_completed = True
+    session_token = _issue_session_for_user(user)
+    _clear_password_change_challenge()
     db.session.commit()
 
-    return jsonify({"message": "Password updated."})
+    response = jsonify({"message": "Password updated.", "authenticated": True} | _serialize_authenticated_user(user))
+    _set_session_cookie(response, session_token)
+    return response
 
 
 @auth_bp.post("/api/auth/google/unlink")
@@ -1353,8 +1519,10 @@ def verify_mfa_challenge():
             return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
         user.recovery_codes_hashes = json.dumps(remaining)
 
-    session_token = _issue_session_for_user(user)
     _clear_mfa_challenge()
+    if user.must_change_password:
+        return _handle_password_change_required(user)
+    session_token = _issue_session_for_user(user)
     db.session.commit()
 
     response = jsonify(_serialize_authenticated_user(user))

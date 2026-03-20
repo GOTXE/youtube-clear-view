@@ -33,6 +33,10 @@ class Config:
     LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", str(10 * 1024 * 1024)))
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
     ADMIN_USERNAMES = os.getenv("ADMIN_USERNAMES", "")
+    ADMIN_BOOTSTRAP_USERNAME = os.getenv("ADMIN_BOOTSTRAP_USERNAME", "")
+    ADMIN_BOOTSTRAP_PASSWORD = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "")
+    ADMIN_BOOTSTRAP_DISPLAY_NAME = os.getenv("ADMIN_BOOTSTRAP_DISPLAY_NAME", "")
+    ADMIN_FORCE_RESET = os.getenv("ADMIN_FORCE_RESET", "false").lower() == "true"
     SQLITE_METRICS_ENABLED = os.getenv("SQLITE_METRICS_ENABLED", "false").lower() == "true"
     SQLITE_METRICS_SLOW_WRITE_MS = int(os.getenv("SQLITE_METRICS_SLOW_WRITE_MS", "100"))
 

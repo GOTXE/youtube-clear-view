@@ -4,6 +4,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
+from app.models import User
 from app.services.sqlite_metrics import reset_sqlite_metrics_for_tests, set_sqlite_metrics_enabled
 
 
@@ -60,6 +61,11 @@ def _login(client, username):
     # Try to register (creates + logs in for fresh users).
     # Fall back to legacy login for users pre-created without a password.
     reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if username == "admin":
+        with client.application.app_context():
+            user = User.query.filter_by(username="admin").first()
+            user.is_admin = True
+            db.session.commit()
     if reg.status_code == 201:
         return reg
     return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
@@ -130,3 +136,66 @@ def test_admin_can_read_and_update_password_policy(client):
     )
     assert response.status_code == 200
     assert response.get_json()["password_policy"] == "unbreakable"
+
+
+def test_admin_can_list_users(client):
+    _login(client, "admin")
+    _login(client, "alice")
+    _login(client, "admin")
+
+    response = client.get("/api/admin/users")
+    assert response.status_code == 200
+    users = response.get_json()["users"]
+    assert any(user["username"] == "admin" and user["is_admin"] is True for user in users)
+    assert any(user["username"] == "alice" for user in users)
+
+
+def test_admin_can_disable_and_enable_user(client):
+    _login(client, "admin")
+    _login(client, "alice")
+    _login(client, "admin")
+
+    with client.application.app_context():
+        alice = User.query.filter_by(username="alice").first()
+        alice_id = alice.id
+
+    response = client.post(f"/api/admin/users/{alice_id}/disable")
+    assert response.status_code == 200
+    assert response.get_json()["is_active"] is False
+
+    client.post("/api/auth/logout")
+    blocked_login = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "testpassword123"},
+    )
+    assert blocked_login.status_code == 403
+
+    _login(client, "admin")
+    response = client.post(f"/api/admin/users/{alice_id}/enable")
+    assert response.status_code == 200
+    assert response.get_json()["is_active"] is True
+
+
+def test_admin_can_reset_password_and_force_change(client):
+    _login(client, "admin")
+    _login(client, "alice")
+    _login(client, "admin")
+
+    with client.application.app_context():
+        alice = User.query.filter_by(username="alice").first()
+        alice_id = alice.id
+
+    response = client.post(
+        f"/api/admin/users/{alice_id}/reset-password",
+        json={"temporary_password": "TempPassword123"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["must_change_password"] is True
+
+    client.post("/api/auth/logout")
+    login_response = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "TempPassword123"},
+    )
+    assert login_response.status_code == 200
+    assert login_response.get_json()["password_change_required"] is True

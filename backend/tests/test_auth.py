@@ -159,11 +159,90 @@ def test_current_user_returns_profile(client):
 
 def test_current_user_marks_admin_when_configured(client):
     client.post("/api/auth/register", json={"username": "admin", "password": "testpassword123"})
+    with client.application.app_context():
+        user = User.query.filter_by(username="admin").first()
+        user.is_admin = True
+        db.session.commit()
     response = client.get("/api/auth/current")
     assert response.status_code == 200
     data = response.get_json()
     assert data["username"] == "admin"
     assert data["is_admin"] is True
+
+
+def test_bootstrap_status_requires_admin_until_created(client):
+    response = client.get("/api/bootstrap/status")
+    assert response.status_code == 200
+    assert response.get_json()["bootstrap_required"] is True
+
+    response = client.post(
+        "/api/bootstrap/admin",
+        json={
+            "username": "admin",
+            "display_name": "Administrator",
+            "password": "Strongpass123",
+            "confirm_password": "Strongpass123",
+        },
+    )
+    assert response.status_code == 201
+    assert response.get_json()["is_admin"] is True
+
+    follow_up = client.get("/api/bootstrap/status")
+    assert follow_up.status_code == 200
+    assert follow_up.get_json()["bootstrap_required"] is False
+
+
+def test_login_returns_password_change_required_for_flagged_user(client, app):
+    with app.app_context():
+        user = User(username="alice", display_name="Alice", must_change_password=True)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post("/api/auth/login", json={"username": "alice", "password": "password123"})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is False
+    assert data["password_change_required"] is True
+
+    current_response = client.get("/api/auth/current")
+    current_data = current_response.get_json()
+    assert current_data["password_change_required"] is True
+
+
+def test_change_password_completes_password_change_challenge(client, app):
+    with app.app_context():
+        user = User(username="alice", display_name="Alice", must_change_password=True)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "alice", "password": "password123"})
+    response = client.post(
+        "/api/auth/profile/password",
+        json={"current_password": "password123", "new_password": "newpassword123"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is True
+
+    with client.application.app_context():
+        user = User.query.filter_by(username="alice").first()
+        assert user.must_change_password is False
+
+
+def test_disabled_user_cannot_log_in(client, app):
+    with app.app_context():
+        user = User(username="disabled-user", display_name="Disabled User", is_active=False)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+
+    response = client.post(
+        "/api/auth/login",
+        json={"username": "disabled-user", "password": "password123"},
+    )
+    assert response.status_code == 403
 
 
 def test_verify_mfa_challenge_with_totp_creates_session(client, app):

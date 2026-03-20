@@ -23,7 +23,7 @@
   // ── State ─────────────────────────────────────────────────────────────────
 
   let overlay = null;
-  let currentView = 'login'; // 'login' | 'wizard' | 'pairing'
+  let currentView = 'login'; // 'login' | 'wizard' | 'pairing' | 'bootstrap' | 'password-change'
   let authProviderData = null;
   let visible = false;
   let _pairingPollTimer = null;
@@ -74,7 +74,11 @@
     overlay.hidden = false;
     document.body.classList.add('login-page-open');
 
-    if (options.wizard) {
+    if (options.bootstrap || (authProviderData && authProviderData.bootstrap_required)) {
+      showView('bootstrap', options);
+    } else if (options.passwordChange) {
+      showView('password-change', options);
+    } else if (options.wizard) {
       showView('wizard', options);
     } else {
       showView('login');
@@ -98,7 +102,7 @@
   function showView(view, options = {}) {
     if (currentView === 'pairing' && view !== 'pairing') _stopPairingPoll();
     currentView = view;
-    const views = ['login', 'wizard', 'pairing'];
+    const views = ['login', 'wizard', 'pairing', 'bootstrap', 'password-change'];
     views.forEach(v => {
       const panel = el(`lp-${v}`);
       if (panel) panel.hidden = v !== view;
@@ -108,12 +112,16 @@
       const input = el('lp-wizard-username');
       if (input) input.value = options.username;
     }
+    if (view === 'bootstrap') {
+      const input = el('lp-bootstrap-username');
+      if (input) window.setTimeout(() => input.focus(), 0);
+    }
 
     clearErrors();
   }
 
   function clearErrors() {
-    ['lp-login-error', 'lp-register-error', 'lp-wizard-error'].forEach(id => {
+    ['lp-login-error', 'lp-register-error', 'lp-wizard-error', 'lp-bootstrap-error', 'lp-password-change-error'].forEach(id => {
       const node = el(id);
       if (node) { node.textContent = ''; node.hidden = true; }
     });
@@ -182,6 +190,57 @@
           </p>
         </div>
 
+        <!-- ADMIN BOOTSTRAP PANEL -->
+        <div id="lp-bootstrap" class="login-page__panel" hidden>
+          <h2 class="heading-2 login-page__title" data-i18n="adminBootstrapTitle">Configure administrator</h2>
+          <p class="body login-page__subtitle" data-i18n="adminBootstrapSubtitle">This is the first startup. Create the administrator account for this site.</p>
+          <form id="lp-bootstrap-form" class="login-page__form" novalidate>
+            <label class="field">
+              <span class="field__label" data-i18n="adminBootstrapUsername">Username</span>
+              <input id="lp-bootstrap-username" class="field__input" type="text" autocomplete="username" autocapitalize="none" required>
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="adminBootstrapDisplayName">Display name</span>
+              <input id="lp-bootstrap-display-name" class="field__input" type="text" autocomplete="name">
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="adminBootstrapPassword">Password</span>
+              <div class="field__control">
+                <input id="lp-bootstrap-password" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-bootstrap-password-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-bootstrap-password"
+                >👁</button>
+              </div>
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="adminBootstrapPasswordConfirm">Confirm password</span>
+              <div class="field__control">
+                <input id="lp-bootstrap-password-confirm" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-bootstrap-password-confirm-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-bootstrap-password-confirm"
+                >👁</button>
+              </div>
+            </label>
+            <p id="lp-bootstrap-error" class="login-page__error body" role="alert" hidden></p>
+            <button id="lp-bootstrap-submit" class="button login-page__submit" type="submit">
+              <span id="bootstrap-submit-label" data-i18n="adminBootstrapSubmit">Create administrator</span>
+            </button>
+            <p class="login-page__switch caption" data-i18n="adminBootstrapFootnote">Only shown while no administrator account exists.</p>
+          </form>
+        </div>
+
         <!-- PAIRING PANEL -->
         <div id="lp-pairing" class="login-page__panel" hidden>
           <h2 class="heading-2 login-page__title" data-i18n="pairingLoginTitle">Sign in with device code</h2>
@@ -242,6 +301,52 @@
             <p id="lp-wizard-error" class="login-page__error body" role="alert" hidden></p>
             <button id="lp-wizard-submit" class="button login-page__submit" type="submit">
               <span id="wizard-submit-label" data-i18n="setupWizardSave">Save and continue</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- PASSWORD CHANGE PANEL -->
+        <div id="lp-password-change" class="login-page__panel" hidden>
+          <h2 class="heading-2 login-page__title" data-i18n="passwordChangeRequiredTitle">Change your password</h2>
+          <p class="body login-page__subtitle" data-i18n="passwordChangeRequiredSubtitle">Your temporary password must be changed before entering the app.</p>
+          <form id="lp-password-change-form" class="login-page__form" novalidate>
+            <label class="field">
+              <span class="field__label" data-i18n="accountPasswordCurrent">Current password</span>
+              <input id="lp-password-change-current" class="field__input" type="password" autocomplete="current-password" required>
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="accountPasswordNew">New password</span>
+              <div class="field__control">
+                <input id="lp-password-change-new" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-password-change-new-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-password-change-new"
+                >👁</button>
+              </div>
+            </label>
+            <label class="field">
+              <span class="field__label" data-i18n="accountPasswordConfirm">Confirm new password</span>
+              <div class="field__control">
+                <input id="lp-password-change-confirm" class="field__input field__input--with-toggle" type="password" autocomplete="new-password" required>
+                <button
+                  id="lp-password-change-confirm-toggle"
+                  class="field__toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  data-i18n-aria-label="showPassword"
+                  data-password-toggle-for="lp-password-change-confirm"
+                >👁</button>
+              </div>
+            </label>
+            <p id="lp-password-change-error" class="login-page__error body" role="alert" hidden></p>
+            <button id="lp-password-change-submit" class="button login-page__submit" type="submit">
+              <span id="password-change-submit-label" data-i18n="passwordChangeRequiredSubmit">Update password</span>
             </button>
           </form>
         </div>
@@ -333,6 +438,22 @@
       });
     }
 
+    const bootstrapForm = el('lp-bootstrap-form');
+    if (bootstrapForm) {
+      bootstrapForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        await handleBootstrapSave();
+      });
+    }
+
+    const passwordChangeForm = el('lp-password-change-form');
+    if (passwordChangeForm) {
+      passwordChangeForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        await handlePasswordChangeSave();
+      });
+    }
+
     const goRegister = el('lp-go-register');
     if (goRegister) {
       goRegister.addEventListener('click', () => {
@@ -386,7 +507,14 @@
       pairingNew.addEventListener('click', () => startPairingFlow());
     }
 
-    ['lp-wizard-password-toggle', 'lp-wizard-password-confirm-toggle'].forEach(buttonId => {
+    [
+      'lp-wizard-password-toggle',
+      'lp-wizard-password-confirm-toggle',
+      'lp-bootstrap-password-toggle',
+      'lp-bootstrap-password-confirm-toggle',
+      'lp-password-change-new-toggle',
+      'lp-password-change-confirm-toggle'
+    ].forEach(buttonId => {
       const button = el(buttonId);
       if (!button) {
         return;
@@ -422,8 +550,11 @@
 
     if (resp.ok && resp.data) {
       if (resp.data.mfa_required) {
-        // MFA challenge — delegate to auth.js via event
         window.dispatchEvent(new CustomEvent('login-page:mfa-required', { detail: resp.data }));
+        return;
+      }
+      if (resp.data.password_change_required) {
+        window.dispatchEvent(new CustomEvent('login-page:password-change-required', { detail: resp.data }));
         return;
       }
       if (resp.data.needs_setup) {
@@ -486,6 +617,86 @@
       return;
     }
     setError('lp-wizard-error', resp.error || t('setupWizardError'));
+  }
+
+  async function handleBootstrapSave() {
+    const username = (el('lp-bootstrap-username') || {}).value || '';
+    const displayName = (el('lp-bootstrap-display-name') || {}).value || '';
+    const password = (el('lp-bootstrap-password') || {}).value || '';
+    const passwordConfirm = (el('lp-bootstrap-password-confirm') || {}).value || '';
+    const submitBtn = el('lp-bootstrap-submit');
+    const labelEl = el('bootstrap-submit-label');
+
+    if (!username.trim() || !password || !passwordConfirm) {
+      setError('lp-bootstrap-error', t('adminBootstrapError'));
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setError('lp-bootstrap-error', t('registerPasswordMismatch'));
+      return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    if (labelEl) labelEl.textContent = t('adminBootstrapSubmitting');
+    setError('lp-bootstrap-error', '');
+
+    const api = getApi();
+    if (!api) return;
+
+    const resp = await api.bootstrapAdmin(username.trim(), displayName.trim(), password, passwordConfirm);
+
+    if (submitBtn) submitBtn.disabled = false;
+    if (labelEl) labelEl.textContent = t('adminBootstrapSubmit');
+
+    if (resp.ok && resp.data) {
+      notifyAuthSuccess(resp.data);
+      return;
+    }
+
+    if (resp.status === 409) {
+      authProviderData = { ...(authProviderData || {}), bootstrap_required: false };
+      showView('login');
+      setError('lp-login-error', t('adminBootstrapAlreadyCompleted'));
+      return;
+    }
+
+    setError('lp-bootstrap-error', resp.error || t('adminBootstrapError'));
+  }
+
+  async function handlePasswordChangeSave() {
+    const currentPassword = (el('lp-password-change-current') || {}).value || '';
+    const newPassword = (el('lp-password-change-new') || {}).value || '';
+    const confirmPassword = (el('lp-password-change-confirm') || {}).value || '';
+    const submitBtn = el('lp-password-change-submit');
+    const labelEl = el('password-change-submit-label');
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('lp-password-change-error', t('passwordChangeRequiredError'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('lp-password-change-error', t('registerPasswordMismatch'));
+      return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    if (labelEl) labelEl.textContent = t('passwordChangeRequiredSubmitting');
+    setError('lp-password-change-error', '');
+
+    const api = getApi();
+    if (!api) return;
+
+    const resp = await api.changePassword(currentPassword, newPassword);
+
+    if (submitBtn) submitBtn.disabled = false;
+    if (labelEl) labelEl.textContent = t('passwordChangeRequiredSubmit');
+
+    if (resp.ok && resp.data) {
+      notifyAuthSuccess(resp.data);
+      return;
+    }
+
+    setError('lp-password-change-error', resp.error || t('passwordChangeRequiredError'));
   }
 
   // ── Pairing flow (device code login) ─────────────────────────────────────
@@ -621,6 +832,11 @@
       const user = event.detail ? event.detail.user : null;
       if (user && visible) {
         hide();
+      }
+    });
+    window.addEventListener('login-page:password-change-required', event => {
+      if (event && event.detail) {
+        show({ passwordChange: true });
       }
     });
 

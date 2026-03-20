@@ -12,6 +12,11 @@ services:
       LOG_FILE: /logs/app.log
       FLASK_HOST: 0.0.0.0
       FLASK_PORT: 5550
+      # Admin recovery/bootstrap helpers:
+      # ADMIN_BOOTSTRAP_USERNAME: admin
+      # ADMIN_BOOTSTRAP_PASSWORD: change-me-now
+      # ADMIN_BOOTSTRAP_DISPLAY_NAME: Site Admin
+      # ADMIN_FORCE_RESET: "0"
     volumes:
       - ytcv_data:/data
       - ytcv_logs:/logs

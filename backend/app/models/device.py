@@ -25,6 +25,7 @@ class UserDevice(db.Model):
     tv_scale_confirmed_at = db.Column(db.DateTime)
     screen_size_inches = db.Column(db.Integer)
     viewing_distance_m = db.Column(db.Float)
+    display_name = db.Column(db.String(128))
     user_agent = db.Column(db.String(500))
     last_used_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
@@ -51,6 +52,7 @@ class UserDevice(db.Model):
             ),
             "screen_size_inches": self.screen_size_inches,
             "viewing_distance_m": self.viewing_distance_m,
+            "display_name": self.display_name,
             "user_agent": self.user_agent,
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,

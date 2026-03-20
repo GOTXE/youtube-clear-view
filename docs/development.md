@@ -236,10 +236,13 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 ## Device Type Persistence
 
 - Device state is stored per `user_id + device_identifier` in `user_devices`.
+- Each device can also persist a friendly `display_name` for account-level device management.
+- New devices receive an automatic label derived from their confirmed type, and older rows are backfilled lazily on read/update.
 - The frontend keeps only the latest device row id in local storage; the confirmed device type remains authoritative in the backend.
 - The device modal now auto-opens only when the current user's device is not yet confirmed.
 - The hamburger menu no longer exposes a separate `Device type` action.
 - Manual device classification now lives inside the shared `Display setup` modal so hardware type and layout stay in one place.
+- `My account > Devices` can now rename devices via a dedicated endpoint instead of showing raw `user_agent` strings as the primary label.
 
 ## Frontend Mode System
 

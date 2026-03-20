@@ -1477,6 +1477,7 @@ Response example:
 {
   "id": 3,
   "device_identifier": "dev-abc123",
+  "display_name": "📺 TV salón",
   "device_type": "tv",
   "device_type_confirmed": true,
   "frontend_mode": "tv",
@@ -1490,9 +1491,30 @@ Response example:
 
 Lists registered devices.
 
+Notes:
+- Each device now exposes a user-facing `display_name`.
+- New devices receive an automatic friendly name derived from `device_type`, such as `📺 TV`, `🖥️ Pantalla PC`, `📟 Tablet`, or `📱 Móvil`.
+- Existing devices without a stored `display_name` are backfilled automatically when listed or re-registered.
+
 ### PUT /api/devices/<device_id>/type
 
 Updates device type and marks it as explicitly confirmed for that user/device pair.
+
+If the current `display_name` was auto-generated, it is refreshed to match the new type.
+
+### PUT /api/devices/<device_id>/name
+
+Updates the friendly device name shown in the account panel.
+
+Request example:
+
+```json
+{ "display_name": "📺 TV salón" }
+```
+
+Rules:
+- `display_name` is required
+- maximum length: `128`
 
 ### PUT /api/devices/<device_id>/preferences
 
@@ -1539,6 +1561,7 @@ Response example:
 {
   "id": 3,
   "device_identifier": "dev-abc123",
+  "display_name": "📺 TV salón",
   "device_type": "tv",
   "device_type_confirmed": true,
   "frontend_mode": "tv",

@@ -369,6 +369,10 @@ class APIClient {
     return this.delete(`/api/devices/${deviceId}`);
   }
 
+  updateDeviceName(deviceId, displayName) {
+    return this.put(`/api/devices/${deviceId}/name`, { display_name: displayName });
+  }
+
   detectDevice(userAgent, screenWidth, screenHeight) {
     return this.post('/api/devices/detect', {
       user_agent: userAgent,

@@ -70,6 +70,7 @@ def test_register_and_list_devices(client):
     data = response.get_json()
     assert data["device_type"] in ("desktop", "tv", "tablet", "mobile")
     assert data["device_type_confirmed"] is False
+    assert data["display_name"] == "🖥️ Pantalla PC"
 
     response = client.get("/api/devices")
     assert response.status_code == 200
@@ -92,6 +93,46 @@ def test_update_device_type(client):
     assert response.status_code == 200
     assert response.get_json()["device_type"] == "tv"
     assert response.get_json()["device_type_confirmed"] is True
+    assert response.get_json()["display_name"] == "📺 TV"
+
+
+def test_register_existing_device_backfills_display_name(client):
+    _login(client, "bea")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "same-dev", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    with client.application.app_context():
+        from app.models import UserDevice
+
+        device = db.session.get(UserDevice, device_id)
+        device.display_name = None
+        db.session.commit()
+
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "same-dev", "user_agent": "ua"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["display_name"] == "🖥️ Pantalla PC"
+
+
+def test_update_device_name(client):
+    _login(client, "cora")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "rename-dev", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/name",
+        json={"display_name": "📺 TV salón"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["display_name"] == "📺 TV salón"
 
 
 def test_register_device_returns_confirmation_state_for_existing_device(client):

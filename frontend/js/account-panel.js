@@ -671,6 +671,9 @@
     const container = document.getElementById('ap-devices-list');
     if (!container) return;
     container.textContent = '…';
+    if (!currentDeviceIdentifier && typeof window.getDeviceIdentifier === 'function') {
+      currentDeviceIdentifier = window.getDeviceIdentifier();
+    }
 
     const api = getApi();
     if (!api) return;
@@ -700,7 +703,7 @@
       return;
     }
 
-    const removableDevices = [];
+    const deviceOptions = [];
     devices.forEach(device => {
       const isCurrent = device.device_identifier === currentDeviceIdentifier;
       const row = document.createElement('div');
@@ -708,22 +711,23 @@
 
       const typeLabel = device.device_type || '?';
       const lastUsed = device.last_used_at ? formatDate(device.last_used_at) : '—';
-      const label = device.user_agent ? device.user_agent.slice(0, 60) : typeLabel;
+      const fallbackLabel = device.user_agent ? device.user_agent.slice(0, 60) : typeLabel;
+      const label = device.display_name || fallbackLabel;
+      const metaLabel = `${typeLabel.toUpperCase()} · ${t('accountDeviceLastUsed', { date: lastUsed })}`;
 
       row.innerHTML = `
         <div class="account-panel__row-info">
           <span class="account-panel__row-name body">${escapeHtml(label)}${isCurrent ? ` <span class="account-panel__badge">${t('accountDeviceThisDevice')}</span>` : ''}</span>
-          <span class="account-panel__row-meta caption">${t('accountDeviceLastUsed', { date: lastUsed })}</span>
+          <span class="account-panel__row-meta caption">${escapeHtml(metaLabel)}</span>
         </div>
       `;
       container.appendChild(row);
 
-      if (!isCurrent) {
-        removableDevices.push({
-          id: device.id,
-          label: `${label} · ${t('accountDeviceLastUsed', { date: lastUsed })}`
-        });
-      }
+      deviceOptions.push({
+        id: device.id,
+        label,
+        isCurrent
+      });
     });
 
     const controls = document.createElement('div');
@@ -732,25 +736,89 @@
     const selectLabel = document.createElement('label');
     selectLabel.className = 'field account-panel__inline-field';
     selectLabel.innerHTML = `
-      <span class="field__label">${t('accountDeviceSelectLabel')}</span>
+      <span class="field__label">${t('accountDeviceManageLabel')}</span>
       <select id="ap-device-delete-select" class="field__input">
         <option value="">${t('accountDeviceSelectPlaceholder')}</option>
-        ${removableDevices.map(device => (
-          `<option value="${device.id}">${escapeHtml(device.label)}</option>`
+        ${deviceOptions.map(device => (
+          `<option value="${device.id}">${escapeHtml(device.label)}${device.isCurrent ? ` (${escapeHtml(t('accountDeviceThisDevice'))})` : ''}</option>`
         )).join('')}
       </select>
     `;
+
+    const nameLabel = document.createElement('label');
+    nameLabel.className = 'field account-panel__inline-field';
+    nameLabel.innerHTML = `
+      <span class="field__label">${t('accountDeviceNameLabel')}</span>
+      <input id="ap-device-name-input" class="field__input" type="text" maxlength="128" placeholder="${escapeHtml(t('accountDeviceNamePlaceholder'))}">
+    `;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'button';
+    saveBtn.id = 'ap-device-name-save-btn';
+    saveBtn.textContent = t('accountDeviceNameSave');
 
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'button button--ghost';
     deleteBtn.id = 'ap-device-delete-btn';
     deleteBtn.textContent = t('accountDeviceDeleteSelected');
-    deleteBtn.disabled = removableDevices.length === 0;
 
     controls.appendChild(selectLabel);
+    controls.appendChild(nameLabel);
+    controls.appendChild(saveBtn);
     controls.appendChild(deleteBtn);
     container.appendChild(controls);
+
+    const select = document.getElementById('ap-device-delete-select');
+    const nameInput = document.getElementById('ap-device-name-input');
+
+    const syncSelectedDeviceControls = () => {
+      const selectedId = select ? Number(select.value) : NaN;
+      const selectedDevice = deviceOptions.find(device => device.id === selectedId) || null;
+      if (nameInput) {
+        nameInput.value = selectedDevice ? selectedDevice.label : '';
+      }
+      saveBtn.disabled = !selectedDevice;
+      deleteBtn.disabled = !selectedDevice || selectedDevice.isCurrent;
+    };
+
+    if (select) {
+      const initialSelectable = deviceOptions[0];
+      if (initialSelectable) {
+        select.value = String(initialSelectable.id);
+      }
+      select.addEventListener('change', syncSelectedDeviceControls);
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      const selectedId = select ? Number(select.value) : NaN;
+      if (!selectedId) {
+        showMsg('ap-devices-msg', t('accountDeviceSelectRequired'), 'error');
+        return;
+      }
+
+      const nextName = nameInput ? nameInput.value.trim() : '';
+      if (!nextName) {
+        showMsg('ap-devices-msg', t('accountDeviceNameRequired'), 'error');
+        return;
+      }
+
+      const orig = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = t('accountDeviceNameSaving');
+
+      const api = getApi();
+      const resp = await api.updateDeviceName(selectedId, nextName);
+      if (resp.ok) {
+        showMsg('ap-devices-msg', t('accountDeviceNameSaved'), 'success');
+        await loadDevices();
+      } else {
+        saveBtn.disabled = false;
+        saveBtn.textContent = orig;
+        showMsg('ap-devices-msg', t('accountDeviceNameSaveFailed'), 'error');
+      }
+    });
 
     deleteBtn.addEventListener('click', async () => {
       const select = document.getElementById('ap-device-delete-select');
@@ -770,6 +838,8 @@
 
       await handleRevokeDevice(selectedId, deleteBtn);
     });
+
+    syncSelectedDeviceControls();
   }
 
   async function handleRevokeDevice(id, btn) {

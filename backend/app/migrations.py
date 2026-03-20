@@ -381,6 +381,13 @@ def ensure_user_device_schema():
                         "ADD COLUMN viewing_distance_m FLOAT"
                     )
                 )
+            if "display_name" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN display_name VARCHAR(128)"
+                    )
+                )
     except Exception as error:
         logger.warning(
             "User device schema migration skipped: %s",

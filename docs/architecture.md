@@ -98,6 +98,7 @@ Frontend and API live on different hostnames. This requires strict CORS and cook
    - Scheduled/backfill: driven by `GET/PUT /api/settings` + server scheduler
 4. **Browsing**
    - Carousels: `GET /api/videos/latest` with query params (`content_type`, `since_days`, `older_than_days`, `randomize`, etc.)
+   - Watched history: `GET /api/videos/watched` feeds the "Watched videos" carousel
    - Mark watched: `POST /api/videos/<id>/watch` / `DELETE /api/videos/<id>/unwatch`
 5. **Categories**
    - View: `GET /api/categories` + `GET /api/categories/<id>/videos`

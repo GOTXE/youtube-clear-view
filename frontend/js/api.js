@@ -341,6 +341,11 @@ class APIClient {
     return this.get('/api/videos/in-progress', { limit, offset });
   }
 
+  getWatchedVideos(limit = 20, offset = 0, options = {}) {
+    const params = { limit, offset, ...options };
+    return this.get('/api/videos/watched', params);
+  }
+
   searchVideos(query, filters = {}) {
     const params = { q: query, ...filters };
     return this.get('/api/videos/search', params);

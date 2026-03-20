@@ -148,9 +148,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     latestTitle: document.getElementById('latest-title'),
     shortsCarousel: document.getElementById('shorts-carousel'),
     olderCarousel: document.getElementById('older-carousel'),
+    watchedCarousel: document.getElementById('watched-carousel'),
     shortsSection: document.getElementById('shorts-section'),
     olderSection: document.getElementById('older-section'),
+    watchedSection: document.getElementById('watched-section'),
     olderTitle: document.getElementById('older-title'),
+    watchedLabel: document.getElementById('watched-label'),
+    watchedCount: document.getElementById('watched-count'),
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
     refreshProgress: document.getElementById('refresh-progress'),
@@ -332,6 +336,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.olderTitle) {
       ui.olderTitle.textContent = t('olderVideosShorts');
+    }
+    if (ui.watchedLabel) {
+      ui.watchedLabel.textContent = t('watchedVideos');
     }
     if (ui.menuFilters) {
       ui.menuFilters.textContent = t('filters');
@@ -864,6 +871,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.olderSection.hidden = false;
     }
     renderSectionLoadingState(ui.olderCarousel, 'loadingOlder');
+    if (ui.watchedSection) {
+      ui.watchedSection.hidden = false;
+    }
+    renderSectionLoadingState(ui.watchedCarousel, 'loadingWatched');
   }
 
   function renderChannelListLoading() {
@@ -1184,6 +1195,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!preserveDOM && ui.olderCarousel) {
       ui.olderCarousel.innerHTML = '';
     }
+    if (!preserveDOM && ui.watchedCarousel) {
+      ui.watchedCarousel.innerHTML = '';
+    }
+    if (ui.watchedSection) {
+      ui.watchedSection.hidden = true;
+    }
     if (!preserveDOM && ui.themeCarousels) {
       ui.themeCarousels.innerHTML = '';
     }
@@ -1312,6 +1329,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await carousel.init();
     state.carousels.push(carousel);
+  }
+
+  async function renderWatchedCarousel() {
+    if (!ui.watchedCarousel || !ui.watchedSection) {
+      return;
+    }
+
+    let totalCount = 0;
+    const carousel = new window.Carousel('watched-carousel', async (offset, limit) => {
+      const params = {};
+      if (state.selectedChannelId !== null) {
+        params.channel_id = state.selectedChannelId;
+      }
+      if (state.selectedChannelYtId) {
+        params.yt_channel_id = state.selectedChannelYtId;
+      }
+      const response = await api.getWatchedVideos(limit, offset, params);
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      const filtered = applyFilters(response.data);
+      if (offset === 0) {
+        totalCount = filtered.videos.length;
+      } else {
+        totalCount += filtered.videos.length;
+      }
+      return filtered;
+    }, {
+      hideTextForShorts: true,
+      preserveContentOnInit: true
+    });
+
+    await carousel.init();
+    state.carousels.push(carousel);
+
+    if (ui.watchedCount) {
+      ui.watchedCount.textContent = String(totalCount);
+    }
+    ui.watchedSection.hidden = totalCount === 0;
   }
 
   function renderChannelList(channels) {
@@ -1817,6 +1873,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       await renderOlderCarousel();
 
+      await renderWatchedCarousel();
+
       if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
         state.categoryManager = new window.CategoryManager(api, 'category-carousels');
         await state.categoryManager.init();
@@ -1839,6 +1897,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMainCarousel();
     await renderShortsCarousel();
     await renderOlderCarousel();
+    await renderWatchedCarousel();
 
     // Ocultar categorías automáticas cuando hay un canal seleccionado.
     // Solo se muestran cuando no hay canal activo (vista "All").

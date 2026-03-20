@@ -1389,6 +1389,21 @@ Query params:
 Response: see Pagination format. Each entry includes a `progress` field with the
 saved position in seconds.
 
+### GET /api/videos/watched
+
+Requires an authenticated session.
+
+Returns watched videos for the current user, ordered by most recently watched first.
+
+Query params:
+- `limit` (optional, default 20)
+- `offset` (optional, default 0)
+- `channel_id` (optional)
+- `yt_channel_id` (optional)
+- `content_type` (optional: `video` or `short`)
+
+Response: same shape as `GET /api/videos/latest`.
+
 ### GET /api/videos/search
 
 Searches videos by title/description.

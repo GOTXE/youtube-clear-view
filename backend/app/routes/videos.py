@@ -485,6 +485,101 @@ def list_in_progress():
     return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 
 
+@videos_bp.get("/api/videos/watched")
+@handle_route_errors
+@require_auth
+def list_watched_videos():
+    """Return watched videos for the current user, most recently watched first."""
+    user = g.current_user
+    try:
+        limit = int(request.args.get("limit", 20))
+        offset = int(request.args.get("offset", 0))
+    except ValueError:
+        return _bad_request("Invalid pagination values.")
+
+    if limit <= 0 or offset < 0:
+        return _bad_request("Invalid pagination values.")
+
+    channel_id = request.args.get("channel_id")
+    yt_channel_id = (request.args.get("yt_channel_id") or "").strip() or None
+    if channel_id is not None:
+        try:
+            channel_id = int(channel_id)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid channel_id.")
+        if channel_id <= 0:
+            return _bad_request("Invalid channel_id.")
+    if yt_channel_id:
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
+        if not channel:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
+        if channel_id is not None and channel.id != channel_id:
+            return _bad_request("Mismatched channel_id.")
+        channel_id = channel.id
+
+    content_type = request.args.get("content_type")
+    if content_type and content_type not in ("video", "short"):
+        return _bad_request("Invalid content_type.")
+
+    subscribed_ids = [
+        sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
+    ]
+    if not subscribed_ids:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    if channel_id is not None and channel_id not in subscribed_ids:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    query = (
+        WatchedVideo.query
+        .filter_by(user_id=user.id)
+        .join(Video, WatchedVideo.video_id == Video.id)
+        .filter(Video.channel_id.in_(subscribed_ids))
+    )
+    if channel_id is not None:
+        query = query.filter(Video.channel_id == channel_id)
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+
+    watched_query = (
+        query.order_by(WatchedVideo.watched_at.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+
+    has_more = len(watched_query) > limit
+    entries = watched_query[:limit]
+    if not entries:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    video_ids = [entry.video_id for entry in entries]
+    videos_map = {video.id: video for video in Video.query.filter(Video.id.in_(video_ids)).all()}
+    progress_entries = (
+        VideoProgress.query.filter_by(user_id=user.id)
+        .filter(VideoProgress.video_id.in_(video_ids))
+        .all()
+    )
+    progress_map = {entry.video_id: entry.position_seconds for entry in progress_entries}
+
+    payload = []
+    for entry in entries:
+        video = videos_map.get(entry.video_id)
+        if not video:
+            continue
+        payload.append(_serialize_video(
+            video,
+            video.channel,
+            True,
+            progress=progress_map.get(video.id),
+        ))
+
+    next_offset = offset + limit if has_more else None
+    return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
+
+
 @videos_bp.get("/api/videos/search")
 @handle_route_errors
 @require_auth

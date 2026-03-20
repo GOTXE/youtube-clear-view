@@ -129,6 +129,20 @@ def test_videos_by_theme(client, app):
     assert data["videos"][0]["channel"]["yt_channel_id"] == "chan"
 
 
+def test_list_watched_videos(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+
+    response = client.get("/api/videos/watched?limit=10&offset=0")
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert data["has_more"] is False
+    assert len(data["videos"]) == 1
+    assert data["videos"][0]["video"]["yt_video_id"] == "vid2"
+    assert data["videos"][0]["watched"] is True
+
+
 def test_watch_and_unwatch(client, app):
     _seed_data(app)
     _login(client, "alice")

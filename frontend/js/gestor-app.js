@@ -510,6 +510,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     enforceLightTheme();
     hideLogin();
+    if (window.ytcvLoginPage && typeof window.ytcvLoginPage.releaseAuthGate === 'function') {
+      window.ytcvLoginPage.releaseAuthGate();
+    }
     await refresh();
   }
 

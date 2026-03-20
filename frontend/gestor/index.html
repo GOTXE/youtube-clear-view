@@ -9,11 +9,17 @@
     <link rel="manifest" href="/manifest.json">
     <script>
       document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.add('auth-pending');
     </script>
     <title>YTCV Gestor</title>
     <link rel="stylesheet" href="/css/main.css">
   </head>
   <body class="gestor-body">
+    <div id="startup-scrim" class="startup-scrim startup-scrim--gestor" aria-hidden="true">
+      <div class="startup-scrim__card">
+        <p class="startup-scrim__brand">Gestor YT Clear View</p>
+      </div>
+    </div>
     <div id="app" class="app" data-theme="light" data-app-view="admin">
       <div class="admin-auth-bridge" hidden aria-hidden="true">
         <p class="caption session-info">

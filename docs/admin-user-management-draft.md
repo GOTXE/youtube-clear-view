@@ -46,6 +46,7 @@ Decision:
 - la biblioteca de videos no debe abrirse automaticamente tras crear el primer admin
 - el acceso posterior al gestor se hace entrando manualmente a `/gestor`
 - cerrar sesión desde el gestor debe devolver al login normal en `/`
+- tanto `/` como `/gestor` deben bloquear visualmente la app real hasta resolver autenticación para evitar el flash inicial de contenido
 
 Secciones iniciales:
 

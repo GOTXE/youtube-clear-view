@@ -155,6 +155,66 @@ body {
   overflow: hidden;
 }
 
+html.auth-pending #app {
+  visibility: hidden;
+}
+
+.startup-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 42%),
+    color-mix(in srgb, var(--bg-primary) 86%, rgba(15, 23, 42, 0.92));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+html.auth-pending .startup-scrim {
+  display: flex;
+}
+
+.startup-scrim__card {
+  min-width: min(24rem, 92vw);
+  padding: 1.2rem 1.4rem;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--primary) 28%);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.12),
+    0 28px 72px rgba(15, 23, 42, 0.26);
+  text-align: center;
+}
+
+.startup-scrim__brand {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.startup-scrim--gestor {
+  background: rgba(238, 244, 251, 0.82);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+}
+
+.startup-scrim--gestor .startup-scrim__card {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(96, 165, 250, 0.38);
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.16),
+    0 28px 80px rgba(15, 23, 42, 0.18);
+}
+
+.startup-scrim--gestor .startup-scrim__brand {
+  color: #0f172a;
+}
+
 .app {
   height: 100vh;
   min-height: 100vh;

@@ -37,6 +37,14 @@
     return document.body && document.body.classList.contains('gestor-body');
   }
 
+  function releaseAuthGate() {
+    document.documentElement.classList.remove('auth-pending');
+    const scrim = el('startup-scrim');
+    if (scrim) {
+      scrim.hidden = true;
+    }
+  }
+
   function setError(containerId, message) {
     const container = el(containerId);
     if (!container) return;
@@ -77,6 +85,7 @@
     visible = true;
     overlay.hidden = false;
     document.body.classList.add('login-page-open');
+    releaseAuthGate();
 
     if (options.bootstrap || (authProviderData && authProviderData.bootstrap_required)) {
       showView('bootstrap', options);
@@ -889,6 +898,7 @@
     hide,
     isVisible,
     checkAuthStatusParam,
-    showView
+    showView,
+    releaseAuthGate
   };
 })();

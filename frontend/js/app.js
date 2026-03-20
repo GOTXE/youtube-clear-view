@@ -2872,6 +2872,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           username: state.currentUser.username_suggestion || state.currentUser.username || ''
         });
         void bootstrapAuthenticatedData();
+      } else if (window.ytcvLoginPage && typeof window.ytcvLoginPage.releaseAuthGate === 'function') {
+        window.ytcvLoginPage.releaseAuthGate();
       }
     }
     setupFilters();

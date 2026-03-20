@@ -14,8 +14,10 @@
           var storedTheme = localStorage.getItem('ytcv_theme');
           var theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'dark';
           document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.classList.add('auth-pending');
         } catch (error) {
           document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.classList.add('auth-pending');
         }
       })();
     </script>
@@ -29,6 +31,11 @@
     <link rel="stylesheet" href="css/mode-phone.css">
   </head>
   <body>
+    <div id="startup-scrim" class="startup-scrim" aria-hidden="true">
+      <div class="startup-scrim__card">
+        <p class="startup-scrim__brand">YT Clear View</p>
+      </div>
+    </div>
     <div id="app" class="app" data-theme="dark">
       <header class="app-header" role="banner">
         <div class="header-row">

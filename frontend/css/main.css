@@ -3350,6 +3350,51 @@ body.login-page-open #app .app-footer {
   gap: var(--space-2);
 }
 
+.login-page__alt-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+}
+
+.login-page__alt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(96, 165, 250, 0.22),
+    0 0 18px rgba(59, 130, 246, 0.16);
+}
+
+.login-page__alt-icon--google {
+  color: #60a5fa;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(96, 165, 250, 0.3), transparent 60%),
+    rgba(15, 23, 42, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(96, 165, 250, 0.28),
+    0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.login-page__alt-icon--passkey,
+.login-page__alt-icon--code {
+  font-size: 0.95rem;
+}
+
+.login-page__alt-label {
+  display: inline-flex;
+  align-items: center;
+}
+
 .login-page__google-btn {
   width: 100%;
 }

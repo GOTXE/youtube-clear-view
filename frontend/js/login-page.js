@@ -158,6 +158,7 @@
   // ── Build DOM ─────────────────────────────────────────────────────────────
 
   function build() {
+    const gestorSurface = isGestorSurface();
     overlay = document.createElement('section');
     overlay.id = 'login-page';
     overlay.className = 'login-page-overlay';
@@ -208,9 +209,22 @@
             <span data-i18n="loginOrDivider">or</span>
           </div>
           <div class="login-page__alt-actions" id="lp-alt-actions">
-            <button id="lp-google-button" class="button button--ghost login-page__google-btn" type="button" hidden data-i18n="loginWithGoogle">Continue with Google</button>
-            <button id="lp-passkey-button" class="button button--ghost" type="button" hidden data-i18n="loginWithPasskey">Sign in with passkey</button>
-            <button id="lp-device-button" class="button button--ghost" type="button" hidden data-i18n="signInWithDeviceCode">Sign in with device code</button>
+            ${!gestorSurface ? `
+            <button id="lp-google-button" class="button button--ghost login-page__alt-button login-page__google-btn" type="button" hidden>
+              <span class="login-page__alt-icon login-page__alt-icon--google" aria-hidden="true">G</span>
+              <span class="login-page__alt-label" data-i18n="loginWithGoogle">Google</span>
+            </button>
+            ` : ''}
+            <button id="lp-passkey-button" class="button button--ghost login-page__alt-button" type="button" hidden>
+              <span class="login-page__alt-icon login-page__alt-icon--passkey" aria-hidden="true">🔑</span>
+              <span class="login-page__alt-label" data-i18n="loginWithPasskey">Passkey</span>
+            </button>
+            ${!gestorSurface ? `
+            <button id="lp-device-button" class="button button--ghost login-page__alt-button" type="button" hidden>
+              <span class="login-page__alt-icon login-page__alt-icon--code" aria-hidden="true">⌗</span>
+              <span class="login-page__alt-label" data-i18n="signInWithDeviceCode">Code</span>
+            </button>
+            ` : ''}
           </div>
           <p class="login-page__switch caption">
             <span data-i18n="loginNoAccount">No account yet?</span>
@@ -428,6 +442,10 @@
       if (googleButton) {
         googleButton.hidden = true;
       }
+      const deviceButton = el('lp-device-button');
+      if (deviceButton) {
+        deviceButton.hidden = true;
+      }
       const switchLine = overlay.querySelector('#lp-login .login-page__switch');
       if (switchLine) {
         switchLine.hidden = true;
@@ -459,19 +477,21 @@
     const deviceBtn = el('lp-device-button');
     const divider = el('lp-divider');
 
-    const hasGoogle = !isGestorSurface() && authProviderData && authProviderData.google_login_url;
+    const gestorSurface = isGestorSurface();
+    const hasGoogle = !gestorSurface && authProviderData && authProviderData.google_login_url;
     const hasPasskeys = Boolean(
       window.ytcvPasskeys
       && typeof window.ytcvPasskeys.isSupported === 'function'
       && window.ytcvPasskeys.isSupported()
       && typeof window.ytcvPasskeys.authenticateWithPasskey === 'function'
     );
+    const hasDeviceCodes = !gestorSurface && Boolean(authProviderData && authProviderData.device_pairing_enabled);
 
     if (googleBtn) googleBtn.hidden = !hasGoogle;
     if (passkeyBtn) passkeyBtn.hidden = !hasPasskeys;
-    if (deviceBtn) deviceBtn.hidden = isGestorSurface() ? true : false;
+    if (deviceBtn) deviceBtn.hidden = !hasDeviceCodes;
 
-    const anyAlt = hasGoogle || hasPasskeys || true;
+    const anyAlt = hasGoogle || hasPasskeys || hasDeviceCodes;
     if (divider) divider.hidden = !anyAlt;
   }
 

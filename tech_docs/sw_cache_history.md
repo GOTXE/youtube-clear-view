@@ -12,9 +12,15 @@ Rule:
 5. Append a short note here.
 
 Current latest:
-- `ytcv-v55`
+- `ytcv-v58`
 
 History:
+- `ytcv-v58`
+  - Reason: render gestor login without Google and Code actions at DOM level.
+- `ytcv-v57`
+  - Reason: hide Google and Code actions from the gestor login surface and fix shared alt-action visibility.
+- `ytcv-v56`
+  - Reason: shorten shared login action labels and add icons for Google, Passkey, and Code.
 - `ytcv-v55`
   - Reason: add title to the global scheduled refresh card in gestor.
 - `ytcv-v54`

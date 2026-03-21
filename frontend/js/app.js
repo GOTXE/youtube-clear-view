@@ -3,7 +3,46 @@
 // Registro del service worker para soporte PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    let refreshing = false;
+    const announceUpdate = registration => {
+      window.dispatchEvent(new CustomEvent('ytcv:update-available', {
+        detail: { registration }
+      }));
+    };
+    const watchRegistration = registration => {
+      if (!registration) {
+        return;
+      }
+      if (registration.waiting) {
+        announceUpdate(registration);
+      }
+      registration.addEventListener('updatefound', () => {
+        const installing = registration.installing;
+        if (!installing) {
+          return;
+        }
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            announceUpdate(registration);
+          }
+        });
+      });
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) {
+        return;
+      }
+      refreshing = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('/sw.js').then(registration => {
+      watchRegistration(registration);
+      window.setInterval(() => {
+        registration.update().catch(() => {});
+      }, 60 * 1000);
+    }).catch(() => {});
   });
 }
 
@@ -146,6 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshButton: document.getElementById('refresh-videos'),
     importButton: document.getElementById('import-subscriptions-button'),
     refreshProgress: document.getElementById('refresh-progress'),
+    updateAvailableBanner: document.getElementById('update-available-banner'),
     lastUpdatedLabel: document.getElementById('last-updated'),
     channelList: document.getElementById('channel-list'),
     channelCount: document.getElementById('channel-count'),
@@ -168,6 +208,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoriesDescription: document.getElementById('categories-description'),
     reclassifyBtn: document.getElementById('reclassify-btn'),
     classifyButton: document.getElementById('classify-channels-button')
+  };
+
+  const swUpdateState = {
+    registration: null,
+    reloading: false
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
@@ -784,6 +829,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.loadingSpinner === 'function') {
       window.loadingSpinner(show, containerId);
     }
+  }
+
+  function showUpdateAvailableBanner(registration) {
+    if (!ui.updateAvailableBanner) {
+      return;
+    }
+    swUpdateState.registration = registration || swUpdateState.registration;
+    ui.updateAvailableBanner.textContent = `${t('updateAvailableReload')} ${t('updateAvailableClick')}`;
+    ui.updateAvailableBanner.hidden = false;
+    ui.updateAvailableBanner.disabled = false;
+  }
+
+  async function applyUpdateAvailableBanner() {
+    if (swUpdateState.reloading) {
+      return;
+    }
+    swUpdateState.reloading = true;
+
+    if (ui.updateAvailableBanner) {
+      ui.updateAvailableBanner.disabled = true;
+      ui.updateAvailableBanner.textContent = t('updateAvailableReloading');
+    }
+
+    const waitingWorker = swUpdateState.registration && swUpdateState.registration.waiting
+      ? swUpdateState.registration.waiting
+      : null;
+
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+      return;
+    }
+
+    window.location.reload();
   }
 
   function renderSectionLoadingState(container, messageKey = 'loadingContent') {
@@ -3058,6 +3139,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupClassifyButton();
     setupKeyboardNavigation();
     setupDebug();
+
+    window.addEventListener('ytcv:update-available', event => {
+      showUpdateAvailableBanner(event.detail && event.detail.registration ? event.detail.registration : null);
+    });
+    if (ui.updateAvailableBanner) {
+      ui.updateAvailableBanner.addEventListener('click', () => {
+        applyUpdateAvailableBanner();
+      });
+    }
   }
 
   window.addEventListener('auth:changed', async event => {

@@ -1,5 +1,5 @@
 // Service worker para YT Clear View — estrategia cache-first para assets estáticos.
-const CACHE_VERSION = 'ytcv-v70';
+const CACHE_VERSION = 'ytcv-v72';
 const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2', '.json'];
 
 // Recursos precacheados en la instalación
@@ -69,6 +69,13 @@ self.addEventListener('activate', event => {
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener('message', event => {
+  if (!event.data || event.data.type !== 'SKIP_WAITING') {
+    return;
+  }
+  self.skipWaiting();
 });
 
 // Fetch: cache-first para assets estáticos, network-only para API

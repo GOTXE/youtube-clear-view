@@ -3192,7 +3192,8 @@ body.login-page-open #app {
 .login-page__switch {
   text-align: center;
   color: var(--muted);
-  margin: 0;
+  margin: var(--space-4) 0 0;
+  font-size: 0.95rem;
 }
 
 .login-page__link {
@@ -3201,7 +3202,10 @@ body.login-page-open #app {
   color: var(--primary);
   cursor: pointer;
   padding: 0;
+  margin-left: var(--space-2);
   font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
   text-decoration: underline;
 }
 

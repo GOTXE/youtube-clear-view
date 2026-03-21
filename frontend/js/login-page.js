@@ -167,6 +167,10 @@
     overlay.hidden = true;
 
     overlay.innerHTML = `
+      <header class="login-page__masthead" aria-hidden="true">
+        <p class="login-page__masthead-title">YT CLEAR VIEW</p>
+      </header>
+
       <div class="login-page__card">
         <div class="login-page__brand">
           <h1 class="heading-1 login-page__app-name">YT Clear View</h1>

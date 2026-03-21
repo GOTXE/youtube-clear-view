@@ -3047,7 +3047,7 @@ body.login-page-open #app .app-footer {
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  gap: var(--space-4);
+  gap: clamp(2rem, 4vw, 3.25rem);
   background: color-mix(in srgb, var(--bg-primary) 78%, rgba(15, 23, 42, 0.52));
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -3055,6 +3055,32 @@ body.login-page-open #app .app-footer {
 
 .login-page-overlay[hidden] {
   display: none;
+}
+
+.login-page__masthead {
+  width: min(100%, 560px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 clamp(0.5rem, 1.5vw, 1rem);
+  margin-bottom: clamp(1.75rem, 4vw, 3rem);
+}
+
+.login-page__masthead-title {
+  margin: 0;
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  font-size: clamp(1.7rem, 4.5vw, 2.85rem);
+  font-weight: 800;
+  letter-spacing: clamp(0.18rem, 0.7vw, 0.44rem);
+  text-transform: uppercase;
+  color: #dbeafe;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow:
+    0 0 8px rgba(191, 219, 254, 0.92),
+    0 0 18px rgba(125, 211, 252, 0.84),
+    0 0 34px rgba(59, 130, 246, 0.62),
+    0 0 62px rgba(37, 99, 235, 0.34);
 }
 
 .login-page__card {
@@ -3128,6 +3154,14 @@ body.login-page-open #app .app-footer {
   -webkit-backdrop-filter: blur(28px);
 }
 
+.gestor-body .login-page__masthead-title {
+  color: #eff6ff;
+  text-shadow:
+    0 0 6px rgba(191, 219, 254, 0.72),
+    0 0 16px rgba(125, 211, 252, 0.4),
+    0 0 28px rgba(59, 130, 246, 0.18);
+}
+
 .gestor-body .login-page__card {
   max-width: 430px;
   background: rgba(255, 255, 255, 0.94);
@@ -3176,13 +3210,11 @@ body.login-page-open #app .app-footer {
 }
 
 .login-page__brand {
-  text-align: center;
+  display: none;
 }
 
 .login-page__app-name {
-  font-size: 1.25rem;
-  opacity: 0.6;
-  margin: 0;
+  display: none;
 }
 
 .login-page__title {

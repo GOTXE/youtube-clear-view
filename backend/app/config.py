@@ -49,6 +49,9 @@ class Config:
     YT_DAILY_QUOTA = int(os.getenv("YT_DAILY_QUOTA", "10000"))
     YT_QUOTA_CAP_RATIO = float(os.getenv("YT_QUOTA_CAP_RATIO", "0.8"))
     YT_REFRESH_COST = int(os.getenv("YT_REFRESH_COST", "2"))
+    MANUAL_REFRESH_RESERVED_QUOTA_RATIO = float(
+        os.getenv("MANUAL_REFRESH_RESERVED_QUOTA_RATIO", "0.1")
+    )
     MANUAL_REFRESH_FULL_COOLDOWN_SECONDS = int(
         os.getenv("MANUAL_REFRESH_FULL_COOLDOWN_SECONDS", "7200")
     )
@@ -129,3 +132,5 @@ class Config:
             raise ValueError("YT_DAILY_QUOTA must be positive.")
         if not 0 < Config.YT_QUOTA_CAP_RATIO <= 1:
             raise ValueError("YT_QUOTA_CAP_RATIO must be between 0 and 1.")
+        if not 0 <= Config.MANUAL_REFRESH_RESERVED_QUOTA_RATIO < 1:
+            raise ValueError("MANUAL_REFRESH_RESERVED_QUOTA_RATIO must be between 0 and 1.")

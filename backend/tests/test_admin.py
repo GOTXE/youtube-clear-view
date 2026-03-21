@@ -170,6 +170,28 @@ def test_admin_can_read_and_update_password_policy(client):
     assert response.get_json()["password_policy"] == "unbreakable"
 
 
+def test_admin_can_read_and_update_global_refresh_schedule(client):
+    _login(client, "admin")
+
+    response = client.get("/api/admin/refresh-schedule")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["schedule_hours"] == [7, 12, 17, 21]
+    assert data["timezone"] == "Europe/Madrid"
+
+    response = client.put(
+        "/api/admin/refresh-schedule",
+        json={
+            "schedule_hours": [6, 14, 22],
+            "timezone": "UTC",
+        },
+    )
+    assert response.status_code == 200
+    updated = response.get_json()
+    assert updated["schedule_hours"] == [6, 14, 22]
+    assert updated["timezone"] == "UTC"
+
+
 def test_admin_can_list_users(client):
     _login(client, "admin")
     _login(client, "alice")

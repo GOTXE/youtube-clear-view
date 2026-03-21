@@ -22,7 +22,6 @@
       bar: document.getElementById('tv-action-bar'),
       channels: document.getElementById('tv-action-channels'),
       filters: document.getElementById('tv-action-filters'),
-      refresh: document.getElementById('tv-action-refresh'),
       display: document.getElementById('tv-action-display')
     };
 
@@ -44,14 +43,6 @@
       ui.filters.addEventListener('click', () => {
         if (callbacks && typeof callbacks.openFilters === 'function') {
           callbacks.openFilters();
-        }
-      });
-    }
-
-    if (ui.refresh) {
-      ui.refresh.addEventListener('click', () => {
-        if (callbacks && typeof callbacks.triggerRefresh === 'function') {
-          callbacks.triggerRefresh();
         }
       });
     }

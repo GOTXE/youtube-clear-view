@@ -38,7 +38,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     summary: null,
     users: [],
     runtime: [],
-    passwordPolicy: null
+    passwordPolicy: null,
+    refreshSchedule: null
   };
 
   const ui = {
@@ -79,6 +80,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       return '—';
     }
     return date.toLocaleString();
+  }
+
+  function getBrowserTimezone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid';
+    } catch (error) {
+      return 'Europe/Madrid';
+    }
+  }
+
+  function buildScheduleOptions(select) {
+    if (!select) {
+      return;
+    }
+    select.innerHTML = '';
+    for (let hour = 0; hour < 24; hour += 1) {
+      const option = document.createElement('option');
+      option.value = String(hour);
+      option.textContent = `${String(hour).padStart(2, '0')}:00`;
+      select.appendChild(option);
+    }
   }
 
   function makeBadge(label, tone = 'neutral') {
@@ -143,7 +165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       { label: t('adminSummaryAdmins'), value: state.summary.users_admin || 0, tone: 'blue' },
       { label: t('adminSummaryChannels'), value: state.summary.channels_total || 0, tone: 'neutral' },
       { label: t('adminSummaryDevices'), value: state.summary.devices_total || 0, tone: 'neutral' },
-      { label: t('adminSummaryUnclassified'), value: state.summary.channels_unclassified || 0, tone: (state.summary.channels_unclassified || 0) > 0 ? 'amber' : 'green' }
+      { label: t('adminSummaryUnclassified'), value: state.summary.channels_unclassified || 0, tone: (state.summary.channels_unclassified || 0) > 0 ? 'amber' : 'green' },
+      { label: t('adminSummaryQuotaUsed'), value: `${state.summary.quota_used || 0} / ${state.summary.quota_daily_limit || 0}`, tone: 'blue' }
     ];
 
     cards.forEach(card => {
@@ -368,6 +391,114 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     ui.security.appendChild(policyCard);
+
+    const scheduleCard = document.createElement('article');
+    scheduleCard.className = 'admin-page__panel-card';
+    scheduleCard.innerHTML = `
+      <h4 class="heading-3">${t('adminRefreshScheduleTitle')}</h4>
+      <p class="caption">${t('adminRefreshScheduleDescription')}</p>
+    `;
+
+    const scheduleControls = document.createElement('div');
+    scheduleControls.className = 'admin-page__stack';
+
+    const scheduleGrid = document.createElement('div');
+    scheduleGrid.className = 'schedule-grid';
+    scheduleGrid.setAttribute('role', 'group');
+    scheduleGrid.setAttribute('aria-label', t('adminRefreshScheduleTitle'));
+
+    const selectedHours = Array.isArray(state.refreshSchedule?.schedule_hours)
+      ? state.refreshSchedule.schedule_hours
+      : [7, 12, 17, 21];
+
+    const hourSelects = Array.from({ length: 4 }, (_, index) => {
+      const field = document.createElement('label');
+      field.className = 'schedule-field';
+
+      const label = document.createElement('span');
+      label.className = 'caption';
+      label.textContent = t('scheduleSlot', { index: index + 1 });
+
+      const select = document.createElement('select');
+      select.className = 'field__input field__input--compact';
+      buildScheduleOptions(select);
+      select.value = String(selectedHours[index] ?? selectedHours[selectedHours.length - 1] ?? 0);
+
+      field.appendChild(label);
+      field.appendChild(select);
+      scheduleGrid.appendChild(field);
+      return select;
+    });
+
+    const timezoneField = document.createElement('label');
+    timezoneField.className = 'schedule-field';
+
+    const timezoneLabel = document.createElement('span');
+    timezoneLabel.className = 'caption';
+    timezoneLabel.textContent = t('timezone');
+
+    const timezoneInput = document.createElement('input');
+    timezoneInput.className = 'field__input field__input--compact';
+    timezoneInput.type = 'text';
+    timezoneInput.value = state.refreshSchedule?.timezone || getBrowserTimezone();
+    timezoneInput.placeholder = 'Europe/Madrid';
+
+    timezoneField.appendChild(timezoneLabel);
+    timezoneField.appendChild(timezoneInput);
+
+    const scheduleMeta = document.createElement('div');
+    scheduleMeta.className = 'admin-page__policy-guidance';
+
+    const scheduleInfo = document.createElement('div');
+    scheduleInfo.className = 'admin-page__policy-item is-active';
+
+    const scheduleInfoTitle = document.createElement('p');
+    scheduleInfoTitle.className = 'admin-page__policy-title';
+    scheduleInfoTitle.textContent = t('adminRefreshScheduleCurrent');
+
+    const scheduleInfoHint = document.createElement('p');
+    scheduleInfoHint.className = 'caption admin-page__policy-hint';
+    scheduleInfoHint.textContent = state.refreshSchedule?.last_run_at
+      ? t('adminRefreshScheduleLastRun', { value: formatDate(state.refreshSchedule.last_run_at) })
+      : t('adminRefreshScheduleNotRunYet');
+
+    scheduleInfo.appendChild(scheduleInfoTitle);
+    scheduleInfo.appendChild(scheduleInfoHint);
+    scheduleMeta.appendChild(scheduleInfo);
+
+    const scheduleActions = document.createElement('div');
+    scheduleActions.className = 'admin-page__inline-controls';
+
+    const scheduleSaveButton = document.createElement('button');
+    scheduleSaveButton.type = 'button';
+    scheduleSaveButton.className = 'admin-page__mini-btn admin-page__mini-btn--primary';
+    scheduleSaveButton.textContent = t('saveScheduleSettings');
+    scheduleSaveButton.addEventListener('click', async () => {
+      const nextHours = hourSelects
+        .map(select => Number(select.value))
+        .filter(hour => Number.isInteger(hour))
+        .slice(0, 4);
+      const timezone = timezoneInput.value.trim() || getBrowserTimezone();
+      scheduleSaveButton.disabled = true;
+      const response = await api.updateAdminRefreshSchedule(nextHours, timezone);
+      scheduleSaveButton.disabled = false;
+      if (!response.ok || !response.data) {
+        setStatus(response.error || t('unableSaveAdminRefreshSchedule'), 'error');
+        return;
+      }
+      state.refreshSchedule = response.data;
+      renderSecurity();
+      setStatus(t('adminRefreshScheduleUpdated'), 'success');
+    });
+
+    scheduleGrid.appendChild(timezoneField);
+    scheduleActions.appendChild(scheduleSaveButton);
+    scheduleControls.appendChild(scheduleGrid);
+    scheduleControls.appendChild(scheduleMeta);
+    scheduleControls.appendChild(scheduleActions);
+    scheduleCard.appendChild(scheduleControls);
+
+    ui.security.appendChild(scheduleCard);
   }
 
   function renderRuntime() {
@@ -452,16 +583,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.query = query;
     setStatus(t('adminPageLoading'));
 
-    const [summaryResponse, usersResponse, runtimeResponse, passwordPolicyResponse] = await Promise.all([
+    const [summaryResponse, usersResponse, runtimeResponse, passwordPolicyResponse, refreshScheduleResponse] = await Promise.all([
       api.getAdminSummary(),
       api.getAdminUsers(query),
       api.getAdminRuntimeState(),
-      api.getAdminPasswordPolicy()
+      api.getAdminPasswordPolicy(),
+      api.getAdminRefreshSchedule()
     ]);
 
     state.loading = false;
 
-    if (!summaryResponse.ok || !usersResponse.ok || !runtimeResponse.ok || !passwordPolicyResponse.ok) {
+    if (
+      !summaryResponse.ok
+      || !usersResponse.ok
+      || !runtimeResponse.ok
+      || !passwordPolicyResponse.ok
+      || !refreshScheduleResponse.ok
+    ) {
       setStatus(t('adminPageLoadError'), 'error');
       return;
     }
@@ -470,6 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.users = Array.isArray(usersResponse.data && usersResponse.data.users) ? usersResponse.data.users : [];
     state.runtime = Array.isArray(runtimeResponse.data && runtimeResponse.data.users) ? runtimeResponse.data.users : [];
     state.passwordPolicy = passwordPolicyResponse.data || {};
+    state.refreshSchedule = refreshScheduleResponse.data || {};
     renderAll();
     setStatus('');
   }

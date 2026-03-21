@@ -4,6 +4,7 @@ from .category import Category, ChannelCategory, PREDEFINED_CATEGORIES
 from .channel import Channel, UserChannel
 from .device import UserDevice
 from .pairing import LoginPairing
+from .refresh_job import RefreshJob
 from .passkey import UserPasskey
 from .site_setting import SiteSetting
 from .theme import Theme, ThemeChannel
@@ -26,6 +27,7 @@ __all__ = [
     "VideoProgress",
     "UserDevice",
     "LoginPairing",
+    "RefreshJob",
     "UserPasskey",
     "SiteSetting",
 ]

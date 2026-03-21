@@ -10,9 +10,15 @@ from app.extensions import db
 from app.logging.logger import get_logger
 from app.models import User, UserSettings, UserChannel
 from app.services.presets import DEFAULT_PRESET
+from app.services.refresh_jobs import start_refresh_job
 from app.services.quota import can_consume, consume, mark_quota_exhausted, reset_quota_if_needed
+from app.services.site_settings import (
+    get_refresh_schedule_hours,
+    get_refresh_schedule_last_run_at,
+    get_refresh_schedule_timezone,
+    set_refresh_schedule_last_run_at,
+)
 from app.services.yt_api import YTService
-from app.services.video_ingest import refresh_user_channels
 from app.utils.time import utc_now
 
 logger = get_logger(__name__)
@@ -28,19 +34,20 @@ def _get_or_create_settings(user):
     return settings
 
 
-def _hours_due(settings, now_utc):
+def _hours_due(now_utc):
     try:
-        tz = ZoneInfo(settings.timezone or "UTC")
+        tz = ZoneInfo(get_refresh_schedule_timezone() or "UTC")
     except Exception:
         tz = ZoneInfo("UTC")
     local_now = now_utc.astimezone(tz)
-    hours = [hour for hour in settings.get_schedule_hours() if hour is not None]
+    hours = [hour for hour in get_refresh_schedule_hours() if hour is not None]
     if not hours:
         return False
     if local_now.hour not in hours:
         return False
-    if settings.last_schedule_run_at:
-        last_local = settings.last_schedule_run_at.astimezone(tz)
+    last_run_at = get_refresh_schedule_last_run_at()
+    if last_run_at:
+        last_local = last_run_at.astimezone(tz)
         if last_local.date() == local_now.date() and last_local.hour == local_now.hour:
             return False
     return True
@@ -101,9 +108,7 @@ def _run_scheduled_refresh(user, settings, service):
     reset_quota_if_needed(settings)
     if not can_consume(settings, Config.YT_REFRESH_COST):
         return
-    result = refresh_user_channels(user, settings, service, now=utc_now())
-    if result.get("rate_limited"):
-        mark_quota_exhausted(settings)
+    start_refresh_job(user.id, kind="scheduled")
     settings.last_schedule_run_at = utc_now()
 
 
@@ -113,8 +118,13 @@ def scheduler_tick():
         return
 
     api_key = Config.YT_API_KEY
-    service = YTService(api_key)
     now = utc_now()
+
+    if not _hours_due(now):
+        return
+
+    service = YTService(api_key)
+    ran_any = False
 
     for user in User.query.all():
         settings = _get_or_create_settings(user)
@@ -124,8 +134,11 @@ def scheduler_tick():
                 run_backfill_step(user, settings, service)
             continue
 
-        if _hours_due(settings, now):
-            _run_scheduled_refresh(user, settings, service)
+        _run_scheduled_refresh(user, settings, service)
+        ran_any = True
+
+    if ran_any:
+        set_refresh_schedule_last_run_at(now)
 
     db.session.commit()
 

@@ -12,7 +12,15 @@ from app.models import Channel, ChannelCategory, User, UserDevice, Video
 from app.services.admin_access import is_admin_user
 from app.services.auth_policy import validate_password
 from app.services.refresh_governance import list_active_refreshes
-from app.services.site_settings import get_password_policy, serialize_password_policy, set_password_policy
+from app.services.quota import get_global_quota_snapshot
+from app.services.site_settings import (
+    get_password_policy,
+    serialize_password_policy,
+    serialize_refresh_schedule,
+    set_password_policy,
+    set_refresh_schedule_hours,
+    set_refresh_schedule_timezone,
+)
 from app.services.sqlite_metrics import get_sqlite_metrics_snapshot, set_sqlite_metrics_enabled
 
 
@@ -173,6 +181,7 @@ def get_admin_summary():
         ChannelCategory,
         ChannelCategory.channel_id == Channel.id,
     ).filter(ChannelCategory.id.is_(None)).scalar() or 0
+    quota = get_global_quota_snapshot()
 
     return jsonify({
         "users_total": total_users,
@@ -184,6 +193,11 @@ def get_admin_summary():
         "videos_total": total_videos,
         "channels_unclassified": unclassified_channels,
         "active_refreshes": len(list_active_refreshes()),
+        "quota_used": quota["used"],
+        "quota_daily_limit": quota["daily_limit"],
+        "quota_app_cap": quota["app_cap"],
+        "quota_remaining": quota["remaining_app_cap"],
+        "quota_reserved_for_scheduled": quota["reserved_for_scheduled"],
     })
 
 
@@ -316,3 +330,40 @@ def update_password_policy_settings():
         return _bad_request("Invalid password policy.")
 
     return jsonify(serialize_password_policy())
+
+
+@admin_bp.get("/api/admin/refresh-schedule")
+@handle_route_errors
+@require_auth
+def get_refresh_schedule_settings():
+    """Return the active global refresh schedule for admins."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    return jsonify(serialize_refresh_schedule())
+
+
+@admin_bp.put("/api/admin/refresh-schedule")
+@handle_route_errors
+@require_auth
+def update_refresh_schedule_settings():
+    """Persist the global refresh schedule for admins."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    payload = request.get_json(silent=True) or {}
+    schedule_hours = payload.get("schedule_hours")
+    timezone_name = payload.get("timezone")
+
+    try:
+        if schedule_hours is not None:
+            set_refresh_schedule_hours(schedule_hours)
+        if timezone_name is not None:
+            set_refresh_schedule_timezone(timezone_name)
+    except ValueError as error:
+        return _bad_request(str(error))
+
+    db.session.commit()
+    return jsonify(serialize_refresh_schedule())

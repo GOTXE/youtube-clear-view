@@ -12,12 +12,24 @@
     if (!payload || payload.reason === 'refresh_in_progress') {
       return t('refreshProgressAlreadyRunning');
     }
+    if (payload.reason === 'scheduled_priority') {
+      return t('refreshProgressScheduledPriority');
+    }
+    if (payload.reason === 'global_refresh_running') {
+      return t('refreshProgressGlobalRunning');
+    }
     return t('refreshProgressCooldown', { minutes: getRetryMinutes(payload) });
   }
 
   function getBlockedToastMessage(t, payload) {
     if (!payload || payload.reason === 'refresh_in_progress') {
       return t('refreshAlreadyRunning');
+    }
+    if (payload.reason === 'scheduled_priority') {
+      return t('refreshScheduledPriority');
+    }
+    if (payload.reason === 'global_refresh_running') {
+      return t('refreshGlobalRunning');
     }
     return t('refreshCooldownActive', { minutes: getRetryMinutes(payload) });
   }

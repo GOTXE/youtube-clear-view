@@ -36,32 +36,18 @@ def _get_or_create_settings(user):
     return settings
 
 
-def _sanitize_schedule(hours):
-    cleaned = []
-    for value in hours:
-        if value is None or value == "" or str(value).lower() == "off":
-            cleaned.append(None)
-            continue
-        try:
-            hour = int(value)
-        except (TypeError, ValueError):
-            continue
-        if 0 <= hour <= 23:
-            cleaned.append(hour)
-    return cleaned
-
-
 @settings_bp.get("/api/settings")
 @handle_route_errors
 @require_auth
 def get_settings():
-    """Return settings and preset definitions for the current user."""
+    """Return user-visible refresh settings, preset definitions, and quota status."""
     user = g.current_user
     settings = _get_or_create_settings(user)
     reset_quota_if_needed(settings)
     db.session.commit()
 
     payload = settings.to_dict()
+    payload.pop("schedule_hours", None)
     payload["presets"] = PRESETS
     payload["quota"] = {
         "daily_limit": Config.YT_DAILY_QUOTA,
@@ -77,7 +63,7 @@ def get_settings():
 @handle_route_errors
 @require_auth
 def update_settings():
-    """Update preset/schedule settings for the current user."""
+    """Update user-visible preset settings for the current user."""
     user = g.current_user
     settings = _get_or_create_settings(user)
     payload = request.get_json(silent=True) or {}
@@ -85,19 +71,6 @@ def update_settings():
     preset = payload.get("preset")
     if preset and preset not in PRESETS:
         return _bad_request("Invalid preset.")
-
-    schedule_hours = payload.get("schedule_hours")
-    schedule_changed = False
-    if schedule_hours is not None:
-        if not isinstance(schedule_hours, list):
-            return _bad_request("Invalid schedule_hours.")
-        if len(schedule_hours) > 4:
-            return _bad_request("Invalid schedule_hours.")
-        cleaned = _sanitize_schedule(schedule_hours)
-        if not [hour for hour in cleaned if hour is not None]:
-            return _bad_request("At least one update time is required.")
-        schedule_changed = cleaned != settings.get_schedule_hours()
-        settings.set_schedule_hours(cleaned)
 
     timezone = payload.get("timezone")
     if timezone:
@@ -117,11 +90,13 @@ def update_settings():
             run_backfill_step(user, settings, service)
 
     run_now = bool(payload.get("run_now"))
-    if run_now and (schedule_changed or preset_changed):
+    if run_now and preset_changed:
         service = YTService(Config.YT_API_KEY)
         refresh_user_channels(user, settings, service, now=utc_now())
         settings.last_schedule_run_at = utc_now()
 
     reset_quota_if_needed(settings)
     db.session.commit()
-    return jsonify(settings.to_dict())
+    payload = settings.to_dict()
+    payload.pop("schedule_hours", None)
+    return jsonify(payload)

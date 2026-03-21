@@ -71,7 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoRefreshKeepsLoadingState: false,
     setMenuOpen: null,
     deferAuthenticatedBootstrap: initialAuthStatusFromUrl === 'needs_setup',
-    authenticatedDataBootstrapPromise: null
+    authenticatedDataBootstrapPromise: null,
+    refreshStatusPoller: null,
+    refreshStatusSource: null
   };
 
   const ui = {
@@ -121,22 +123,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     confirmCancel: document.getElementById('confirm-cancel'),
     confirmClose: document.getElementById('confirm-close'),
     presetRadios: document.querySelectorAll('input[name="preset"]'),
-    scheduleSelects: [
-      document.getElementById('schedule-1'),
-      document.getElementById('schedule-2'),
-      document.getElementById('schedule-3'),
-      document.getElementById('schedule-4')
-    ],
-    scheduleLabels: [
-      document.getElementById('schedule-label-1'),
-      document.getElementById('schedule-label-2'),
-      document.getElementById('schedule-label-3'),
-      document.getElementById('schedule-label-4')
-    ],
     presetTitle: document.getElementById('preset-title'),
-    scheduleTitle: document.getElementById('schedule-title'),
     quotaTitle: document.getElementById('quota-title'),
-    scheduleHint: document.getElementById('schedule-hint'),
     quotaStatus: document.getElementById('quota-status'),
     quotaHint: document.getElementById('quota-hint'),
     backfillStatus: document.getElementById('backfill-status'),
@@ -421,24 +409,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.presetTitle) {
       ui.presetTitle.textContent = t('presetTitle');
     }
-    if (ui.scheduleTitle) {
-      ui.scheduleTitle.textContent = t('scheduleTitle');
-    }
     if (ui.quotaTitle) {
       ui.quotaTitle.textContent = t('quotaTitle');
     }
-    if (ui.scheduleHint) {
-      ui.scheduleHint.textContent = t('scheduleHint');
-    }
     if (ui.quotaHint) {
       ui.quotaHint.textContent = t('quotaHint');
-    }
-    if (ui.scheduleLabels && ui.scheduleLabels.length) {
-      ui.scheduleLabels.forEach((label, index) => {
-        if (label) {
-          label.textContent = t('scheduleSlot', { index: index + 1 });
-        }
-      });
     }
     const presetLabels = document.querySelectorAll('[data-preset-label]');
     presetLabels.forEach(node => {
@@ -498,10 +473,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tvFilters = document.getElementById('tv-action-filters');
     if (tvFilters) {
       tvFilters.textContent = t('filters');
-    }
-    const tvRefresh = document.getElementById('tv-action-refresh');
-    if (tvRefresh) {
-      tvRefresh.textContent = t('refresh');
     }
     const tvDisplay = document.getElementById('tv-action-display');
     if (tvDisplay) {
@@ -618,23 +589,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function buildScheduleOptions(select) {
-    if (!select) {
-      return;
-    }
-    select.innerHTML = '';
-    const offOption = document.createElement('option');
-    offOption.value = 'off';
-    offOption.textContent = t('off');
-    select.appendChild(offOption);
-    for (let hour = 0; hour < 24; hour += 1) {
-      const option = document.createElement('option');
-      option.value = String(hour);
-      option.textContent = `${String(hour).padStart(2, '0')}:00`;
-      select.appendChild(option);
-    }
-  }
-
   let confirmResolver = null;
 
   function closeConfirmModal(result) {
@@ -692,14 +646,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         option.classList.toggle('is-selected', isActive);
       }
     });
-    const schedule = state.settings.schedule_hours || [];
-    ui.scheduleSelects.forEach((select, idx) => {
-      if (!select) {
-        return;
-      }
-      const value = schedule[idx];
-      select.value = value === null || typeof value === 'undefined' ? 'off' : String(value);
-    });
     if (ui.quotaStatus && state.settings.quota) {
       const quota = state.settings.quota;
       ui.quotaStatus.textContent = t('quotaStatus', {
@@ -734,17 +680,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const selectedPreset = Array.from(ui.presetRadios).find(radio => radio.checked);
     const nextPreset = selectedPreset ? selectedPreset.value : state.settings.preset;
-    const schedule = ui.scheduleSelects.map(select => {
-      if (!select) {
-        return null;
-      }
-      const value = select.value;
-      return value === 'off' ? null : Number(value);
-    });
-
     const presetChanged = nextPreset !== state.settings.preset;
-    const scheduleChanged = JSON.stringify(schedule) !== JSON.stringify(state.settings.schedule_hours || []);
-    const changed = presetChanged || scheduleChanged;
+    const changed = presetChanged;
 
     if (!changed) {
       closeSettingsModal();
@@ -760,10 +697,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const payload = {
       preset: nextPreset,
-      schedule_hours: schedule,
       timezone: getTimezone(),
       start_backfill: presetChanged,
-      run_now: scheduleChanged
+      run_now: false
     };
 
     const response = await api.updateSettings(payload);
@@ -782,7 +718,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    ui.scheduleSelects.forEach(select => buildScheduleOptions(select));
     ui.presetRadios.forEach(radio => {
       radio.addEventListener('change', () => {
         ui.presetRadios.forEach(node => {
@@ -1010,9 +945,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     ui.refreshProgress.setAttribute('data-state', status);
   }
 
+  function clearRefreshStatusPoller() {
+    if (state.refreshStatusPoller) {
+      window.clearInterval(state.refreshStatusPoller);
+      state.refreshStatusPoller = null;
+    }
+  }
+
+  async function syncRefreshStatus() {
+    if (!state.currentUser) {
+      state.refreshStatusSource = null;
+      setRefreshProgress('');
+      return;
+    }
+
+    const response = await api.getRefreshStatus();
+    if (!response.ok) {
+      return;
+    }
+
+    const manualJob = response.data && response.data.job ? response.data.job : null;
+    const globalJob = response.data && response.data.global_job ? response.data.global_job : null;
+    const activeJob = globalJob && (globalJob.status === 'queued' || globalJob.status === 'running')
+      ? globalJob
+      : (manualJob && (manualJob.status === 'queued' || manualJob.status === 'running') ? manualJob : null);
+
+    if (activeJob) {
+      state.refreshStatusSource = globalJob === activeJob ? 'global' : 'manual';
+      setRefreshProgress(t('refreshProgressRunning'));
+      return;
+    }
+
+    if (state.refreshStatusSource) {
+      state.refreshStatusSource = null;
+      setRefreshProgress('');
+    }
+  }
+
+  function startRefreshStatusPoller() {
+    clearRefreshStatusPoller();
+    if (!state.currentUser) {
+      return;
+    }
+    void syncRefreshStatus();
+    state.refreshStatusPoller = window.setInterval(() => {
+      void syncRefreshStatus();
+    }, 15000);
+  }
+
   function updateRefreshProgressFromEvent(payload) {
     if (!payload || !payload.type) {
       return;
+    }
+
+    if (payload.type === 'job_status') {
+      if (payload.status === 'queued' || payload.status === 'running') {
+        setRefreshProgress(t('refreshProgressRunning'));
+        return;
+      }
+
+      if (payload.status === 'completed') {
+        setRefreshProgress(
+          t('refreshProgressDone', { count: payload.new_videos || 0 }),
+          'complete'
+        );
+        window.setTimeout(() => {
+          if (state.refreshProgress && state.refreshProgress.status === 'complete') {
+            setRefreshProgress('');
+          }
+        }, 2500);
+        return;
+      }
+
+      if (payload.status === 'blocked' || payload.status === 'failed') {
+        setRefreshProgress(payload.message || t('refreshProgressError'), 'error');
+        return;
+      }
     }
 
     if (payload.type === 'stream_opened' || payload.type === 'start') {
@@ -1062,22 +1070,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function buildRefreshStreamUrl(channelId = null, backfill = false) {
-    const configuredBaseUrl = (api && api.baseURL) || ((window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '');
-    const baseUrl = configuredBaseUrl.endsWith('/api')
-      ? configuredBaseUrl
-      : `${configuredBaseUrl}/api`;
-    const params = new URLSearchParams();
-    if (channelId !== null && channelId !== undefined) {
-      params.set('channel_id', String(channelId));
-    }
-    if (backfill) {
-      params.set('backfill', 'true');
-    }
-    const query = params.toString();
-    return `${baseUrl}/channels/refresh/stream${query ? `?${query}` : ''}`;
-  }
-
   function streamRefresh(channelId = null, options = {}) {
     const {
       backfill = false,
@@ -1086,52 +1078,122 @@ document.addEventListener('DOMContentLoaded', async () => {
       onError = null
     } = options;
 
-    return new Promise((resolve, reject) => {
-      if (typeof window.EventSource !== 'function') {
-        reject(new Error('SSE not supported'));
-        return;
-      }
-
-      const source = new window.EventSource(buildRefreshStreamUrl(channelId, backfill), {
-        withCredentials: true
-      });
-      let finished = false;
-
-      const close = () => {
-        source.close();
-      };
-
-      source.addEventListener('refresh', async event => {
-        let payload = null;
-        try {
-          payload = JSON.parse(event.data);
-        } catch (error) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const startResponse = await api.refreshChannels(channelId, backfill ? { backfill: true } : undefined);
+        if (!startResponse.ok) {
+          const helper = window.ytcvRefreshGovernance;
+          const failedReason = startResponse.data && startResponse.data.reason ? startResponse.data.reason : 'unknown';
+          const blockedPayload = {
+            type: 'blocked',
+            reason: failedReason,
+            message: helper
+              ? helper.getBlockedProgressMessage(t, { ...(startResponse.data || {}), reason: failedReason })
+              : t('refreshProgressError')
+          };
+          if (blockedPayload.reason === 'refresh_in_progress') {
+            setRefreshProgress(
+              helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressAlreadyRunning'),
+              'warning'
+            );
+          } else if (blockedPayload.reason === 'scheduled_priority') {
+            setRefreshProgress(
+              helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressScheduledPriority'),
+              'warning'
+            );
+          } else if (blockedPayload.reason === 'global_refresh_running') {
+            setRefreshProgress(
+              helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressGlobalRunning'),
+              'warning'
+            );
+          } else if (blockedPayload.reason === 'cooldown_active') {
+            setRefreshProgress(
+              helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressCooldown', { minutes: 1 }),
+              'warning'
+            );
+          } else {
+            setRefreshProgress(t('refreshProgressError'), 'error');
+          }
+          if (typeof onComplete === 'function') {
+            await onComplete(blockedPayload);
+          }
+          resolve(blockedPayload);
           return;
         }
 
+        const startedJob = startResponse.data && startResponse.data.job ? startResponse.data.job : null;
+        if (!startedJob) {
+          setRefreshProgress(t('refreshProgressError'), 'error');
+          throw new Error('Refresh job was not created');
+        }
+
+        setRefreshProgress(t('refreshProgressRunning'));
         if (typeof onProgress === 'function') {
-          await onProgress(payload);
+          await onProgress({ type: 'job_status', ...startedJob });
         }
 
-        if (payload.type === 'complete' || payload.type === 'blocked') {
-          finished = true;
-          close();
-          if (typeof onComplete === 'function') {
-            await onComplete(payload);
+        while (true) {
+          await sleep(1500);
+          const statusResponse = await api.getRefreshStatus(channelId);
+          if (!statusResponse.ok) {
+            throw new Error(statusResponse.error || 'Refresh status failed');
           }
-          resolve(payload);
-        }
-      });
+          const globalJob = statusResponse.data && statusResponse.data.global_job ? statusResponse.data.global_job : null;
+          if (
+            globalJob
+            && (globalJob.status === 'queued' || globalJob.status === 'running')
+            && startedJob.kind !== 'scheduled'
+          ) {
+            setRefreshProgress(t('refreshProgressRunning'));
+          }
+          const job = statusResponse.data && statusResponse.data.job ? statusResponse.data.job : null;
+          if (!job || job.id !== startedJob.id) {
+            continue;
+          }
 
-      source.onerror = async () => {
-        close();
-        const error = new Error('Refresh stream failed');
+          if (typeof onProgress === 'function') {
+            await onProgress({ type: 'job_status', ...job });
+          }
+
+          if (job.status === 'completed') {
+            const completePayload = {
+              type: 'complete',
+              new_videos: job.new_videos || 0
+            };
+            if (typeof onComplete === 'function') {
+              await onComplete(completePayload);
+            }
+            resolve(completePayload);
+            return;
+          }
+
+          if (job.status === 'blocked' || job.status === 'failed') {
+            const helper = window.ytcvRefreshGovernance;
+            const blockedPayload = {
+              type: 'blocked',
+              reason: job.blocked_reason || 'unknown',
+              message: job.status === 'failed'
+                ? t('refreshProgressError')
+                : (
+                  helper
+                    ? helper.getBlockedProgressMessage(t, job)
+                    : t('refreshProgressError')
+                )
+            };
+            if (typeof onComplete === 'function') {
+              await onComplete(blockedPayload);
+            }
+            resolve(blockedPayload);
+            return;
+          }
+        }
+      } catch (error) {
         setRefreshProgress(t('refreshProgressError'), 'error');
-        if (!finished && typeof onError === 'function') {
+        if (typeof onError === 'function') {
           await onError(error);
         }
         reject(error);
-      };
+      }
     });
   }
 
@@ -1773,7 +1835,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.autoRefreshAttempted = true;
     state.autoRefreshKeepsLoadingState = keepLoadingState;
     showNotification(t('refreshInProgress'), 'info');
-    setRefreshProgress(t('refreshProgressWaiting'));
 
     state.autoRefreshPromise = streamRefresh(channelId, {
       onProgress: async payload => {
@@ -2361,7 +2422,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     ui.refreshButton.addEventListener('click', async () => {
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
       reportImportStatus(t('refreshInProgress'), 'info');
-      setRefreshProgress(t('refreshProgressWaiting'));
 
       try {
         const result = await streamRefresh(targetChannelId, {
@@ -2473,7 +2533,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     reportImportStatus(t('refreshInProgress'), 'info');
-    setRefreshProgress(t('refreshProgressWaiting'));
     let videoCount = 0;
     try {
       const refreshPayload = await streamRefresh(null, {
@@ -2917,6 +2976,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.initAuth === 'function') {
       state.currentUser = await window.initAuth();
     }
+    if (state.currentUser) {
+      startRefreshStatusPoller();
+    }
 
     // Check for auth_status URL param before showing login page
     const authStatus = window.ytcvLoginPage ? window.ytcvLoginPage.checkAuthStatusParam() : null;
@@ -3002,6 +3064,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentUser = user;
 
     if (user) {
+      startRefreshStatusPoller();
       if (state.deferAuthenticatedBootstrap) {
         return;
       }
@@ -3020,6 +3083,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.selectedChannelId = null;
       state.selectedChannelYtId = null;
       state.authenticatedDataBootstrapPromise = null;
+      clearRefreshStatusPoller();
+      state.refreshStatusSource = null;
+      setRefreshProgress('');
       clearCarousels();
       updateHeaderContext();
     }

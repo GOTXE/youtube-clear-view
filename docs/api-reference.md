@@ -955,18 +955,17 @@ Response:
 
 ---
 
-## Settings (presets, schedule, quota)
+## Settings (presets, quota)
 
 ### GET /api/settings
 
-Returns the current user's refresh settings, preset definitions, and quota status.
+Returns the current user's preset settings and quota status.
 
 Response (example):
 
 ```json
 {
   "preset": "standard",
-  "schedule_hours": [7, 12, 17, 21],
   "timezone": "Europe/Madrid",
   "backfill_active": false,
   "backfill_cursor": null,
@@ -991,17 +990,45 @@ Response (example):
 
 ### PUT /api/settings
 
-Updates preset and schedule settings.
+Updates preset settings.
 
 Request fields:
 - `preset` (optional): `minimal|standard|rich`
-- `schedule_hours` (optional): list of up to 4 values (`0..23` or `null`/`"off"`)
 - `timezone` (optional): IANA timezone (e.g., `Europe/Madrid`)
 - `start_backfill` (optional, boolean): start a controlled backfill when preset changes
-- `run_now` (optional, boolean): run a refresh immediately when schedule/preset changes
+- `run_now` (optional, boolean): run a refresh immediately when the preset changes
 
 Response:
 - Returns the updated settings object (same shape as `settings.to_dict()`).
+
+### GET /api/admin/refresh-schedule
+
+Requires an authenticated admin session.
+
+Returns the global scheduled refresh configuration used by the backend scheduler.
+
+Response (example):
+
+```json
+{
+  "schedule_hours": [7, 12, 17, 21],
+  "timezone": "Europe/Madrid",
+  "last_run_at": "2026-03-21T06:00:00"
+}
+```
+
+### PUT /api/admin/refresh-schedule
+
+Requires an authenticated admin session.
+
+Updates the global scheduled refresh configuration for the entire installation.
+
+Request fields:
+- `schedule_hours` (required): list of 1 to 4 hour values (`0..23`)
+- `timezone` (required): IANA timezone (e.g., `Europe/Madrid`)
+
+Response:
+- Returns the updated global schedule object.
 
 ---
 

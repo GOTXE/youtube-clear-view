@@ -21,6 +21,14 @@ from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
 from app.services.enrichment_task import enrich_status_dict, start_enrich_task
 from app.services.refresh_governance import acquire_manual_refresh, evaluate_manual_refresh
+from app.services.refresh_jobs import (
+    get_active_global_refresh_job,
+    get_active_refresh_job,
+    get_latest_refresh_job,
+    is_global_refresh_running,
+    start_refresh_job,
+)
+from app.services.quota import get_global_quota_snapshot, should_block_manual_refresh_for_scheduled_priority
 from app.services.video_ingest import (
     iter_refresh_user_channels,
     refresh_user_channels,
@@ -434,7 +442,7 @@ def unsubscribe_channel(channel_id):
 @handle_route_errors
 @require_auth
 def refresh_channels():
-    """Refresh videos for one or all subscribed channels."""
+    """Create a backend-owned manual refresh job."""
     user = g.current_user
     payload = request.get_json(silent=True) or {}
     channel_id = payload.get("channel_id")
@@ -459,25 +467,70 @@ def refresh_channels():
     if not cooldown_decision.get("allowed"):
         return _manual_refresh_block_response(cooldown_decision)
 
-    with acquire_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at) as lease:
-        if not lease.get("acquired"):
-            return _manual_refresh_block_response(lease)
+    if should_block_manual_refresh_for_scheduled_priority():
+        logger.info("Manual refresh rejected due to scheduled quota priority (user_id=%s)", user.id)
+        return jsonify(
+            {
+                "error": "Manual refresh blocked.",
+                "reason": "scheduled_priority",
+                "message": "Imposible ejecutar, prioridad update programado",
+                "quota": get_global_quota_snapshot(),
+                "status": 429,
+            }
+        ), 429
 
-        result = refresh_user_channels(
-            user,
-            settings,
-            service,
-            channel_id=channel_id,
-            ignore_last_refreshed=backfill,
-            now=refreshed_at,
-        )
+    if is_global_refresh_running():
+        logger.info("Manual refresh rejected because a global refresh is running (user_id=%s)", user.id)
+        return jsonify(
+            {
+                "error": "Manual refresh blocked.",
+                "reason": "global_refresh_running",
+                "message": "Ahora mismo hay una actualizacion general en curso. Cuando termine, tus videos estarán actualizados.",
+                "status": 409,
+            }
+        ), 409
+
+    job = start_refresh_job(
+        user.id,
+        kind="manual",
+        channel_id=channel_id,
+        ignore_last_refreshed=backfill,
+    )
+    logger.info(
+        "Manual refresh request accepted (user_id=%s, job_id=%s, channel_id=%s, backfill=%s)",
+        user.id,
+        job.id,
+        channel_id,
+        backfill,
+    )
 
     return jsonify(
         {
             "status": "accepted",
+            "job": job.to_dict(),
             "scope": cooldown_decision.get("scope"),
-            "new_videos": result.get("new_videos", 0),
             "refreshed_at": refreshed_at.isoformat(),
+        }
+    ), 202
+
+
+@channels_bp.get("/api/channels/refresh/status")
+@handle_route_errors
+@require_auth
+def refresh_channels_status():
+    """Return current manual and global refresh status for the current user."""
+    denied_channel_id = request.args.get("channel_id", type=int)
+    job = get_active_refresh_job(g.current_user.id, kind="manual")
+    if not job:
+        job = get_latest_refresh_job(g.current_user.id, kind="manual")
+    if denied_channel_id and job and job.scope_channel_id != denied_channel_id:
+        job = None
+
+    global_job = get_active_global_refresh_job()
+    return jsonify(
+        {
+            "job": job.to_dict() if job else None,
+            "global_job": global_job.to_dict() if global_job else None,
         }
     )
 

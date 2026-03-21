@@ -252,6 +252,70 @@ def ensure_user_settings_schema():
         )
 
 
+def ensure_refresh_job_schema():
+    """Ensure refresh_jobs table exists for backend-owned refresh execution."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS refresh_jobs ("
+                    "id INTEGER NOT NULL PRIMARY KEY, "
+                    "user_id INTEGER NOT NULL, "
+                    "kind VARCHAR(20) NOT NULL DEFAULT 'manual', "
+                    "scope_type VARCHAR(20) NOT NULL DEFAULT 'all_channels', "
+                    "scope_channel_id INTEGER, "
+                    "status VARCHAR(20) NOT NULL DEFAULT 'queued', "
+                    "message VARCHAR(255), "
+                    "processed_channels INTEGER NOT NULL DEFAULT 0, "
+                    "total_channels INTEGER NOT NULL DEFAULT 0, "
+                    "new_videos INTEGER NOT NULL DEFAULT 0, "
+                    "rate_limited BOOLEAN NOT NULL DEFAULT 0, "
+                    "blocked_reason VARCHAR(64), "
+                    "created_at DATETIME NOT NULL, "
+                    "started_at DATETIME, "
+                    "finished_at DATETIME, "
+                    "FOREIGN KEY(user_id) REFERENCES users (id), "
+                    "FOREIGN KEY(scope_channel_id) REFERENCES channels (id)"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_user_id "
+                    "ON refresh_jobs (user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_kind "
+                    "ON refresh_jobs (kind)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_status "
+                    "ON refresh_jobs (status)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_created_at "
+                    "ON refresh_jobs (created_at)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Refresh job schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_enrich_settings_columns():
     """Ensure user_settings table has enrich task columns."""
     engine = db.engine

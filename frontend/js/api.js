@@ -57,6 +57,7 @@ class APIClient {
         return {
           ok: false,
           status: response.status,
+          data,
           error: data && data.error ? data.error : 'Request failed',
           tracking_id: data && data.tracking_id ? data.tracking_id : null
         };
@@ -267,6 +268,17 @@ class APIClient {
     return this.put('/api/admin/security/password-policy', { password_policy: passwordPolicy });
   }
 
+  getAdminRefreshSchedule() {
+    return this.get('/api/admin/refresh-schedule');
+  }
+
+  updateAdminRefreshSchedule(scheduleHours, timezone) {
+    return this.put('/api/admin/refresh-schedule', {
+      schedule_hours: scheduleHours,
+      timezone
+    });
+  }
+
   updateProfile(data) {
     return this.put('/api/auth/profile', data);
   }
@@ -295,8 +307,16 @@ class APIClient {
     return this.delete(`/api/channels/${channelId}/unsubscribe`);
   }
 
-  refreshChannels(channelId) {
-    return this.post('/api/channels/refresh', channelId ? { channel_id: channelId } : {});
+  refreshChannels(channelId, options = {}) {
+    const payload = { ...options };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/refresh', payload);
+  }
+
+  getRefreshStatus(channelId = null) {
+    return this.get('/api/channels/refresh/status', channelId ? { channel_id: channelId } : {});
   }
 
   importSubscriptions(options = {}) {

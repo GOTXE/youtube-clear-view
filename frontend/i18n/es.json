@@ -2,6 +2,8 @@
   "subtitlePrimary": "Tus suscripciones, cero ruido.",
   "subtitleSecondary": "Sin algoritmo, solo tus canales favoritos.",
   "subscriptions": "Suscripciones",
+  "showSubscriptions": "Mostrar suscripciones",
+  "hideSubscriptions": "Ocultar suscripciones",
   "filters": "Filtros",
   "themeLabel": "Tema: {mode} {icon}",
   "themeLight": "Claro",

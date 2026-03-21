@@ -2,6 +2,8 @@
   "subtitlePrimary": "Your subscriptions, zero noise.",
   "subtitleSecondary": "No Algorithm, just your favorite channels.",
   "subscriptions": "Subscriptions",
+  "showSubscriptions": "Show subscriptions",
+  "hideSubscriptions": "Hide subscriptions",
   "filters": "Filters",
   "themeLabel": "Theme: {mode} {icon}",
   "themeLight": "Light",

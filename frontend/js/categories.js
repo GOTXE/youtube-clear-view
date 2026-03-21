@@ -55,12 +55,7 @@ class CategoryManager {
     const categoryClass = this.getCategoryColorClass(category.name);
     title.classList.add(categoryClass);
 
-    const count = document.createElement('span');
-    count.className = 'count-pill category-count';
-    count.textContent = String(category.channel_count || 0);
-
     header.appendChild(title);
-    header.appendChild(count);
     wrapper.appendChild(header);
 
     const carouselContainer = document.createElement('div');

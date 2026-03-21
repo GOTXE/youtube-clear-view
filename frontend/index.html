@@ -111,7 +111,12 @@
           <p id="refresh-progress" class="refresh-progress" hidden></p>
         </div>
         <nav id="tv-action-bar" class="tv-action-bar" aria-label="TV quick actions" hidden>
-          <button id="tv-action-channels" class="tv-action-bar__button" type="button">Subscriptions</button>
+          <button id="tv-action-channels" class="tv-action-bar__button tv-action-bar__button--icon" type="button" aria-label="Subscriptions">
+            <span class="tv-action-bar__sidebar-icon" aria-hidden="true">
+              <span class="tv-action-bar__sidebar-bar"></span>
+              <span class="tv-action-bar__sidebar-chevron">‹</span>
+            </span>
+          </button>
           <button id="tv-action-filters" class="tv-action-bar__button" type="button">Filters</button>
           <button id="tv-action-refresh" class="tv-action-bar__button" type="button">Refresh</button>
           <button id="tv-action-display" class="tv-action-bar__button" type="button">Display setup</button>
@@ -123,7 +128,12 @@
           <aside class="channel-sidebar" aria-label="Subscribed channels">
             <div class="channel-sidebar__mobile-header">
               <h2 class="heading-2">Subscriptions</h2>
-              <button id="channel-sidebar-close" class="channel-sidebar__mobile-close" type="button" aria-label="Close">✕</button>
+              <button id="channel-sidebar-close" class="channel-sidebar__mobile-close" type="button" aria-label="Close">
+                <span class="channel-sidebar__collapse-icon" aria-hidden="true">
+                  <span class="channel-sidebar__collapse-bar"></span>
+                  <span class="channel-sidebar__collapse-chevron">‹</span>
+                </span>
+              </button>
             </div>
             <div class="channel-sidebar__header">
                 <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
@@ -228,7 +238,12 @@
       <div id="channel-sidebar-backdrop" class="channel-sidebar-backdrop" hidden></div>
 
       <nav id="phone-nav" class="phone-nav" aria-label="Mobile navigation" hidden>
-        <button id="phone-nav-channels" class="phone-nav__button" type="button">Subscriptions</button>
+        <button id="phone-nav-channels" class="phone-nav__button phone-nav__button--icon" type="button" aria-label="Subscriptions">
+          <span class="phone-nav__sidebar-icon" aria-hidden="true">
+            <span class="phone-nav__sidebar-bar"></span>
+            <span class="phone-nav__sidebar-chevron">‹›</span>
+          </span>
+        </button>
         <button id="phone-nav-filters" class="phone-nav__button" type="button">Filters</button>
         <button id="phone-nav-menu" class="phone-nav__button" type="button">Menu</button>
       </nav>
@@ -417,6 +432,7 @@
     <script src="js/auth.js" defer></script>
     <script src="js/device.js" defer></script>
     <script src="js/layout-mode.js" defer></script>
+    <script src="js/sidebar-shell.js" defer></script>
     <script src="js/desktop-shell.js" defer></script>
     <script src="js/phone-shell.js" defer></script>
     <script src="js/tv-shell.js" defer></script>

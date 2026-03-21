@@ -475,7 +475,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const phoneChannels = document.getElementById('phone-nav-channels');
     if (phoneChannels) {
-      phoneChannels.textContent = t('subscriptions');
+      phoneChannels.setAttribute('aria-label', t('subscriptions'));
+      phoneChannels.setAttribute('title', t('subscriptions'));
     }
     const phoneFilters = document.getElementById('phone-nav-filters');
     if (phoneFilters) {
@@ -491,7 +492,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const tvChannels = document.getElementById('tv-action-channels');
     if (tvChannels) {
-      tvChannels.textContent = t('subscriptions');
+      tvChannels.setAttribute('aria-label', t('subscriptions'));
+      tvChannels.setAttribute('title', t('subscriptions'));
     }
     const tvFilters = document.getElementById('tv-action-filters');
     if (tvFilters) {
@@ -2942,6 +2944,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFilterPanel();
     if (window.ytcvDesktopShell && typeof window.ytcvDesktopShell.initDesktopShell === 'function') {
       window.ytcvDesktopShell.initDesktopShell();
+    }
+    if (window.ytcvSidebarShell && typeof window.ytcvSidebarShell.initSidebarShell === 'function') {
+      window.ytcvSidebarShell.initSidebarShell();
     }
     if (window.ytcvPhoneShell && typeof window.ytcvPhoneShell.initPhoneShell === 'function') {
       window.ytcvPhoneShell.initPhoneShell({

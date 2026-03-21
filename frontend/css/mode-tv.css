@@ -247,6 +247,35 @@ html[data-mode="tv"] .tv-action-bar__button {
   white-space: nowrap;
 }
 
+html[data-mode="tv"] .tv-action-bar__button--icon {
+  min-width: 54px;
+  padding-inline: 12px;
+  border-color: color-mix(in srgb, var(--primary) 26%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 0 18px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+html[data-mode="tv"] .tv-action-bar__sidebar-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+html[data-mode="tv"] .tv-action-bar__sidebar-bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+html[data-mode="tv"] .tv-action-bar__sidebar-chevron {
+  font-size: 1.15rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
 html[data-mode="tv"] .tv-action-bar__button:focus {
   outline: 4px solid var(--primary);
   outline-offset: 3px;
@@ -255,6 +284,9 @@ html[data-mode="tv"] .tv-action-bar__button:focus {
 html[data-mode="tv"] .tv-action-bar__button[aria-pressed="true"] {
   border-color: #4fc3f744;
   color: #4fc3f7;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #4fc3f7 22%, transparent),
+    0 0 20px color-mix(in srgb, #4fc3f7 22%, transparent);
 }
 
 html[data-mode="tv"] .tv-action-bar__button[aria-pressed="false"] {
@@ -287,6 +319,7 @@ html[data-mode="tv"] .app-layout.sidebar-hidden .app-content {
   border-left: none;
   padding-left: var(--space-3);
 }
+
 
 html[data-mode="tv"] .app-content {
   gap: var(--space-3);

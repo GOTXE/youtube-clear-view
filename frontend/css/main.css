@@ -699,6 +699,7 @@ select {
   height: 100%;
   flex: 1;
   min-height: 0;
+  align-items: stretch;
 }
 
 .app-content {
@@ -710,6 +711,15 @@ select {
   overflow-y: auto;
   padding-bottom: var(--space-10);
   position: relative;
+}
+
+.app-layout.sidebar-hidden .channel-sidebar {
+  overflow: hidden;
+  visibility: hidden;
+  padding: 0;
+  width: 0;
+  min-width: 0;
+  border-width: 0;
 }
 
 .channel-sidebar {
@@ -734,11 +744,48 @@ select {
 }
 
 .channel-sidebar__mobile-close {
-  border: 0;
-  background: transparent;
-  color: var(--text);
+  width: 42px;
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  color: var(--primary);
   cursor: pointer;
-  font-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.12),
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent);
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.channel-sidebar__mobile-close:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.16),
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.channel-sidebar__collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.channel-sidebar__collapse-bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.channel-sidebar__collapse-chevron {
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 700;
 }
 
 .channel-sidebar__header {
@@ -2155,6 +2202,38 @@ html[data-theme="light"] .account-panel__card::before {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.player-overlay__actions .button,
+.player-overlay__actions .button--ghost {
+  justify-content: center;
+  min-height: 44px;
+  border-radius: calc(var(--radius-2) + 2px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.12),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 74%, transparent);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.player-overlay__actions .button:hover,
+.player-overlay__actions .button--ghost:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(15, 23, 42, 0.18),
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.player-overlay__actions .button--ghost {
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg-secondary));
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+}
+
+.player-overlay__actions .button--ghost:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
 }
 
 .player-overlay__confirm-message {

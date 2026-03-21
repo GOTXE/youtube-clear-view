@@ -109,11 +109,39 @@ html[data-mode="phone"] .phone-nav__button {
   background: transparent;
   color: var(--text);
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 html[data-mode="phone"] .phone-nav__button.is-active {
   background: color-mix(in srgb, var(--primary) 16%, var(--surface));
   color: var(--primary);
+}
+
+html[data-mode="phone"] .phone-nav__button--icon {
+  min-width: 56px;
+}
+
+html[data-mode="phone"] .phone-nav__sidebar-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+html[data-mode="phone"] .phone-nav__sidebar-bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.88;
+}
+
+html[data-mode="phone"] .phone-nav__sidebar-chevron {
+  font-size: 1.05rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.08em;
 }
 
 html[data-mode="phone"] .menu-wrapper {

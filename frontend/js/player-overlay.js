@@ -3,6 +3,7 @@
 // auto-mark watched at 75%, and playback resume.
 
 (() => {
+  const USE_EMBED_ONLY = true;
   let initialized = false;
   let ui = null;
   let opener = null;
@@ -25,6 +26,8 @@
   let saveCounter = 0;
   let confirmVisible = false;
   let resumeSeconds = 0;
+  let playerInitTimer = null;
+  let frameInstanceCounter = 0;
 
   const PROGRESS_POLL_MS = 5000;
   const AUTO_SAVE_EVERY_N_POLLS = 6; // ~30s at 5s interval
@@ -72,13 +75,19 @@
     return parts.join(' \u2022 ');
   }
 
-  function getEmbedUrl(videoId, startSeconds) {
+  function getEmbedUrl(videoId, startSeconds, frameNonce = 0) {
     if (!videoId) {
       return 'about:blank';
     }
-    let url = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+    let url = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+    if (!USE_EMBED_ONLY) {
+      url += `&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+    }
     if (startSeconds && startSeconds > 0) {
       url += `&start=${Math.floor(startSeconds)}`;
+    }
+    if (frameNonce > 0) {
+      url += `&ytcv_frame=${frameNonce}`;
     }
     return url;
   }
@@ -86,6 +95,12 @@
   // ── YouTube IFrame Player API ─────────────────────────────────────
 
   function loadYTApi() {
+    if (USE_EMBED_ONLY) {
+      apiAvailable = false;
+      ytApiLoaded = false;
+      ytApiLoading = false;
+      return;
+    }
     if (ytApiLoaded || ytApiLoading) {
       return;
     }
@@ -133,6 +148,9 @@
   }
 
   function tryCreatePlayer() {
+    if (USE_EMBED_ONLY) {
+      return;
+    }
     if (!apiAvailable || !window.YT || !window.YT.Player) {
       return;
     }
@@ -144,7 +162,7 @@
     }
 
     try {
-      ytPlayer = new window.YT.Player('player-overlay-frame', {
+      ytPlayer = new window.YT.Player(ui.frame.id, {
         events: {
           onReady: onPlayerReady,
           onStateChange: onPlayerStateChange
@@ -153,6 +171,35 @@
     } catch (_err) {
       apiAvailable = false;
     }
+  }
+
+  function clearPlayerInitTimer() {
+    if (playerInitTimer) {
+      window.clearTimeout(playerInitTimer);
+      playerInitTimer = null;
+    }
+  }
+
+  function schedulePlayerInit() {
+    if (USE_EMBED_ONLY) {
+      return;
+    }
+    clearPlayerInitTimer();
+    if (!ui || !ui.frame) {
+      return;
+    }
+
+    const targetFrame = ui.frame;
+    const init = () => {
+      if (!ui || ui.frame !== targetFrame) {
+        return;
+      }
+      clearPlayerInitTimer();
+      tryCreatePlayer();
+    };
+
+    targetFrame.addEventListener('load', init, { once: true });
+    playerInitTimer = window.setTimeout(init, 1200);
   }
 
   function onPlayerReady() {
@@ -242,6 +289,7 @@
 
   function destroyPlayer() {
     stopProgressTracking();
+    clearPlayerInitTimer();
     if (ytPlayer) {
       try {
         if (typeof ytPlayer.destroy === 'function') {
@@ -252,6 +300,28 @@
       }
       ytPlayer = null;
     }
+  }
+
+  function buildFreshFrame() {
+    const freshFrame = document.createElement('iframe');
+    freshFrame.className = 'player-overlay__frame';
+    freshFrame.title = 'Embedded video player';
+    freshFrame.src = 'about:blank';
+    freshFrame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    freshFrame.setAttribute('allowfullscreen', '');
+    return freshFrame;
+  }
+
+  function resetFrameElement() {
+    if (!ui || !ui.frame || !ui.frame.parentElement) {
+      return;
+    }
+
+    frameInstanceCounter += 1;
+    const freshFrame = buildFreshFrame();
+    freshFrame.id = `player-overlay-frame-${frameInstanceCounter}`;
+    ui.frame.replaceWith(freshFrame);
+    ui.frame = freshFrame;
   }
 
   // ── Server persistence (progress) ─────────────────────────────────
@@ -384,6 +454,9 @@
   }
 
   function shouldShowConfirm() {
+    if (USE_EMBED_ONLY) {
+      return false;
+    }
     if (!apiAvailable || !playbackStarted || currentWatched || autoMarked) {
       return false;
     }
@@ -407,7 +480,7 @@
     ui.root.hidden = true;
     document.body.classList.remove('player-overlay-open');
     document.documentElement.classList.remove('player-overlay-open');
-    ui.frame.src = 'about:blank';
+    resetFrameElement();
 
     currentVideo = null;
     currentChannel = null;
@@ -592,6 +665,9 @@
       return false;
     }
 
+    destroyPlayer();
+    resetFrameElement();
+
     opener = origin || document.activeElement;
     currentVideo = video;
     currentChannel = channel || null;
@@ -609,7 +685,6 @@
     ui.title.textContent = video.title || t('untitledVideo');
     ui.meta.textContent = formatMeta(video, channel);
     ui.description.textContent = (video.description || '').trim();
-    ui.frame.src = getEmbedUrl(video.yt_video_id, resumeSeconds);
     ui.openYoutube.textContent = t('openOnYouTube');
     if (ui.copyUrl) {
       ui.copyUrl.textContent = t('copyVideoUrl');
@@ -624,11 +699,17 @@
     document.body.classList.add('player-overlay-open');
     document.documentElement.classList.add('player-overlay-open');
 
-    // Try to create YT player (API may already be loaded)
-    ytPlayer = null;
-    if (apiAvailable) {
-      // Small delay to let iframe load before wrapping with YT.Player
-      setTimeout(() => tryCreatePlayer(), 500);
+    const activeVideoId = video.yt_video_id;
+    const activeResumeSeconds = resumeSeconds;
+    window.requestAnimationFrame(() => {
+      if (!currentVideo || currentVideo.yt_video_id !== activeVideoId || !ui || !ui.frame || ui.root.hidden) {
+        return;
+      }
+      ui.frame.src = getEmbedUrl(activeVideoId, activeResumeSeconds, frameInstanceCounter);
+    });
+
+    if (apiAvailable && !USE_EMBED_ONLY) {
+      schedulePlayerInit();
     }
 
     focusables = getFocusableElements();

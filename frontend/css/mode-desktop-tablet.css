@@ -36,6 +36,19 @@ html[data-mode="desktop_tablet"] .video-card__thumb {
   html[data-mode="desktop_tablet"] .channel-sidebar {
     max-height: 320px;
   }
+
+  html[data-mode="desktop_tablet"] .app-layout__sidebar-toggle {
+    display: none;
+  }
+}
+
+html[data-mode="desktop_tablet"] .app-layout.sidebar-hidden {
+  grid-template-columns: 0 1fr;
+  gap: var(--space-4);
+}
+
+html[data-mode="desktop_tablet"] .app-layout.sidebar-hidden .app-content {
+  padding-left: 0;
 }
 
 /* Viewport-within-mode: large desktop screens */

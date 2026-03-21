@@ -3069,18 +3069,21 @@ body.login-page-open #app .app-footer {
 .login-page__masthead-title {
   margin: 0;
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
-  font-size: clamp(1.7rem, 4.5vw, 2.85rem);
+  font-size: clamp(2.55rem, 6.75vw, 4.275rem);
   font-weight: 800;
   letter-spacing: clamp(0.18rem, 0.7vw, 0.44rem);
   text-transform: uppercase;
   color: #dbeafe;
   text-align: center;
   white-space: nowrap;
+  -webkit-text-stroke: 0.4px rgba(191, 219, 254, 0.28);
+  filter: drop-shadow(0 8px 20px rgba(37, 99, 235, 0.28));
   text-shadow:
-    0 0 8px rgba(191, 219, 254, 0.92),
-    0 0 18px rgba(125, 211, 252, 0.84),
-    0 0 34px rgba(59, 130, 246, 0.62),
-    0 0 62px rgba(37, 99, 235, 0.34);
+    0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 8px rgba(219, 234, 254, 0.96),
+    0 0 18px rgba(125, 211, 252, 0.92),
+    0 0 34px rgba(59, 130, 246, 0.72),
+    0 0 66px rgba(37, 99, 235, 0.46);
 }
 
 .login-page__card {
@@ -3156,10 +3159,13 @@ body.login-page-open #app .app-footer {
 
 .gestor-body .login-page__masthead-title {
   color: #eff6ff;
+  -webkit-text-stroke: 0.35px rgba(191, 219, 254, 0.18);
+  filter: drop-shadow(0 6px 16px rgba(37, 99, 235, 0.16));
   text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2),
     0 0 6px rgba(191, 219, 254, 0.72),
-    0 0 16px rgba(125, 211, 252, 0.4),
-    0 0 28px rgba(59, 130, 246, 0.18);
+    0 0 14px rgba(125, 211, 252, 0.42),
+    0 0 28px rgba(59, 130, 246, 0.22);
 }
 
 .gestor-body .login-page__card {

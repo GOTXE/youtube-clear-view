@@ -16,7 +16,9 @@
     userSelector,
     userSelectorWrapper: userSelector ? userSelector.closest('label') : null,
     currentUserLabel: document.getElementById('current-user'),
+    currentUserAvatarShell: document.getElementById('current-user-avatar-shell'),
     currentUserAvatar: document.getElementById('current-user-avatar'),
+    currentUserAvatarFallback: document.getElementById('current-user-avatar-fallback'),
     currentUserName: document.getElementById('current-user-name'),
     sessionInfo: document.querySelector('.session-info'),
     appRoot: document.getElementById('app'),
@@ -160,21 +162,41 @@
   }
 
   function syncCurrentUserAvatar(user) {
-    if (!ui.currentUserAvatar) {
+    if (!ui.currentUserAvatar || !ui.currentUserAvatarShell) {
       return;
     }
 
     const avatarUrl = user && user.google_avatar_url ? user.google_avatar_url : null;
+    const fallbackLabel = ((user && (user.display_name || user.username || user.email)) || '?').trim().charAt(0) || '?';
+    if (ui.currentUserAvatarFallback) {
+      ui.currentUserAvatarFallback.textContent = fallbackLabel;
+    }
+
     if (!avatarUrl) {
-      ui.currentUserAvatar.hidden = true;
+      ui.currentUserAvatarShell.hidden = true;
+      ui.currentUserAvatarShell.classList.remove('is-loaded');
       ui.currentUserAvatar.removeAttribute('src');
       ui.currentUserAvatar.alt = '';
       return;
     }
 
+    ui.currentUserAvatarShell.hidden = false;
+    ui.currentUserAvatarShell.classList.remove('is-loaded');
+    ui.currentUserAvatar.referrerPolicy = 'no-referrer';
+    ui.currentUserAvatar.decoding = 'async';
+    ui.currentUserAvatar.onload = () => {
+      if (ui.currentUserAvatarShell) {
+        ui.currentUserAvatarShell.classList.add('is-loaded');
+      }
+    };
+    ui.currentUserAvatar.onerror = () => {
+      if (ui.currentUserAvatarShell) {
+        ui.currentUserAvatarShell.classList.remove('is-loaded');
+      }
+      ui.currentUserAvatar.removeAttribute('src');
+    };
     ui.currentUserAvatar.src = avatarUrl;
     ui.currentUserAvatar.alt = user.display_name || user.username || 'User avatar';
-    ui.currentUserAvatar.hidden = false;
   }
 
   async function maybeShowSecurityReminder(user) {

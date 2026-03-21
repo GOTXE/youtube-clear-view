@@ -4,6 +4,7 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     let refreshing = false;
+    let userAcceptedUpdate = false;
     const announceUpdate = registration => {
       window.dispatchEvent(new CustomEvent('ytcv:update-available', {
         detail: { registration }
@@ -30,7 +31,7 @@ if ('serviceWorker' in navigator) {
     };
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) {
+      if (refreshing || !userAcceptedUpdate) {
         return;
       }
       refreshing = true;
@@ -39,6 +40,9 @@ if ('serviceWorker' in navigator) {
 
     navigator.serviceWorker.register('/sw.js').then(registration => {
       watchRegistration(registration);
+      window.addEventListener('ytcv:update-apply', () => {
+        userAcceptedUpdate = true;
+      });
       window.setInterval(() => {
         registration.update().catch(() => {});
       }, 60 * 1000);
@@ -864,15 +868,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.updateAvailableBanner.textContent = t('updateAvailableReloading');
     }
 
+    window.dispatchEvent(new CustomEvent('ytcv:update-apply'));
+
     const waitingWorker = swUpdateState.registration && swUpdateState.registration.waiting
       ? swUpdateState.registration.waiting
       : null;
 
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-      window.setTimeout(() => {
-        window.location.reload();
-      }, 1200);
       return;
     }
 

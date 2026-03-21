@@ -361,6 +361,7 @@
   "removeFromContinueWatching": "Remove from Continue watching",
   "addToContinueWatching": "Add to Continue watching",
   "skipContinueWatching": "Do not add",
+  "savingContinueWatching": "Saving...",
   "untitledVideo": "Untitled video",
   "watchedBadge": "Watched",
   "playerCloseConfirmMessage": "You haven't finished this video. What would you like to do?",

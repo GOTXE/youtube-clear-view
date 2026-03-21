@@ -28,6 +28,7 @@
   let lastKnownDuration = 0;
   let confirmVisible = false;
   let confirmMode = null;
+  let confirmBusy = false;
   let resumeSeconds = 0;
   let playerInitTimer = null;
   let frameInstanceCounter = 0;
@@ -338,14 +339,26 @@
   }
 
   function saveProgressPosition(positionSeconds, durationSeconds = null, options = {}) {
+    if (!currentVideo || !currentVideo.id) {
+      return Promise.resolve();
+    }
+    return saveProgressForVideo(
+      currentVideo.id,
+      positionSeconds,
+      durationSeconds || currentVideo.duration || lastKnownDuration || 0,
+      options
+    );
+  }
+
+  function saveProgressForVideo(videoId, positionSeconds, durationSeconds = null, options = {}) {
     const api = getApi();
-    if (!api || !currentVideo || !currentVideo.id) {
+    if (!api || !videoId) {
       return Promise.resolve();
     }
     return api.saveProgress(
-      currentVideo.id,
+      videoId,
       Math.floor(Math.max(positionSeconds || 0, 0)),
-      Math.floor(durationSeconds || currentVideo.duration || lastKnownDuration || 0),
+      Math.floor(durationSeconds || 0),
       options
     );
   }
@@ -376,12 +389,17 @@
     if (!ui) {
       return;
     }
+    if (ui.markWatched) {
+      ui.markWatched.disabled = currentWatched || confirmBusy;
+    }
     if (ui.removeProgress) {
       ui.removeProgress.hidden = !currentInContinueWatching || currentWatched || confirmVisible;
+      ui.removeProgress.disabled = confirmBusy;
       ui.removeProgress.textContent = t('removeFromContinueWatching');
     }
     if (ui.confirmLater) {
       ui.confirmLater.hidden = !confirmVisible;
+      ui.confirmLater.disabled = confirmBusy;
     }
     if (ui.copyUrl) {
       ui.copyUrl.hidden = confirmVisible;
@@ -491,7 +509,25 @@
     }
     confirmVisible = false;
     confirmMode = null;
+    confirmBusy = false;
     syncWatchedButton();
+    syncProgressButtons();
+  }
+
+  function setConfirmBusy(isBusy, action = null) {
+    confirmBusy = Boolean(isBusy);
+    if (ui.markWatched) {
+      ui.markWatched.textContent = confirmMode === 'continue-watching'
+        ? (confirmBusy && action === 'add'
+            ? t('savingContinueWatching')
+            : t('addToContinueWatching'))
+        : (currentWatched ? t('watchedBadge') : t('markWatched'));
+    }
+    if (ui.confirmLater && confirmMode === 'continue-watching') {
+      ui.confirmLater.textContent = confirmBusy && action === 'skip'
+        ? t('savingContinueWatching')
+        : t('skipContinueWatching');
+    }
     syncProgressButtons();
   }
 
@@ -588,11 +624,11 @@
       }
     }
 
-    doClose({ restore });
-
     if (progressUpdated && typeof window.ytcvReloadCarousels === 'function') {
       await window.ytcvReloadCarousels({ preserveDOM: false });
     }
+
+    doClose({ restore });
   }
 
   async function handleConfirmWatch() {
@@ -604,33 +640,49 @@
   }
 
   async function addToContinueWatching() {
+    setConfirmBusy(true, 'add');
     const { position, duration } = estimateProgressState();
+    const videoId = currentVideo && currentVideo.id;
+    const shouldSave = position > 0 && videoId && !currentWatched;
+    const saveDuration = duration || (currentVideo && currentVideo.duration) || lastKnownDuration || 0;
     if (position > 0 && currentVideo && !currentWatched) {
       lastKnownPosition = position;
       lastKnownDuration = duration;
       currentHasSavedProgress = true;
       currentInContinueWatching = true;
-      await saveProgressPosition(position, duration, { continue_watching: true });
     }
     doClose();
-    if (typeof window.ytcvReloadCarousels === 'function') {
-      await window.ytcvReloadCarousels({ preserveDOM: false });
-    }
+    (async () => {
+      if (shouldSave) {
+        await saveProgressForVideo(videoId, position, saveDuration, { continue_watching: true });
+      }
+      if (typeof window.ytcvReloadCarousels === 'function') {
+        await window.ytcvReloadCarousels({ preserveDOM: false });
+      }
+    })();
   }
 
   async function skipContinueWatching() {
+    setConfirmBusy(true, 'skip');
     const { position, duration } = estimateProgressState();
+    const videoId = currentVideo && currentVideo.id;
+    const shouldSave = position > 0 && videoId && !currentWatched;
+    const saveDuration = duration || (currentVideo && currentVideo.duration) || lastKnownDuration || 0;
     if (position > 0 && currentVideo && !currentWatched) {
       lastKnownPosition = position;
       lastKnownDuration = duration;
       currentHasSavedProgress = false;
       currentInContinueWatching = false;
-      await saveProgressPosition(position, duration, { continue_watching: false });
     }
     doClose();
-    if (typeof window.ytcvReloadCarousels === 'function') {
-      await window.ytcvReloadCarousels({ preserveDOM: false });
-    }
+    (async () => {
+      if (shouldSave) {
+        await saveProgressForVideo(videoId, position, saveDuration, { continue_watching: false });
+      }
+      if (typeof window.ytcvReloadCarousels === 'function') {
+        await window.ytcvReloadCarousels({ preserveDOM: false });
+      }
+    })();
   }
 
   async function removeFromContinueWatching() {
@@ -811,6 +863,7 @@
     lastKnownDuration = 0;
     confirmVisible = false;
     confirmMode = null;
+    confirmBusy = false;
     resumeSeconds = (progress && typeof progress === 'number' && progress > 0) ? progress : 0;
     sessionWatchStartedAt = 0;
 
@@ -839,6 +892,9 @@
       if (!currentVideo || currentVideo.yt_video_id !== activeVideoId || !ui || !ui.frame || ui.root.hidden) {
         return;
       }
+      if (apiAvailable && !USE_EMBED_ONLY) {
+        schedulePlayerInit();
+      }
       ui.frame.addEventListener('load', () => {
         if (!sessionWatchStartedAt) {
           sessionWatchStartedAt = Date.now();
@@ -846,10 +902,6 @@
       }, { once: true });
       ui.frame.src = getEmbedUrl(activeVideoId, activeResumeSeconds, frameInstanceCounter);
     });
-
-    if (apiAvailable && !USE_EMBED_ONLY) {
-      schedulePlayerInit();
-    }
 
     focusables = getFocusableElements();
     window.setTimeout(() => {

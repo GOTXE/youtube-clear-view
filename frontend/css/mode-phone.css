@@ -119,6 +119,12 @@ html[data-mode="phone"] .phone-nav__button.is-active {
   color: var(--primary);
 }
 
+html[data-mode="phone"] .phone-nav__button.is-temporary-active {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 18px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
 html[data-mode="phone"] .phone-nav__button--icon {
   min-width: 56px;
 }

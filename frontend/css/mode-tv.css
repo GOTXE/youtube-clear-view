@@ -281,12 +281,17 @@ html[data-mode="tv"] .tv-action-bar__button:focus {
   outline-offset: 3px;
 }
 
-html[data-mode="tv"] .tv-action-bar__button[aria-pressed="true"] {
+html[data-mode="tv"] .tv-action-bar__button.is-temporary-active {
   border-color: #4fc3f744;
   color: #4fc3f7;
   box-shadow:
     0 0 0 1px color-mix(in srgb, #4fc3f7 22%, transparent),
     0 0 20px color-mix(in srgb, #4fc3f7 22%, transparent);
+}
+
+html[data-mode="tv"] .tv-action-bar__button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  color: var(--primary);
 }
 
 html[data-mode="tv"] .tv-action-bar__button[aria-pressed="false"] {

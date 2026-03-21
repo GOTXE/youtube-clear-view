@@ -4,6 +4,7 @@
   let initialized = false;
   let ui = null;
   let callbacks = null;
+  let channelsActiveTimer = null;
 
   function isPhoneMode() {
     return document.documentElement.dataset.mode === 'phone';
@@ -27,7 +28,6 @@
     if (ui && ui.backdrop) {
       ui.backdrop.hidden = true;
     }
-    setNavActive(null);
   }
 
   function openChannelSheet() {
@@ -39,6 +39,21 @@
       ui.backdrop.hidden = false;
     }
     setNavActive(ui && ui.channelsButton ? ui.channelsButton.id : null);
+    if (ui && ui.channelsButton) {
+      ui.channelsButton.classList.add('is-temporary-active');
+    }
+    if (channelsActiveTimer) {
+      window.clearTimeout(channelsActiveTimer);
+    }
+    channelsActiveTimer = window.setTimeout(() => {
+      if (document.body.classList.contains('phone-sidebar-open')) {
+        setNavActive(null);
+      }
+      if (ui && ui.channelsButton) {
+        ui.channelsButton.classList.remove('is-temporary-active');
+      }
+      channelsActiveTimer = null;
+    }, 2000);
   }
 
   function toggleChannelSheet() {

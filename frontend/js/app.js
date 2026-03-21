@@ -112,7 +112,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     deferAuthenticatedBootstrap: initialAuthStatusFromUrl === 'needs_setup',
     authenticatedDataBootstrapPromise: null,
     refreshStatusPoller: null,
-    refreshStatusSource: null
+    refreshStatusSource: null,
+    showInProgressCarousel: false,
+    showWatchedCarousel: false
   };
 
   const ui = {
@@ -132,6 +134,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     channelSidebarBackdrop: document.getElementById('channel-sidebar-backdrop'),
     phoneNav: document.getElementById('phone-nav'),
     tvActionBar: document.getElementById('tv-action-bar'),
+    tvActionInProgress: document.getElementById('tv-action-in-progress'),
+    tvActionWatched: document.getElementById('tv-action-watched'),
     themeToggle: document.getElementById('theme-toggle'),
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
@@ -362,16 +366,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.inProgressLabel.textContent = t('continueWatching');
     }
     if (ui.videosLabel) {
-      ui.videosLabel.textContent = t('videos');
+      ui.videosLabel.textContent = t('videosRecent30Days');
     }
     if (ui.shortsLabel) {
-      ui.shortsLabel.textContent = t('shorts');
+      ui.shortsLabel.textContent = t('shortsRecent30Days');
     }
     if (ui.olderTitle) {
       ui.olderTitle.textContent = t('olderVideosShorts');
     }
     if (ui.watchedLabel) {
       ui.watchedLabel.textContent = t('watchedVideos');
+    }
+    if (ui.tvActionInProgress) {
+      ui.tvActionInProgress.textContent = state.showInProgressCarousel
+        ? t('hideContinueWatching')
+        : t('showContinueWatching');
+      ui.tvActionInProgress.setAttribute('aria-pressed', String(state.showInProgressCarousel));
+    }
+    if (ui.tvActionWatched) {
+      ui.tvActionWatched.textContent = state.showWatchedCarousel
+        ? t('hideWatchedVideos')
+        : t('showWatchedVideos');
+      ui.tvActionWatched.setAttribute('aria-pressed', String(state.showWatchedCarousel));
     }
     if (ui.menuFilters) {
       ui.menuFilters.textContent = t('filters');
@@ -518,10 +534,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tvFilters = document.getElementById('tv-action-filters');
     if (tvFilters) {
       tvFilters.textContent = t('filters');
-    }
-    const tvDisplay = document.getElementById('tv-action-display');
-    if (tvDisplay) {
-      tvDisplay.textContent = t('displayModeMenuLabel');
     }
     const sidebarClose = document.getElementById('channel-sidebar-close');
     if (sidebarClose) {
@@ -1375,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.carousels.push(carousel);
 
     if (totalCount > 0) {
-      ui.inProgressSection.hidden = false;
+      ui.inProgressSection.hidden = !state.showInProgressCarousel;
       if (ui.inProgressCount) {
         ui.inProgressCount.textContent = totalCount;
       }
@@ -1392,7 +1404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
       const params = {
         content_type: 'video',
-        since_days: 7,
+        since_days: 30,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
       if (state.selectedChannelId !== null) {
@@ -1420,7 +1432,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const carousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
       const params = {
         content_type: 'short',
-        since_days: 7,
+        since_days: 30,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
       if (state.selectedChannelId !== null) {
@@ -1451,8 +1463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const carousel = new window.Carousel('older-carousel', async (offset, limit) => {
       const params = {
-        older_than_days: 7,
-        since_days: 30,
+        older_than_days: 30,
         randomize: true,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
@@ -1512,7 +1523,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.watchedCount) {
       ui.watchedCount.textContent = String(totalCount);
     }
-    ui.watchedSection.hidden = totalCount === 0;
+    ui.watchedSection.hidden = totalCount === 0 || !state.showWatchedCarousel;
+  }
+
+  function updateOptionalCarouselButtons() {
+    if (ui.tvActionInProgress) {
+      ui.tvActionInProgress.textContent = state.showInProgressCarousel
+        ? t('hideContinueWatching')
+        : t('showContinueWatching');
+      ui.tvActionInProgress.setAttribute('aria-pressed', String(state.showInProgressCarousel));
+    }
+
+    if (ui.tvActionWatched) {
+      ui.tvActionWatched.textContent = state.showWatchedCarousel
+        ? t('hideWatchedVideos')
+        : t('showWatchedVideos');
+      ui.tvActionWatched.setAttribute('aria-pressed', String(state.showWatchedCarousel));
+    }
+  }
+
+  function toggleOptionalCarousel(sectionName) {
+    if (sectionName === 'in_progress') {
+      state.showInProgressCarousel = !state.showInProgressCarousel;
+      if (ui.inProgressSection) {
+        const hasItems = Number(ui.inProgressCount ? ui.inProgressCount.textContent || '0' : 0) > 0;
+        ui.inProgressSection.hidden = !state.showInProgressCarousel || !hasItems;
+      }
+    }
+
+    if (sectionName === 'watched') {
+      state.showWatchedCarousel = !state.showWatchedCarousel;
+      if (ui.watchedSection) {
+        const hasItems = Number(ui.watchedCount ? ui.watchedCount.textContent || '0' : 0) > 0;
+        ui.watchedSection.hidden = !state.showWatchedCarousel || !hasItems;
+      }
+    }
+
+    updateOptionalCarouselButtons();
   }
 
   function renderChannelList(channels) {
@@ -2116,6 +2163,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateButtons();
   }
 
+  function setupOptionalCarouselToggles() {
+    updateOptionalCarouselButtons();
+
+    if (ui.tvActionInProgress) {
+      ui.tvActionInProgress.addEventListener('click', () => {
+        toggleOptionalCarousel('in_progress');
+      });
+    }
+
+    if (ui.tvActionWatched) {
+      ui.tvActionWatched.addEventListener('click', () => {
+        toggleOptionalCarousel('watched');
+      });
+    }
+  }
+
   function clearSearch() {
     state.searchActive = false;
     state.searchQuery = '';
@@ -2125,7 +2188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderChannelList(state.channels);
 
     if (ui.videosLabel) {
-      ui.videosLabel.textContent = t('videos');
+      ui.videosLabel.textContent = t('videosRecent30Days');
     }
     if (ui.videosCount) {
       ui.videosCount.hidden = false;
@@ -3082,6 +3145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     setupFilters();
+    setupOptionalCarouselToggles();
     setupChannelSidebarSearch();
     setupSearch();
     setupMenu();

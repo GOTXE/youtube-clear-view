@@ -3,6 +3,7 @@
 (() => {
   let initialized = false;
   let ui = null;
+  let clearActiveTimer = null;
 
   const t = key => (
     window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
@@ -41,12 +42,30 @@
     if (ui.tvChannels) {
       ui.tvChannels.setAttribute('aria-label', label);
       ui.tvChannels.setAttribute('title', label);
-      ui.tvChannels.setAttribute('aria-pressed', String(!hidden));
+      ui.tvChannels.setAttribute('aria-expanded', String(!hidden));
+      ui.tvChannels.dataset.sidebarHidden = hidden ? 'true' : 'false';
       const chevronNode = ui.tvChannels.querySelector('.tv-action-bar__sidebar-chevron');
       if (chevronNode) {
         chevronNode.textContent = chevron;
       }
     }
+  }
+
+  function pulseChannelsButton() {
+    if (!ui || !ui.tvChannels) {
+      return;
+    }
+
+    ui.tvChannels.classList.add('is-temporary-active');
+    if (clearActiveTimer) {
+      window.clearTimeout(clearActiveTimer);
+    }
+    clearActiveTimer = window.setTimeout(() => {
+      if (ui && ui.tvChannels) {
+        ui.tvChannels.classList.remove('is-temporary-active');
+      }
+      clearActiveTimer = null;
+    }, 2000);
   }
 
   function notifyResize() {
@@ -70,6 +89,7 @@
 
   function toggle() {
     applyHidden(!isHidden());
+    pulseChannelsButton();
   }
 
   function sync() {

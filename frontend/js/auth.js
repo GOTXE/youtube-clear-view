@@ -127,11 +127,10 @@
       document.documentElement.setAttribute('data-theme', 'light');
       return;
     }
-    const theme = themePreference === 'light' ? 'light' : 'dark';
     if (ui.appRoot) {
-      ui.appRoot.setAttribute('data-theme', theme);
+      ui.appRoot.setAttribute('data-theme', 'dark');
     }
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', 'dark');
   }
 
   function setStatusMessage(message, type = 'info') {

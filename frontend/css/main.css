@@ -3052,15 +3052,34 @@ body.login-page-open #app {
 }
 
 .login-page__card {
+  position: relative;
   width: 100%;
   max-width: 400px;
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--primary) 20%);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(96, 165, 250, 0.78);
+  border-radius: 24px;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.22),
+    0 0 24px rgba(59, 130, 246, 0.34),
+    0 0 68px rgba(37, 99, 235, 0.26),
+    0 24px 64px rgba(2, 6, 23, 0.44);
+}
+
+.login-page__card::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 27px;
+  pointer-events: none;
+  border: 2px solid rgba(96, 165, 250, 0.72);
+  box-shadow:
+    0 0 10px rgba(96, 165, 250, 0.72),
+    0 0 28px rgba(59, 130, 246, 0.48),
+    0 0 56px rgba(37, 99, 235, 0.32);
 }
 
 .gestor-body .login-page-overlay {
@@ -3073,11 +3092,20 @@ body.login-page-open #app {
   max-width: 430px;
   background: rgba(255, 255, 255, 0.94);
   color: #0f172a;
-  border: 1px solid rgba(96, 165, 250, 0.38);
-  border-radius: 24px;
+  border: 1px solid rgba(96, 165, 250, 0.64);
   box-shadow:
-    0 0 0 3px rgba(96, 165, 250, 0.18),
+    0 0 0 1px rgba(125, 211, 252, 0.16),
+    0 0 20px rgba(59, 130, 246, 0.2),
+    0 0 48px rgba(37, 99, 235, 0.14),
     0 28px 80px rgba(15, 23, 42, 0.24);
+}
+
+.gestor-body .login-page__card::before {
+  border-color: rgba(59, 130, 246, 0.54);
+  box-shadow:
+    0 0 8px rgba(96, 165, 250, 0.34),
+    0 0 22px rgba(59, 130, 246, 0.2),
+    0 0 42px rgba(37, 99, 235, 0.14);
 }
 
 .gestor-body .login-page__submit {

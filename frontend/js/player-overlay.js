@@ -93,7 +93,38 @@
     if (frameNonce > 0) {
       url += `&ytcv_frame=${frameNonce}`;
     }
+    url += `&vq=${encodeURIComponent(getPreferredQualityHint())}`;
     return url;
+  }
+
+  function getPreferredQualityHint() {
+    const width = Math.max(
+      window.innerWidth || 0,
+      window.screen && window.screen.width ? window.screen.width : 0
+    );
+    const height = Math.max(
+      window.innerHeight || 0,
+      window.screen && window.screen.height ? window.screen.height : 0
+    );
+    const effectiveWidth = width * (window.devicePixelRatio || 1);
+    const effectiveHeight = height * (window.devicePixelRatio || 1);
+
+    if (effectiveWidth >= 3800 || effectiveHeight >= 2100) {
+      return 'highres';
+    }
+    if (effectiveWidth >= 2500 || effectiveHeight >= 1400) {
+      return 'hd1440';
+    }
+    if (effectiveWidth >= 1900 || effectiveHeight >= 1060) {
+      return 'hd1080';
+    }
+    if (effectiveWidth >= 1260 || effectiveHeight >= 700) {
+      return 'hd720';
+    }
+    if (effectiveWidth >= 850 || effectiveHeight >= 470) {
+      return 'large';
+    }
+    return 'medium';
   }
 
   // ── YouTube IFrame Player API ─────────────────────────────────────
@@ -747,6 +778,9 @@
       eyebrow: document.getElementById('player-overlay-eyebrow'),
       title: document.getElementById('player-overlay-title'),
       meta: document.getElementById('player-overlay-meta'),
+      channelBadge: document.getElementById('player-overlay-channel'),
+      channelLogo: document.getElementById('player-overlay-channel-logo'),
+      channelName: document.getElementById('player-overlay-channel-name'),
       description: document.getElementById('player-overlay-description'),
       frame: document.getElementById('player-overlay-frame'),
       close: document.getElementById('player-overlay-close'),
@@ -870,6 +904,26 @@
     ui.eyebrow.textContent = currentChannel && currentChannel.title ? t('nowPlayingChannel', { channel: currentChannel.title }) : t('nowPlaying');
     ui.title.textContent = video.title || t('untitledVideo');
     ui.meta.textContent = formatMeta(video, channel);
+    const channelLogoUrl = channel && (channel.thumbnail_local_url || channel.thumbnail_url)
+      ? (channel.thumbnail_local_url || channel.thumbnail_url)
+      : null;
+    if (ui.channelBadge) {
+      ui.channelBadge.hidden = !(channel && channel.title);
+    }
+    if (ui.channelLogo) {
+      if (channelLogoUrl) {
+        ui.channelLogo.src = channelLogoUrl;
+        ui.channelLogo.alt = channel && channel.title ? channel.title : '';
+        ui.channelLogo.hidden = false;
+      } else {
+        ui.channelLogo.hidden = true;
+        ui.channelLogo.removeAttribute('src');
+        ui.channelLogo.alt = '';
+      }
+    }
+    if (ui.channelName) {
+      ui.channelName.textContent = channel && channel.title ? channel.title : '';
+    }
     const rawDescription = (video.description || '').trim();
     ui.description.textContent = typeof window.truncateText === 'function'
       ? window.truncateText(rawDescription, 420)

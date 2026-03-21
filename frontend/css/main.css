@@ -2265,6 +2265,34 @@ html[data-theme="light"] .account-panel__card::before {
   min-width: 0;
 }
 
+.player-overlay__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-bottom: var(--space-1);
+}
+
+.player-overlay__channel-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.player-overlay__channel-name {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-body-small);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .player-overlay__description {
   margin: 0;
   color: var(--text);

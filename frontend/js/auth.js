@@ -16,6 +16,7 @@
     userSelector,
     userSelectorWrapper: userSelector ? userSelector.closest('label') : null,
     currentUserLabel: document.getElementById('current-user'),
+    currentUserAvatar: document.getElementById('current-user-avatar'),
     currentUserName: document.getElementById('current-user-name'),
     sessionInfo: document.querySelector('.session-info'),
     appRoot: document.getElementById('app'),
@@ -156,6 +157,45 @@
     }
 
     ui.statusMessage.style.color = '';
+  }
+
+  function syncCurrentUserAvatar(user) {
+    if (!ui.currentUserAvatar) {
+      return;
+    }
+
+    const avatarUrl = user && user.google_avatar_url ? user.google_avatar_url : null;
+    if (!avatarUrl) {
+      ui.currentUserAvatar.hidden = true;
+      ui.currentUserAvatar.removeAttribute('src');
+      ui.currentUserAvatar.alt = '';
+      return;
+    }
+
+    ui.currentUserAvatar.src = avatarUrl;
+    ui.currentUserAvatar.alt = user.display_name || user.username || 'User avatar';
+    ui.currentUserAvatar.hidden = false;
+  }
+
+  async function maybeShowSecurityReminder(user) {
+    if (!user || document.body.classList.contains('gestor-body')) {
+      return;
+    }
+    if (!user.security_reminder_due) {
+      return;
+    }
+
+    if (typeof window.showNotification === 'function') {
+      window.showNotification(t('securityReminderMissingTotpOrPasskey'), 'info');
+    } else {
+      setStatusMessage(t('securityReminderMissingTotpOrPasskey'), 'info');
+    }
+
+    const api = getApiClient();
+    if (api) {
+      await api.acknowledgeSecurityReminder();
+    }
+    currentUser = { ...user, security_reminder_due: false };
   }
 
   function stopPairingClaimPolling() {
@@ -659,6 +699,7 @@
         ui.sessionInfo.classList.remove('session-info--alert');
       }
     }
+    syncCurrentUserAvatar(user);
 
     if (ui.userSelector) {
       ui.userSelector.value = user.username || '';
@@ -715,6 +756,7 @@
     if (broadcast) {
       window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
     }
+    void maybeShowSecurityReminder(user);
   }
 
   function setUnauthenticated() {
@@ -727,6 +769,7 @@
     if (ui.currentUserName) {
       ui.currentUserName.textContent = '';
     }
+    syncCurrentUserAvatar(null);
     if (ui.sessionInfo) {
       ui.sessionInfo.classList.add('session-info--alert');
     }

@@ -14,6 +14,7 @@
   "signInWithGoogle": "Sign in with Google",
   "signedInAs": "Signed in as {name}",
   "notSignedIn": "Not signed in",
+  "securityReminderMissingTotpOrPasskey": "Protect your account: enable a passkey or TOTP code from My account.",
   "deviceLabel": "Device: {device}",
   "hide": "Hide",
   "menu": "Menu",

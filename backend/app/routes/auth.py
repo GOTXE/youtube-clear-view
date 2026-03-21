@@ -13,7 +13,7 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.middleware.rate_limiter import check_rate_limit, reset_rate_limit
-from app.models import LoginPairing, User, UserPasskey
+from app.models import LoginPairing, User, UserPasskey, UserSettings
 from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
     apply_token_response,
@@ -263,8 +263,43 @@ def _issue_session_for_user(user):
     return session_token
 
 
+def _get_or_create_user_settings(user):
+    """Return per-user settings, creating them if missing."""
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if settings:
+        return settings
+    settings = UserSettings(user_id=user.id)
+    db.session.add(settings)
+    db.session.flush()
+    return settings
+
+
+def _has_passkey(user):
+    """Return True when the user has at least one registered passkey."""
+    if not user or not user.id:
+        return False
+    return UserPasskey.query.filter_by(user_id=user.id).first() is not None
+
+
+def _security_reminder_due(user):
+    """Return True when the user should be reminded about TOTP/passkey."""
+    if not user:
+        return False
+    if user.totp_enabled or _has_passkey(user):
+        return False
+
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        return True
+    if not settings.last_security_reminder_at:
+        return True
+
+    return (utc_now() - settings.last_security_reminder_at) >= timedelta(days=30)
+
+
 def _serialize_authenticated_user(user):
     """Serialize the authenticated user payload consistently."""
+    has_passkey = _has_passkey(user)
     return {
         "authenticated": True,
         "user_id": user.id,
@@ -275,6 +310,8 @@ def _serialize_authenticated_user(user):
         "google_avatar_url": user.google_avatar_url,
         "google_auth_status": user.google_auth_status,
         "totp_enabled": user.totp_enabled,
+        "has_passkey": has_passkey,
+        "security_reminder_due": bool((not user.totp_enabled and not has_passkey) and _security_reminder_due(user)),
         "is_admin": is_admin_user(user),
         "theme_preference": user.theme_preference,
         "has_password": bool(user.password_hash),
@@ -1117,6 +1154,18 @@ def current_user():
     return jsonify(
         _serialize_authenticated_user(user)
     )
+
+
+@auth_bp.post("/api/auth/security-reminder/ack")
+@handle_route_errors
+@require_auth
+def acknowledge_security_reminder():
+    """Record that the user has seen the TOTP/passkey reminder."""
+    user = g.current_user
+    settings = _get_or_create_user_settings(user)
+    settings.last_security_reminder_at = utc_now()
+    db.session.commit()
+    return jsonify({"acknowledged": True, "last_security_reminder_at": settings.last_security_reminder_at.isoformat()})
 
 
 @auth_bp.post("/api/auth/pairing/start")

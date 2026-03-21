@@ -571,6 +571,16 @@ select {
   font-weight: 600;
 }
 
+.session-info__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent),
+    0 4px 10px rgba(15, 23, 42, 0.18);
+}
+
 .session-info--alert {
   color: var(--error);
 }
@@ -2258,9 +2268,13 @@ html[data-theme="light"] .account-panel__card::before {
 .player-overlay__description {
   margin: 0;
   color: var(--text);
-  overflow: auto;
-  max-height: 240px;
   line-height: 1.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  white-space: normal;
 }
 
 .player-overlay__actions {

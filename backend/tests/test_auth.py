@@ -9,7 +9,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.migrations import ensure_user_schema
-from app.models import User, UserPasskey
+from app.models import User, UserPasskey, UserSettings
 from app.services.totp_auth import generate_totp_code, hash_recovery_codes
 
 
@@ -155,6 +155,42 @@ def test_current_user_returns_profile(client):
     data = response.get_json()
     assert data["username"] == "bob"
     assert data["authenticated"] is True
+
+
+def test_current_user_marks_security_reminder_due_without_totp_or_passkey(client, app):
+    with app.app_context():
+        user = User(username="carol", display_name="Carol")
+        user.set_password("testpassword123")
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "carol", "password": "testpassword123"})
+    response = client.get("/api/auth/current")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["authenticated"] is True
+    assert data["security_reminder_due"] is True
+    assert data["has_passkey"] is False
+
+
+def test_acknowledge_security_reminder_persists_timestamp(client, app):
+    with app.app_context():
+        user = User(username="dave", display_name="Dave")
+        user.set_password("testpassword123")
+        db.session.add(user)
+        db.session.commit()
+
+    client.post("/api/auth/login", json={"username": "dave", "password": "testpassword123"})
+    response = client.post("/api/auth/security-reminder/ack")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["acknowledged"] is True
+
+    with app.app_context():
+        user = User.query.filter_by(username="dave").first()
+        settings = UserSettings.query.filter_by(user_id=user.id).first()
+        assert settings is not None
+        assert settings.last_security_reminder_at is not None
 
 
 def test_current_user_marks_admin_when_configured(client):

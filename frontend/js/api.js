@@ -140,6 +140,10 @@ class APIClient {
     return this.get('/api/auth/current');
   }
 
+  acknowledgeSecurityReminder() {
+    return this.post('/api/auth/security-reminder/ack');
+  }
+
   bootstrapAdmin(username, displayName, password, confirmPassword) {
     return this.post('/api/bootstrap/admin', {
       username,

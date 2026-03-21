@@ -34,6 +34,7 @@ class UserSettings(db.Model):
     quota_date = db.Column(db.String(10))
     quota_used = db.Column(db.Integer, default=0)
     quota_cap = db.Column(db.Integer, default=0)
+    last_security_reminder_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
@@ -87,6 +88,9 @@ class UserSettings(db.Model):
             "quota_date": self.quota_date,
             "quota_used": self.quota_used,
             "quota_cap": self.quota_cap,
+            "last_security_reminder_at": (
+                self.last_security_reminder_at.isoformat() if self.last_security_reminder_at else None
+            ),
             "enrich_active": self.enrich_active or False,
             "enrich_phase": self.enrich_phase,
             "enrich_cursor": self.enrich_cursor or 0,

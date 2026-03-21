@@ -870,7 +870,10 @@
     ui.eyebrow.textContent = currentChannel && currentChannel.title ? t('nowPlayingChannel', { channel: currentChannel.title }) : t('nowPlaying');
     ui.title.textContent = video.title || t('untitledVideo');
     ui.meta.textContent = formatMeta(video, channel);
-    ui.description.textContent = (video.description || '').trim();
+    const rawDescription = (video.description || '').trim();
+    ui.description.textContent = typeof window.truncateText === 'function'
+      ? window.truncateText(rawDescription, 420)
+      : rawDescription;
     ui.openYoutube.textContent = t('openOnYouTube');
     if (ui.copyUrl) {
       ui.copyUrl.textContent = t('copyVideoUrl');

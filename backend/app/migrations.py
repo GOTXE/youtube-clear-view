@@ -338,6 +338,7 @@ def ensure_enrich_settings_columns():
                 ("enrich_classified", "INTEGER DEFAULT 0"),
                 ("enrich_errors", "INTEGER DEFAULT 0"),
                 ("enrich_started_at", "DATETIME"),
+                ("last_security_reminder_at", "DATETIME"),
             ]
 
             for name, column_def in additions:

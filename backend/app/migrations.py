@@ -752,6 +752,13 @@ def ensure_video_progress_schema():
         with engine.begin() as conn:
             result = conn.execute(text("PRAGMA table_info(video_progress)")).fetchall()
             if result:
+                column_names = {row[1] for row in result}
+                if "is_continue_watching" not in column_names:
+                    conn.execute(text(
+                        "ALTER TABLE video_progress "
+                        "ADD COLUMN is_continue_watching INTEGER NOT NULL DEFAULT 1"
+                    ))
+                    logger.info("Added is_continue_watching to video_progress table")
                 return
 
             conn.execute(text(
@@ -761,6 +768,7 @@ def ensure_video_progress_schema():
                 "video_id INTEGER NOT NULL REFERENCES videos(id), "
                 "position_seconds INTEGER NOT NULL, "
                 "duration_seconds INTEGER, "
+                "is_continue_watching INTEGER NOT NULL DEFAULT 1, "
                 "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
                 "UNIQUE(user_id, video_id))"
             ))

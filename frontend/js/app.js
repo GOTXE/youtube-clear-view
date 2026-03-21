@@ -1954,8 +1954,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function reloadCarousels() {
-    clearCarousels(true);
+  async function reloadCarousels(options = {}) {
+    const preserveDOM = options.preserveDOM !== undefined ? Boolean(options.preserveDOM) : true;
+    clearCarousels(preserveDOM);
     await renderInProgressCarousel();
     await renderMainCarousel();
     await renderShortsCarousel();
@@ -1970,7 +1971,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Expose for player overlay to refresh after "Continue later" / "Mark watched"
-  window.ytcvReloadCarousels = () => reloadCarousels();
+  window.ytcvReloadCarousels = options => reloadCarousels(options);
 
   let refreshVisibleTimer = null;
   function scheduleVisibleReload() {

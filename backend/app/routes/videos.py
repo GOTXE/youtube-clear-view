@@ -25,7 +25,7 @@ def _bad_request(message):
     return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
 
 
-def _serialize_video(video, channel, watched, progress=None):
+def _serialize_video(video, channel, watched, progress=None, continue_watching=None):
     """Serialize video with channel data, watched flag, and optional progress."""
     result = {
         "video": video.to_dict(),
@@ -34,6 +34,8 @@ def _serialize_video(video, channel, watched, progress=None):
     }
     if progress is not None:
         result["progress"] = progress
+    if continue_watching is not None:
+        result["continue_watching"] = continue_watching
     return result
 
 
@@ -59,13 +61,21 @@ def _paginate_videos(query, user_id, limit, offset):
             .filter(VideoProgress.video_id.in_(video_ids))
             .all()
         )
-        progress_map = {p.video_id: p.position_seconds for p in progress_entries}
+        progress_map = {
+            p.video_id: {
+                "position": p.position_seconds,
+                "continue_watching": p.is_continue_watching,
+            }
+            for p in progress_entries
+        }
 
     payload = []
     for video in videos:
+        progress_entry = progress_map.get(video.id) or {}
         payload.append(_serialize_video(
             video, video.channel, video.id in watched_ids,
-            progress=progress_map.get(video.id),
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
         ))
 
     next_offset = offset + limit if has_more else None
@@ -96,13 +106,21 @@ def _paginate_videos_random(query, user_id, limit, offset, seed):
             .filter(VideoProgress.video_id.in_(video_ids))
             .all()
         )
-        progress_map = {p.video_id: p.position_seconds for p in progress_entries}
+        progress_map = {
+            p.video_id: {
+                "position": p.position_seconds,
+                "continue_watching": p.is_continue_watching,
+            }
+            for p in progress_entries
+        }
 
     payload = []
     for video in videos:
+        progress_entry = progress_map.get(video.id) or {}
         payload.append(_serialize_video(
             video, video.channel, video.id in watched_ids,
-            progress=progress_map.get(video.id),
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
         ))
 
     next_offset = offset + limit if has_more else None
@@ -398,6 +416,9 @@ def save_progress(video_id):
     duration = payload.get("duration_seconds")
     if duration is not None and (not isinstance(duration, (int, float)) or duration <= 0):
         duration = None
+    continue_watching = payload.get("continue_watching")
+    if continue_watching is not None and not isinstance(continue_watching, bool):
+        return _bad_request("continue_watching must be boolean when provided.")
 
     video = db.session.get(Video, video_id)
     if not video:
@@ -412,6 +433,8 @@ def save_progress(video_id):
     if progress:
         progress.position_seconds = int(position)
         progress.duration_seconds = int(duration) if duration else progress.duration_seconds
+        if continue_watching is not None:
+            progress.is_continue_watching = continue_watching
         progress.updated_at = utc_now()
     else:
         progress = VideoProgress(
@@ -419,6 +442,7 @@ def save_progress(video_id):
             video_id=video.id,
             position_seconds=int(position),
             duration_seconds=int(duration) if duration else None,
+            is_continue_watching=bool(continue_watching),
         )
         db.session.add(progress)
 
@@ -449,6 +473,7 @@ def list_in_progress():
     progress_query = (
         VideoProgress.query
         .filter_by(user_id=user.id)
+        .filter(VideoProgress.is_continue_watching.is_(True))
         .order_by(VideoProgress.updated_at.desc())
         .offset(offset)
         .limit(limit + 1)
@@ -562,18 +587,26 @@ def list_watched_videos():
         .filter(VideoProgress.video_id.in_(video_ids))
         .all()
     )
-    progress_map = {entry.video_id: entry.position_seconds for entry in progress_entries}
+    progress_map = {
+        entry.video_id: {
+            "position": entry.position_seconds,
+            "continue_watching": entry.is_continue_watching,
+        }
+        for entry in progress_entries
+    }
 
     payload = []
     for entry in entries:
         video = videos_map.get(entry.video_id)
         if not video:
             continue
+        progress_entry = progress_map.get(video.id) or {}
         payload.append(_serialize_video(
             video,
             video.channel,
             True,
-            progress=progress_map.get(video.id),
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
         ))
 
     next_offset = offset + limit if has_more else None

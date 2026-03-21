@@ -12,9 +12,21 @@ Rule:
 5. Append a short note here.
 
 Current latest:
-- `ytcv-v58`
+- `ytcv-v64`
 
 History:
+- `ytcv-v64`
+  - Reason: refresh carousels after normal overlay close when playback progress was saved.
+- `ytcv-v63`
+  - Reason: force full carousel repaint after overlay progress changes so the progress bar appears without page reload.
+- `ytcv-v62`
+  - Reason: wait for saved playback progress before refreshing video cards after closing the overlay.
+- `ytcv-v61`
+  - Reason: keep playback progress even when a video is not added to Continue watching.
+- `ytcv-v60`
+  - Reason: move video duration into the card body as the final line under the text.
+- `ytcv-v59`
+  - Reason: switch Continue watching to explicit close-time confirmation after one-third watched and add remove action in the overlay.
 - `ytcv-v58`
   - Reason: render gestor login without Google and Code actions at DOM level.
 - `ytcv-v57`
@@ -39,6 +51,10 @@ History:
   - Reason: backend refresh jobs frontend integration and gestor quota summary.
 - `ytcv-v47`
   - Reason: start with subscriptions panel collapsed and highlight toggle button.
+## Recent versions
+
+- `ytcv-v61`
+  - Reason: decouple saved playback progress from Continue watching and show progress bars on started videos.
 - `ytcv-v46`
   - Reason: keep subscriptions toggle only in the quick action row.
 - `ytcv-v45`

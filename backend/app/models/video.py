@@ -81,6 +81,7 @@ class VideoProgress(db.Model):
     video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=False, index=True)
     position_seconds = db.Column(db.Integer, nullable=False)
     duration_seconds = db.Column(db.Integer)
+    is_continue_watching = db.Column(db.Boolean, nullable=False, default=False)
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", backref="video_progress_entries")

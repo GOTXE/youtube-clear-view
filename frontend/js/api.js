@@ -346,10 +346,11 @@ class APIClient {
     return this.delete(`/api/videos/${videoId}/unwatch`);
   }
 
-  saveProgress(videoId, positionSeconds, durationSeconds) {
+  saveProgress(videoId, positionSeconds, durationSeconds, options = {}) {
     return this.put(`/api/videos/${videoId}/progress`, {
       position_seconds: positionSeconds,
-      duration_seconds: durationSeconds
+      duration_seconds: durationSeconds,
+      ...options
     });
   }
 

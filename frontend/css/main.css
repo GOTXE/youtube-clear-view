@@ -1373,6 +1373,12 @@ select {
   font-size: var(--font-caption);
 }
 
+.video-card__duration-line {
+  font-size: var(--font-body-small);
+  color: color-mix(in srgb, var(--text) 72%, black 28%);
+  line-height: 1.35;
+}
+
 .video-card__description {
   font-size: var(--font-body-small);
   color: var(--muted);

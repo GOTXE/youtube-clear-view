@@ -219,6 +219,55 @@ def test_save_progress_upsert(client, app):
         assert count == 1
 
 
+def test_save_progress_without_continue_watching_keeps_progress_out_of_carousel(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    response = client.put(
+        f"/api/videos/{video_id}/progress",
+        json={"position_seconds": 180, "duration_seconds": 600, "continue_watching": False},
+    )
+    assert response.status_code == 204
+
+    response = client.get("/api/videos/latest?limit=10&offset=0")
+    data = response.get_json()
+    vid1_entry = next(v for v in data["videos"] if v["video"]["yt_video_id"] == "vid1")
+    assert vid1_entry["progress"] == 180
+
+    response = client.get("/api/videos/in-progress?limit=10&offset=0")
+    data = response.get_json()
+    assert data["videos"] == []
+
+    with app.app_context():
+        user = User.query.filter_by(username="alice").first()
+        progress = VideoProgress.query.filter_by(user_id=user.id, video_id=video_id).first()
+        assert progress is not None
+        assert progress.is_continue_watching is False
+
+
+def test_save_progress_with_continue_watching_appears_in_carousel(client, app):
+    _seed_data(app)
+    _login(client, "alice")
+    with app.app_context():
+        video = Video.query.filter_by(yt_video_id="vid1").first()
+        video_id = video.id
+
+    response = client.put(
+        f"/api/videos/{video_id}/progress",
+        json={"position_seconds": 240, "duration_seconds": 600, "continue_watching": True},
+    )
+    assert response.status_code == 204
+
+    response = client.get("/api/videos/in-progress?limit=10&offset=0")
+    data = response.get_json()
+    assert len(data["videos"]) == 1
+    assert data["videos"][0]["video"]["yt_video_id"] == "vid1"
+    assert data["videos"][0]["progress"] == 240
+
+
 def test_clear_progress(client, app):
     _seed_data(app)
     _login(client, "alice")

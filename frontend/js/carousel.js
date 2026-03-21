@@ -298,14 +298,6 @@ class Carousel {
       thumb.appendChild(image);
     }
 
-    const durationBadgeText = this.formatDuration(video.duration);
-    if (durationBadgeText) {
-      const badge = document.createElement('span');
-      badge.className = 'video-card__duration';
-      badge.textContent = durationBadgeText;
-      thumb.appendChild(badge);
-    }
-
     // Progress bar for in-progress videos
     if (item.progress != null && video.duration > 0) {
       const ratio = Math.min(Math.max(item.progress / video.duration, 0), 1);
@@ -347,12 +339,12 @@ class Carousel {
     details.className = 'video-card__meta video-card__details';
 
     const durationText = this.formatDuration(video.duration);
-    if (durationText) {
-      details.appendChild(document.createTextNode(`Duración: ${durationText}`));
-    }
+    const durationEl = document.createElement('p');
+    durationEl.className = 'video-card__duration-line';
+    durationEl.textContent = durationText;
 
     if (watched) {
-      this.applyWatchedState(card, details, Boolean(durationText));
+      this.applyWatchedState(card, details, false);
     }
 
     if (showTitle) {
@@ -365,7 +357,12 @@ class Carousel {
     if (showDescription && truncatedDescription) {
       body.appendChild(descriptionEl);
     }
-    body.appendChild(details);
+    if (details.textContent) {
+      body.appendChild(details);
+    }
+    if (durationText) {
+      body.appendChild(durationEl);
+    }
 
     card.appendChild(thumb);
     card.appendChild(body);
@@ -381,6 +378,7 @@ class Carousel {
             watched,
             origin: card,
             progress: item.progress || null,
+            continueWatching: Boolean(item.continue_watching),
             onMarkWatched: async () => {
               await this.markWatched(video, card, details, Boolean(durationText));
             }

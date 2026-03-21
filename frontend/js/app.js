@@ -5,10 +5,23 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     let refreshing = false;
     let userAcceptedUpdate = false;
+    let updateReady = false;
     const announceUpdate = registration => {
+      updateReady = true;
       window.dispatchEvent(new CustomEvent('ytcv:update-available', {
         detail: { registration }
       }));
+    };
+    const observeInstallingWorker = (registration, installing) => {
+      if (!registration || !installing || installing.__ytcvObserved) {
+        return;
+      }
+      installing.__ytcvObserved = true;
+      installing.addEventListener('statechange', () => {
+        if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+          announceUpdate(registration);
+        }
+      });
     };
     const watchRegistration = registration => {
       if (!registration) {
@@ -17,21 +30,23 @@ if ('serviceWorker' in navigator) {
       if (registration.waiting) {
         announceUpdate(registration);
       }
+      if (registration.installing) {
+        observeInstallingWorker(registration, registration.installing);
+      }
       registration.addEventListener('updatefound', () => {
         const installing = registration.installing;
-        if (!installing) {
-          return;
-        }
-        installing.addEventListener('statechange', () => {
-          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-            announceUpdate(registration);
-          }
-        });
+        observeInstallingWorker(registration, installing);
       });
     };
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing || !userAcceptedUpdate) {
+      if (refreshing) {
+        return;
+      }
+      if (!userAcceptedUpdate) {
+        if (!updateReady) {
+          announceUpdate(null);
+        }
         return;
       }
       refreshing = true;
@@ -43,6 +58,7 @@ if ('serviceWorker' in navigator) {
       window.addEventListener('ytcv:update-apply', () => {
         userAcceptedUpdate = true;
       });
+      registration.update().catch(() => {});
       window.setInterval(() => {
         registration.update().catch(() => {});
       }, 60 * 1000);
@@ -1293,7 +1309,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function applyFilters(payload) {
+  function applyFilters(payload, options = {}) {
+    const {
+      respectMonthFilter = true
+    } = options;
+
     if (!payload || !Array.isArray(payload.videos)) {
       return payload;
     }
@@ -1323,11 +1343,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const published = item.video && item.video.published_at ? new Date(item.video.published_at) : null;
-      if (published && !Number.isNaN(published.getTime())) {
+      if (respectMonthFilter && published && !Number.isNaN(published.getTime())) {
         const days = Math.floor((Date.now() - published.getTime()) / (1000 * 60 * 60 * 24));
-      if (state.filters.month && days > 30) {
-        return false;
-      }
+        if (state.filters.month && days > 30) {
+          return false;
+        }
       }
 
       return true;
@@ -1407,7 +1427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
       const params = {
         content_type: 'video',
-        since_days: 30,
+        since_days: 7,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
       if (state.selectedChannelId !== null) {
@@ -1435,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const carousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
       const params = {
         content_type: 'short',
-        since_days: 30,
+        since_days: 7,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
       if (state.selectedChannelId !== null) {
@@ -1466,7 +1486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const carousel = new window.Carousel('older-carousel', async (offset, limit) => {
       const params = {
-        older_than_days: 30,
+        older_than_days: 7,
+        since_days: 30,
         randomize: true,
         only_unwatched: state.selectedChannelId === null && !state.selectedChannelYtId
       };
@@ -1480,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
-      return applyFilters(response.data);
+      return applyFilters(response.data, { respectMonthFilter: false });
     }, {
       hideTextForShorts: true,
       preserveContentOnInit: true

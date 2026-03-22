@@ -104,6 +104,11 @@ class APIClient {
     return this.post('/api/auth/login', body);
   }
 
+  adminLogin(username, password) {
+    const body = password ? { username, password } : { username };
+    return this.request('/api/auth/login', 'POST', body, { 'X-YTCV-Surface': 'gestor' });
+  }
+
   register(username, password) {
     return this.post('/api/auth/register', { username, password });
   }
@@ -128,6 +133,10 @@ class APIClient {
     return this.post('/api/auth/logout');
   }
 
+  adminLogout() {
+    return this.post('/api/admin/auth/logout');
+  }
+
   getAuthProvider() {
     return this.get('/api/auth/provider');
   }
@@ -142,6 +151,10 @@ class APIClient {
 
   getCurrentUser() {
     return this.get('/api/auth/current');
+  }
+
+  getAdminCurrentUser() {
+    return this.get('/api/admin/auth/current');
   }
 
   acknowledgeSecurityReminder() {
@@ -223,8 +236,16 @@ class APIClient {
     return this.post('/api/auth/passkeys/authenticate/options');
   }
 
+  getAdminPasskeyAuthenticationOptions() {
+    return this.request('/api/auth/passkeys/authenticate/options', 'POST', {}, { 'X-YTCV-Surface': 'gestor' });
+  }
+
   verifyPasskeyAuthentication(payload) {
     return this.post('/api/auth/passkeys/authenticate/verify', payload);
+  }
+
+  verifyAdminPasskeyAuthentication(payload) {
+    return this.request('/api/auth/passkeys/authenticate/verify', 'POST', payload, { 'X-YTCV-Surface': 'gestor' });
   }
 
   getMfaStatus() {
@@ -256,6 +277,19 @@ class APIClient {
     return this.post('/api/auth/mfa/verify', { code, method });
   }
 
+  verifyAdminMfaChallenge(code, method) {
+    return this.request('/api/auth/mfa/verify', 'POST', { code, method }, { 'X-YTCV-Surface': 'gestor' });
+  }
+
+  adminChangePassword(currentPassword, newPassword) {
+    return this.request(
+      '/api/auth/profile/password',
+      'POST',
+      { current_password: currentPassword, new_password: newPassword },
+      { 'X-YTCV-Surface': 'gestor' }
+    );
+  }
+
   getAdminSqliteObservability() {
     return this.get('/api/admin/observability/sqlite');
   }
@@ -285,6 +319,30 @@ class APIClient {
       schedule_hours: scheduleHours,
       timezone
     });
+  }
+
+  getAdminTimezone() {
+    return this.get('/api/admin/timezone');
+  }
+
+  updateAdminTimezone(timezone) {
+    return this.put('/api/admin/timezone', { timezone });
+  }
+
+  getAdminLogEntries(params = {}) {
+    return this.get('/api/admin/logs/entries', params);
+  }
+
+  getAdminLogStats() {
+    return this.get('/api/admin/logs/stats');
+  }
+
+  getAdminLogsMeta() {
+    return this.get('/api/admin/logs/meta');
+  }
+
+  updateAdminLogLevel(level) {
+    return this.put('/api/admin/logs/level', { level });
   }
 
   updateProfile(data) {

@@ -92,6 +92,10 @@
     return fallback;
   }
 
+  function isGestorSurface() {
+    return Boolean(document.body && document.body.classList.contains('gestor-body'));
+  }
+
   async function registerPasskey(api, label = '') {
     if (!isSupported()) {
       throw new Error('Passkeys are not supported in this browser.');
@@ -122,7 +126,9 @@
       throw new Error('Passkeys are not supported in this browser.');
     }
 
-    const optionsResponse = await api.getPasskeyAuthenticationOptions();
+    const optionsResponse = isGestorSurface() && typeof api.getAdminPasskeyAuthenticationOptions === 'function'
+      ? await api.getAdminPasskeyAuthenticationOptions()
+      : await api.getPasskeyAuthenticationOptions();
     if (!optionsResponse.ok || !optionsResponse.data || !optionsResponse.data.publicKey) {
       throw new Error(getErrorMessage(optionsResponse, 'Unable to start passkey sign-in.'));
     }
@@ -130,7 +136,11 @@
     const credential = await navigator.credentials.get({
       publicKey: normalizeRequestOptions(optionsResponse.data.publicKey)
     });
-    const verifyResponse = await api.verifyPasskeyAuthentication({
+    const verifyResponse = isGestorSurface() && typeof api.verifyAdminPasskeyAuthentication === 'function'
+      ? await api.verifyAdminPasskeyAuthentication({
+        credential: serializeAuthenticationCredential(credential)
+      })
+      : await api.verifyPasskeyAuthentication({
       credential: serializeAuthenticationCredential(credential)
     });
     if (!verifyResponse.ok) {

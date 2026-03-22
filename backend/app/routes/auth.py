@@ -10,7 +10,7 @@ from sqlalchemy import or_
 from app.extensions import db
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
-from app.middleware.auth_middleware import COOKIE_NAME, require_auth
+from app.middleware.auth_middleware import ADMIN_COOKIE_NAME, COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.middleware.rate_limiter import check_rate_limit, reset_rate_limit
 from app.models import LoginPairing, User, UserPasskey, UserSettings
@@ -96,18 +96,28 @@ def _validate_csrf() -> bool:
     return secrets.compare_digest(expected, received)
 
 
-def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
-    """Attach the session cookie with secure defaults."""
+def _set_cookie(response, cookie_name, token, path, max_age):
+    """Attach an auth cookie with secure defaults."""
     secure_cookie = current_app.config.get("COOKIE_SECURE", True)
     response.set_cookie(
-        COOKIE_NAME,
+        cookie_name,
         token,
         httponly=True,
         secure=secure_cookie,
         samesite="Lax",
         max_age=max_age,
-        path="/api",
+        path=path,
     )
+
+
+def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
+    """Attach the main user session cookie."""
+    _set_cookie(response, COOKIE_NAME, token, "/api", max_age)
+
+
+def _set_admin_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
+    """Attach the dedicated admin session cookie."""
+    _set_cookie(response, ADMIN_COOKIE_NAME, token, "/api/admin", max_age)
 
 
 def _set_state_cookie(response, state):
@@ -139,24 +149,65 @@ def _clear_state_cookie(response):
     )
 
 
-def _clear_session_cookie(response):
-    """Expire the session cookie immediately."""
+def _clear_cookie(response, cookie_name, path):
+    """Expire an auth cookie immediately."""
     secure_cookie = current_app.config.get("COOKIE_SECURE", True)
     response.set_cookie(
-        COOKIE_NAME,
+        cookie_name,
         "",
         httponly=True,
         secure=secure_cookie,
         samesite="Lax",
         max_age=0,
         expires=0,
-        path="/api",
+        path=path,
     )
+
+
+def _clear_session_cookie(response):
+    """Expire the main user session cookie immediately."""
+    _clear_cookie(response, COOKIE_NAME, "/api")
+
+
+def _clear_admin_session_cookie(response):
+    """Expire the dedicated admin session cookie immediately."""
+    _clear_cookie(response, ADMIN_COOKIE_NAME, "/api/admin")
 
 
 def _auth_mode():
     """Return the configured authentication mode."""
     return (current_app.config.get("AUTH_MODE") or "local").lower()
+
+
+def _is_admin_surface_request():
+    """Return whether the request is targeting the dedicated gestor auth flow."""
+    return (request.headers.get("X-YTCV-Surface") or "").strip().lower() == "gestor"
+
+
+def _set_scoped_session_cookie(response, token, user, max_age=COOKIE_MAX_AGE):
+    """Attach the proper auth cookie for the current request surface."""
+    if _is_admin_surface_request():
+        if not is_admin_user(user):
+            return _forbidden("Admin access required.")
+        _set_admin_session_cookie(response, token, max_age=max_age)
+        return None
+    _set_session_cookie(response, token, max_age=max_age)
+    return None
+
+
+def _clear_scoped_session_cookie(response):
+    """Clear the auth cookie for the current request surface."""
+    if _is_admin_surface_request():
+        _clear_admin_session_cookie(response)
+        return
+    _clear_session_cookie(response)
+
+
+def _get_scoped_session_token():
+    """Return the auth token for the current request surface."""
+    if _is_admin_surface_request():
+        return request.cookies.get(ADMIN_COOKIE_NAME)
+    return request.cookies.get(COOKIE_NAME)
 
 
 def _forbidden(message):
@@ -487,7 +538,7 @@ def _serialize_password_change_required(user):
 
 def _clear_existing_session_from_cookie():
     """Invalidate the currently active persisted session, if any."""
-    token = request.cookies.get(COOKIE_NAME)
+    token = _get_scoped_session_token()
     if not token:
         return
 
@@ -504,7 +555,7 @@ def _handle_password_change_required(user):
     db.session.commit()
 
     response = jsonify(_serialize_password_change_required(user))
-    _clear_session_cookie(response)
+    _clear_scoped_session_cookie(response)
     return response
 
 
@@ -590,6 +641,8 @@ def login():
     user = User.query.filter_by(username=username).first()
     if not user:
         return _unauthorized("Invalid credentials.")
+    if _is_admin_surface_request() and not is_admin_user(user):
+        return _forbidden("Admin access required.")
     if not user.is_active:
         return jsonify({"error": "Account is disabled.", "status": 403}), 403
 
@@ -614,7 +667,7 @@ def login():
         db.session.commit()
 
         response = jsonify(_serialize_mfa_required(user))
-        _clear_session_cookie(response)
+        _clear_scoped_session_cookie(response)
         return response
 
     if user.must_change_password:
@@ -628,7 +681,9 @@ def login():
         payload["needs_setup"] = True
 
     response = jsonify(payload)
-    _set_session_cookie(response, session_token)
+    denied = _set_scoped_session_cookie(response, session_token, user)
+    if denied:
+        return denied
     return response
 
 
@@ -705,6 +760,8 @@ def fallback_login():
     user = _find_user_for_identifier(identifier)
     if not user or not user.totp_enabled:
         return _unauthorized("Fallback login failed.")
+    if _is_admin_surface_request() and not is_admin_user(user):
+        return _forbidden("Admin access required.")
 
     if method == "totp":
         if not user.totp_secret or not verify_totp_code(user.totp_secret, code):
@@ -721,7 +778,9 @@ def fallback_login():
     db.session.commit()
 
     response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
-    _set_session_cookie(response, session_token)
+    denied = _set_scoped_session_cookie(response, session_token, user)
+    if denied:
+        return denied
     return response
 
 
@@ -729,7 +788,7 @@ def fallback_login():
 @handle_route_errors
 def logout():
     """Clear the session cookie and invalidate the server token."""
-    token = request.cookies.get(COOKIE_NAME)
+    token = _get_scoped_session_token()
     if token:
         user = find_user_by_session_token(token)
         if user:
@@ -738,7 +797,7 @@ def logout():
     _clear_mfa_challenge()
 
     response = jsonify({"message": "Logged out"})
-    _clear_session_cookie(response)
+    _clear_scoped_session_cookie(response)
     return response
 
 
@@ -897,7 +956,7 @@ def bootstrap_admin():
     db.session.commit()
 
     response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
-    _set_session_cookie(response, session_token)
+    _set_admin_session_cookie(response, session_token)
     return response, 201
 
 
@@ -1140,6 +1199,63 @@ def current_user():
     )
 
 
+@auth_bp.get("/api/admin/auth/current")
+@handle_route_errors
+def current_admin_user():
+    """Return the current authenticated admin for the gestor surface."""
+    token = request.cookies.get(ADMIN_COOKIE_NAME)
+    if not token:
+        pending_password_user = _get_pending_password_change_user()
+        if pending_password_user and is_admin_user(pending_password_user):
+            return jsonify(_serialize_password_change_required(pending_password_user))
+        pending_user = _get_pending_mfa_user()
+        if pending_user and is_admin_user(pending_user):
+            return jsonify(_serialize_mfa_required(pending_user))
+        return jsonify({"authenticated": False})
+
+    user = find_user_by_session_token(token)
+    if not user or not is_admin_user(user):
+        pending_password_user = _get_pending_password_change_user()
+        if pending_password_user and is_admin_user(pending_password_user):
+            response = jsonify(_serialize_password_change_required(pending_password_user))
+            _clear_admin_session_cookie(response)
+            return response
+        pending_user = _get_pending_mfa_user()
+        if pending_user and is_admin_user(pending_user):
+            response = jsonify(_serialize_mfa_required(pending_user))
+            _clear_admin_session_cookie(response)
+            return response
+        response = jsonify({"authenticated": False})
+        _clear_admin_session_cookie(response)
+        return response
+
+    if not user.is_active:
+        clear_session_token(user)
+        db.session.commit()
+        response = jsonify({"authenticated": False})
+        _clear_admin_session_cookie(response)
+        return response
+
+    return jsonify(_serialize_authenticated_user(user))
+
+
+@auth_bp.post("/api/admin/auth/logout")
+@handle_route_errors
+def logout_admin():
+    """Clear the dedicated admin session cookie and invalidate the server token."""
+    token = request.cookies.get(ADMIN_COOKIE_NAME)
+    if token:
+        user = find_user_by_session_token(token)
+        if user:
+            clear_session_token(user)
+            db.session.commit()
+    _clear_mfa_challenge()
+
+    response = jsonify({"message": "Logged out"})
+    _clear_admin_session_cookie(response)
+    return response
+
+
 @auth_bp.post("/api/auth/security-reminder/ack")
 @handle_route_errors
 @require_auth
@@ -1301,7 +1417,7 @@ def change_password():
     if not password_ok:
         return jsonify({"error": password_error, "status": 400}), 400
 
-    token = request.cookies.get(COOKIE_NAME)
+    token = _get_scoped_session_token()
     user = find_user_by_session_token(token) if token else None
     if user and not user.is_active:
         clear_session_token(user)
@@ -1323,7 +1439,9 @@ def change_password():
     db.session.commit()
 
     response = jsonify({"message": "Password updated.", "authenticated": True} | _serialize_authenticated_user(user))
-    _set_session_cookie(response, session_token)
+    denied = _set_scoped_session_cookie(response, session_token, user)
+    if denied:
+        return denied
     return response
 
 
@@ -1516,13 +1634,17 @@ def passkey_authentication_verify():
     passkey.credential_backed_up = verified.credential_backed_up
 
     user = passkey.user
+    if _is_admin_surface_request() and not is_admin_user(user):
+        return _forbidden("Admin access required.")
     session_token = _issue_session_for_user(user)
     db.session.commit()
 
     session.pop(PASSKEY_AUTHENTICATION_KEY, None)
     session.modified = True
     response = jsonify(_serialize_authenticated_user(user))
-    _set_session_cookie(response, session_token)
+    denied = _set_scoped_session_cookie(response, session_token, user)
+    if denied:
+        return denied
     return response
 
 
@@ -1533,6 +1655,8 @@ def verify_mfa_challenge():
     user = _get_pending_mfa_user()
     if not user:
         return _forbidden("No MFA challenge is pending.")
+    if _is_admin_surface_request() and not is_admin_user(user):
+        return _forbidden("Admin access required.")
 
     data = request.get_json(silent=True) or {}
     method = (data.get("method") or "").strip()
@@ -1559,7 +1683,9 @@ def verify_mfa_challenge():
     db.session.commit()
 
     response = jsonify(_serialize_authenticated_user(user))
-    _set_session_cookie(response, session_token)
+    denied = _set_scoped_session_cookie(response, session_token, user)
+    if denied:
+        return denied
     return response
 
 

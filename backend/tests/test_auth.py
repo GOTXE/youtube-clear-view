@@ -651,8 +651,8 @@ def test_google_accounts_returns_known_accounts_for_browser(client_google, app_g
     data = response.get_json()
 
     assert data["current_user_id"] == alice_id
-    assert [account["id"] for account in data["accounts"]] == [bob_id, alice_id]
-    assert data["accounts"][1]["is_current"] is True
+    assert [account["id"] for account in data["accounts"]] == [alice_id, bob_id]
+    assert data["accounts"][0]["is_current"] is True
 
 
 def test_google_switch_account_sets_new_session_cookie(client_google, app_google):
@@ -663,6 +663,7 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
             email="alice@gmail.com",
             auth_provider="google",
             google_user_id="sub-alice",
+            session_token="token-alice",
             google_auth_status="active",
         )
         user_b = User(
@@ -679,6 +680,7 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
 
     with client_google.session_transaction() as sess:
         sess["known_google_user_ids"] = [bob_id]
+    client_google.set_cookie("ytcv_session", "token-alice")
 
     response = client_google.post("/api/auth/switch", json={"user_id": bob_id})
     assert response.status_code == 200
@@ -697,6 +699,15 @@ def test_google_switch_account_sets_new_session_cookie(client_google, app_google
 
 def test_google_switch_account_with_totp_enabled_returns_mfa_challenge(client_google, app_google):
     with app_google.app_context():
+        user_a = User(
+            username="alice@gmail.com",
+            display_name="Alice",
+            email="alice@gmail.com",
+            auth_provider="google",
+            google_user_id="sub-alice",
+            session_token="token-alice",
+            google_auth_status="active",
+        )
         user_b = User(
             username="bob+mfa@gmail.com",
             display_name="Bob MFA",
@@ -707,12 +718,13 @@ def test_google_switch_account_with_totp_enabled_returns_mfa_challenge(client_go
         )
         user_b.totp_secret = "JBSWY3DPEHPK3PXP"
         user_b.totp_enabled = True
-        db.session.add(user_b)
+        db.session.add_all([user_a, user_b])
         db.session.commit()
         bob_id = user_b.id
 
     with client_google.session_transaction() as sess:
         sess["known_google_user_ids"] = [bob_id]
+    client_google.set_cookie("ytcv_session", "token-alice")
 
     response = client_google.post("/api/auth/switch", json={"user_id": bob_id})
     assert response.status_code == 200
@@ -805,6 +817,7 @@ def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google,
             email="unlink@gmail.com",
             auth_provider="google",
             google_user_id="sub-unlink",
+            session_token="token-unlink",
             google_auth_status="active",
         )
         user.google_access_token = "access-token"
@@ -816,13 +829,9 @@ def test_google_unlink_clears_tokens_and_sets_revoked(client_google, app_google,
     monkeypatch.setattr("app.routes.auth.revoke_google_tokens", lambda token: True)
 
     response = client_google.post("/api/auth/switch", json={"user_id": user_id})
-    assert response.status_code == 403
+    assert response.status_code == 401
 
-    with client_google.session_transaction() as sess:
-        sess["known_google_user_ids"] = [user_id]
-
-    response = client_google.post("/api/auth/switch", json={"user_id": user_id})
-    assert response.status_code == 200
+    client_google.set_cookie("ytcv_session", "token-unlink")
 
     response = client_google.post("/api/auth/google/unlink")
     assert response.status_code == 200
@@ -944,6 +953,55 @@ def test_login_with_password_succeeds(client):
 
     cookie = response.headers.get("Set-Cookie", "")
     assert "ytcv_session=" in cookie
+
+
+def test_gestor_login_uses_separate_admin_cookie_without_replacing_user_session(client, app):
+    with app.app_context():
+        viewer = User(username="viewer", display_name="Viewer", is_active=True)
+        viewer.set_password("viewerpass1")
+        admin = User(username="admin", display_name="Admin", is_active=True, is_admin=True)
+        admin.set_password("adminpass1")
+        db.session.add_all([viewer, admin])
+        db.session.commit()
+
+    response = client.post("/api/auth/login", json={"username": "viewer", "password": "viewerpass1"})
+    assert response.status_code == 200
+    assert "ytcv_session=" in response.headers.get("Set-Cookie", "")
+
+    admin_response = client.post(
+        "/api/auth/login",
+        json={"username": "admin", "password": "adminpass1"},
+        headers={"X-YTCV-Surface": "gestor"},
+    )
+    assert admin_response.status_code == 200
+    admin_cookie = admin_response.headers.get("Set-Cookie", "")
+    assert "ytcv_admin_session=" in admin_cookie
+    assert "Path=/api/admin" in admin_cookie
+
+    user_current = client.get("/api/auth/current")
+    assert user_current.status_code == 200
+    assert user_current.get_json()["username"] == "viewer"
+
+    admin_current = client.get("/api/admin/auth/current")
+    assert admin_current.status_code == 200
+    admin_data = admin_current.get_json()
+    assert admin_data["username"] == "admin"
+    assert admin_data["is_admin"] is True
+
+
+def test_gestor_login_rejects_non_admin_users(client, app):
+    with app.app_context():
+        viewer = User(username="viewer", display_name="Viewer", is_active=True)
+        viewer.set_password("viewerpass1")
+        db.session.add(viewer)
+        db.session.commit()
+
+    response = client.post(
+        "/api/auth/login",
+        json={"username": "viewer", "password": "viewerpass1"},
+        headers={"X-YTCV-Surface": "gestor"},
+    )
+    assert response.status_code == 403
 
 
 def test_login_with_wrong_password_returns_401(client):

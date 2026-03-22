@@ -60,6 +60,11 @@ time. There are no volume mounts for frontend files.
 | Backend `.env` only (no code changes) | `docker compose -f infra/compose/compose.v020.yaml up -d backend` (restart, no rebuild needed). |
 | Everything | `docker compose -f infra/compose/compose.v020.yaml up -d --build` |
 
+If you want the frontend "new version" banner to react to backend-only
+deploys, set a stable `YTCV_BACKEND_BUILD_ID` in the backend environment and
+change it only for real releases/deploys. Do not use a per-start timestamp,
+or multi-worker Gunicorn instances may generate false update banners.
+
 ## Service Worker cache
 
 The frontend uses a Service Worker (`frontend/sw.js`) with a **cache-first**

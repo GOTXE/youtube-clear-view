@@ -1,12 +1,11 @@
 """Application factory for YT Clear View."""
 
-from datetime import datetime, timezone
 import os
 from flask import Flask
 
 from .config import Config
 from .extensions import db, init_extensions
-from .logging.logger import configure_logging, get_logger
+from .logging.logger import configure_logging, get_logger, set_runtime_log_level
 from .middleware.error_handler import register_error_handlers
 from .migrations import (
     ensure_category_schema,
@@ -29,6 +28,7 @@ from .migrations import (
 from .routes import register_routes
 from .services.admin_bootstrap import apply_admin_recovery_if_requested
 from .services.scheduler import start_scheduler
+from .services.site_settings import get_site_log_level
 from .services.sqlite_metrics import initialize_sqlite_metrics
 
 
@@ -37,10 +37,11 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config["SECRET_KEY"] = app.config.get("SECRET_KEY") or app.config.get("FLASK_SECRET_KEY")
-    app.config["BACKEND_BUILD_ID"] = os.getenv(
-        "YTCV_BACKEND_BUILD_ID",
-        datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
-    )
+    # Only expose a backend build identifier when deployment sets one explicitly.
+    # Falling back to a startup timestamp makes multi-worker Gunicorn instances
+    # look like "new versions" to the frontend because each worker gets a
+    # different value.
+    app.config["BACKEND_BUILD_ID"] = os.getenv("YTCV_BACKEND_BUILD_ID")
 
     # Validate configuration early.
     config_class.validate()
@@ -85,6 +86,7 @@ def create_app(config_class=Config):
         ensure_channel_classification_columns()
         ensure_user_channel_rating_columns()
         apply_admin_recovery_if_requested()
+        set_runtime_log_level(get_site_log_level(app.config["LOG_LEVEL"]))
         os.makedirs(os.path.join(app.instance_path, "channel_thumbnails"), exist_ok=True)
 
     logger = get_logger(__name__)

@@ -622,7 +622,9 @@
     const api = getApi();
     if (!api) return;
 
-    const resp = await api.login(username.trim(), password);
+    const resp = isGestorSurface()
+      ? await api.adminLogin(username.trim(), password)
+      : await api.login(username.trim(), password);
 
     if (submitBtn) submitBtn.disabled = false;
     if (labelEl) labelEl.textContent = t('loginSubmit');
@@ -766,7 +768,9 @@
     const api = getApi();
     if (!api) return;
 
-    const resp = await api.changePassword(currentPassword, newPassword);
+    const resp = isGestorSurface()
+      ? await api.adminChangePassword(currentPassword, newPassword)
+      : await api.changePassword(currentPassword, newPassword);
 
     if (submitBtn) submitBtn.disabled = false;
     if (labelEl) labelEl.textContent = t('passwordChangeRequiredSubmit');

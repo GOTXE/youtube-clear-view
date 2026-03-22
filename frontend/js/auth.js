@@ -102,6 +102,10 @@
     );
   }
 
+  function isGestorSurface() {
+    return Boolean(document.body && document.body.classList.contains('gestor-body'));
+  }
+
   function isAdminUser() {
     return Boolean(currentUser && currentUser.is_admin);
   }
@@ -776,7 +780,9 @@
     updateLoginLink();
     setStatusMessage('');
     applyThemePreference(user.theme_preference);
-    loadSwitchableAccounts();
+    if (!isGestorSurface()) {
+      loadSwitchableAccounts();
+    }
     if (broadcast) {
       window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
     }
@@ -899,6 +905,14 @@
   }
 
   async function loadSwitchableAccounts() {
+    if (isGestorSurface()) {
+      cachedUsers = [];
+      if (ui.accountSwitchButton) {
+        ui.accountSwitchButton.hidden = true;
+      }
+      return [];
+    }
+
     const api = getApiClient();
     if (!api) {
       setStatusMessage(t('apiClientNotReady'), 'error');
@@ -3143,7 +3157,9 @@
     }
 
     setStatusMessage(method === 'recovery_code' ? t('verifyingRecoveryCode') : t('verifyingTotpCode'));
-    const response = await api.verifyMfaChallenge(code, method);
+    const response = isGestorSurface()
+      ? await api.verifyAdminMfaChallenge(code, method)
+      : await api.verifyMfaChallenge(code, method);
     if (!response.ok || !response.data) {
       setStatusMessage(t('unableVerifyMfaChallenge'), 'error');
       return false;
@@ -3178,9 +3194,13 @@
       return null;
     }
 
-    const response = await api.getCurrentUser();
+    const response = isGestorSurface()
+      ? await api.getAdminCurrentUser()
+      : await api.getCurrentUser();
     if (response.ok && response.data && response.data.authenticated) {
-      await loadSwitchableAccounts();
+      if (!isGestorSurface()) {
+        await loadSwitchableAccounts();
+      }
       setAuthenticated(response.data);
       return response.data;
     }
@@ -3217,7 +3237,11 @@
   async function performLogout(reloadPage) {
     const api = getApiClient();
     if (api) {
-      await api.logout();
+      if (isGestorSurface()) {
+        await api.adminLogout();
+      } else {
+        await api.logout();
+      }
     }
 
     pendingMfaChallenge = null;

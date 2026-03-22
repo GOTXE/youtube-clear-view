@@ -83,6 +83,7 @@ For plain LAN browsing without Google OAuth:
 When `AUTH_MODE=google`, the app can switch between Google users already authenticated in the same browser.
 
 - The backend keeps the active API session in the `ytcv_session` httpOnly cookie.
+- The dedicated gestor surface keeps its own admin-only API session in `ytcv_admin_session`, scoped to `/api/admin`, so opening `/gestor` in another tab does not replace the normal user session on `/`.
 - The browser also keeps a signed list of known Google accounts via the Flask session cookie.
 - The hamburger menu opens a switch-account modal that lists those known accounts.
 - Selecting an existing account switches the backend session and reloads channels, videos, watched state, and settings for that user.

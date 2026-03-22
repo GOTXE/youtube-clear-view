@@ -12,16 +12,34 @@
         <div>
           <p class="eyebrow">Log Viewer</p>
           <h1 class="heading-1">YT Clear View - System Logs</h1>
-          <p class="body">Monitor backend events, errors, and tracking IDs.</p>
+          <p class="body">Monitor backend events, administrator-safe diagnostics, and quota state.</p>
         </div>
         <div class="page__header-actions">
           <div class="stats" id="stats"></div>
+          <form method="post" action="/logs/logout">
+            <button class="button button--ghost" type="submit">Logout</button>
+          </form>
           <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Switch to dark mode">
             <span class="icon-moon" aria-hidden="true">🌙</span>
             <span class="icon-sun" aria-hidden="true">☀️</span>
           </button>
         </div>
       </header>
+
+      <section class="meta-grid">
+        <article class="card meta-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Runtime</h2>
+          </div>
+          <dl class="meta-list" id="runtime-meta"></dl>
+        </article>
+        <article class="card meta-card">
+          <div class="log-card__header">
+            <h2 class="heading-2">Quota</h2>
+          </div>
+          <dl class="meta-list" id="quota-meta"></dl>
+        </article>
+      </section>
 
       <section class="toolbar">
         <div class="field">
@@ -91,6 +109,8 @@
       const entriesContainer = document.getElementById('log-entries');
       const recentErrors = document.getElementById('recent-errors');
       const statsContainer = document.getElementById('stats');
+      const runtimeMeta = document.getElementById('runtime-meta');
+      const quotaMeta = document.getElementById('quota-meta');
       const logCount = document.getElementById('log-count');
       const loadMoreButton = document.getElementById('load-more');
       const refreshButton = document.getElementById('refresh');
@@ -323,6 +343,53 @@
         });
       }
 
+      function renderMetaList(container, rows) {
+        container.innerHTML = '';
+        rows.forEach(([label, value]) => {
+          const dt = document.createElement('dt');
+          dt.textContent = label;
+          const dd = document.createElement('dd');
+          dd.textContent = value;
+          container.appendChild(dt);
+          container.appendChild(dd);
+        });
+      }
+
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) return '—';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
+      function renderMeta(data) {
+        const runtime = data.log_runtime || {};
+        const quota = data.quota || {};
+        renderMetaList(runtimeMeta, [
+          ['Level', runtime.level || 'INFO'],
+          ['Rotate', runtime.rotate_enabled ? 'Enabled' : 'Disabled'],
+          ['Max file size', formatBytes(runtime.max_size_bytes || 0)],
+          ['Backups kept', String(runtime.backup_count ?? 0)],
+          ['Log timestamps', runtime.timestamps_timezone || 'Local server time']
+        ]);
+        renderMetaList(quotaMeta, [
+          ['Used today', String(quota.used ?? 0)],
+          ['Remaining today', String(quota.remaining_daily ?? 0)],
+          ['App cap remaining', String(quota.remaining_app_cap ?? 0)],
+          ['Reserved for scheduled', String(quota.reserved_for_scheduled ?? 0)],
+          ['Resets at', quota.reset_at_utc ? `${quota.reset_at_utc} UTC` : '—']
+        ]);
+      }
+
+      async function fetchMeta() {
+        const response = await fetch('/logs/api/meta');
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        renderMeta(data);
+      }
+
       async function fetchEntries(reset = false) {
         if (reset) {
           offset = 0;
@@ -352,7 +419,7 @@
       async function refreshAll(reset = false) {
         refreshButton.classList.add('button--loading');
         refreshButton.disabled = true;
-        await Promise.all([fetchEntries(reset), fetchStats()]);
+        await Promise.all([fetchEntries(reset), fetchStats(), fetchMeta()]);
         refreshButton.disabled = false;
         refreshButton.classList.remove('button--loading');
       }

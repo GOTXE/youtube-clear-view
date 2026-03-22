@@ -63,6 +63,17 @@ def configure_logging(level, log_file, max_bytes, backup_count):
     _configured = True
 
 
+def set_runtime_log_level(level):
+    """Update root logger and attached handlers for the current process."""
+    level_name = str(level or "").upper()
+    level_value = getattr(logging, level_name, logging.INFO)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level_value)
+    for handler in root_logger.handlers:
+        handler.setLevel(level_value)
+    return level_name
+
+
 def get_logger(name):
     """Return a logger for the given module name."""
     return logging.getLogger(name)

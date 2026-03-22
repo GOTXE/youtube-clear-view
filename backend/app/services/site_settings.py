@@ -16,8 +16,10 @@ PASSWORD_POLICY_SETTING_KEY = "password_policy"
 REFRESH_SCHEDULE_HOURS_KEY = "refresh_schedule_hours"
 REFRESH_SCHEDULE_TIMEZONE_KEY = "refresh_schedule_timezone"
 REFRESH_SCHEDULE_LAST_RUN_AT_KEY = "refresh_schedule_last_run_at"
+LOG_LEVEL_SETTING_KEY = "log_level"
 DEFAULT_REFRESH_SCHEDULE_HOURS = [7, 12, 17, 21]
 DEFAULT_REFRESH_SCHEDULE_TIMEZONE = "Europe/Madrid"
+DEFAULT_LOG_LEVEL = "INFO"
 
 
 def _get_setting_record(setting_key: str) -> SiteSetting | None:
@@ -108,6 +110,22 @@ def serialize_refresh_schedule() -> dict[str, object]:
             else None
         ),
     }
+
+
+def get_site_log_level(default: str | None = None) -> str:
+    record = _get_setting_record(LOG_LEVEL_SETTING_KEY)
+    value = record.setting_value.strip().upper() if record and record.setting_value else ""
+    if value in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+      return value
+    fallback = (default or current_app.config.get("LOG_LEVEL") or DEFAULT_LOG_LEVEL).strip().upper()
+    return fallback if fallback in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"} else DEFAULT_LOG_LEVEL
+
+
+def set_site_log_level(level_name: str) -> str:
+    normalized = (level_name or "").strip().upper()
+    if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ValueError("Invalid log level.")
+    return _set_setting_value(LOG_LEVEL_SETTING_KEY, normalized)
 
 
 def get_password_policy() -> str:

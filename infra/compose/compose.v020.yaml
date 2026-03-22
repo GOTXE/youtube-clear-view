@@ -54,8 +54,10 @@ services:
     env_file:
       - ../../backend/.env
     environment:
+      DATABASE_URI: sqlite:////data/youtube_clear_view.db
       LOG_FILE: /logs/app.log
     volumes:
+      - ytcv_data:/data
       - ytcv_logs:/logs
     expose:
       - "5551"

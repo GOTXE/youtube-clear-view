@@ -1,55 +1,212 @@
-"""Log viewer microservice with basic auth."""
+"""Log viewer microservice with admin database authentication."""
 
-import base64
+from datetime import UTC, datetime, timedelta
 import os
+import sqlite3
+import time
 from functools import wraps
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
+from werkzeug.security import check_password_hash
 
 app = Flask(__name__, static_url_path="/logs/static")
+app.config["SESSION_COOKIE_NAME"] = "ytcv_log_viewer"
+app.config["SESSION_COOKIE_PATH"] = "/logs"
 
 # Load environment variables for local usage.
 load_dotenv()
 
 LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
-LOG_VIEWER_USER = os.getenv("LOG_VIEWER_USER")
-LOG_VIEWER_PASSWORD = os.getenv("LOG_VIEWER_PASSWORD")
+DATABASE_URI = os.getenv("DATABASE_URI", "sqlite:///yt_clear_view.db")
+YT_DAILY_QUOTA = int(os.getenv("YT_DAILY_QUOTA", "10000"))
+YT_QUOTA_CAP_RATIO = float(os.getenv("YT_QUOTA_CAP_RATIO", "0.8"))
+MANUAL_REFRESH_RESERVED_QUOTA_RATIO = float(os.getenv("MANUAL_REFRESH_RESERVED_QUOTA_RATIO", "0.1"))
+YT_REFRESH_COST = int(os.getenv("YT_REFRESH_COST", "2"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", str(10 * 1024 * 1024)))
+LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "ytcv-log-viewer")
+app.config["DATABASE_URI"] = DATABASE_URI
+app.config["LOG_FILE"] = LOG_FILE
+app.config["LOG_LEVEL"] = LOG_LEVEL
+app.config["LOG_MAX_SIZE"] = LOG_MAX_SIZE
+app.config["LOG_BACKUP_COUNT"] = LOG_BACKUP_COUNT
 
 
-def _unauthorized():
-    """Return a 401 response for unauthorized access."""
-    return (
-        "Unauthorized",
-        401,
-        {"WWW-Authenticate": 'Basic realm="Log Viewer"'},
-    )
+def _preferred_language():
+    """Return the preferred UI language for the current request."""
+    header = (request.headers.get("Accept-Language") or "").lower()
+    return "es" if header.startswith("es") or ",es" in header else "en"
 
 
-def _check_auth():
-    """Validate HTTP Basic Authentication credentials."""
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Basic "):
-        return False
+def _login_strings():
+    """Return localized strings for the log viewer login."""
+    if _preferred_language() == "es":
+        return {
+            "title": "YT Clear View - Logs",
+            "brand": "Logs YT Clear View",
+            "app_name": "YT CLEAR VIEW",
+            "subtitle": "Accede con una cuenta administradora para usar el visor de logs.",
+            "username": "Usuario",
+            "password": "Contrasena",
+            "submit": "Abrir logs",
+            "invalid_credentials": "Credenciales de administrador no validas.",
+            "report_issue": "Reportar problema",
+        }
+    return {
+        "title": "YT Clear View - Logs",
+        "brand": "YT Clear View Logs",
+        "app_name": "YT CLEAR VIEW",
+        "subtitle": "Sign in with an administrator account to view system logs.",
+        "username": "Username",
+        "password": "Password",
+        "submit": "Open logs",
+        "invalid_credentials": "Invalid administrator credentials.",
+        "report_issue": "Report issue",
+    }
 
-    try:
-        decoded = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8")
-    except (ValueError, UnicodeDecodeError):
-        return False
 
-    username, _, password = decoded.partition(":")
-    expected_user = app.config.get("LOG_VIEWER_USER") or LOG_VIEWER_USER or ""
-    expected_password = app.config.get("LOG_VIEWER_PASSWORD") or LOG_VIEWER_PASSWORD or ""
-    return username == expected_user and password == expected_password
+def _database_path():
+    """Return the SQLite file path from DATABASE_URI."""
+    database_uri = app.config.get("DATABASE_URI") or DATABASE_URI
+    if database_uri.startswith("sqlite:///"):
+        path = database_uri.removeprefix("sqlite:///")
+        if path.startswith("/"):
+            return path
+        return os.path.join(app.root_path, "..", path)
+    raise ValueError("Only sqlite DATABASE_URI is supported by log viewer.")
 
 
-def require_basic_auth(func):
-    """Decorator for Basic Auth protected routes."""
+def _db_connect():
+    """Open a read-only SQLite connection."""
+    connection = sqlite3.connect(_database_path())
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _utc_now():
+    """Return a naive UTC datetime."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _next_quota_reset_utc():
+    """Return the next daily quota reset time in UTC."""
+    now = _utc_now()
+    tomorrow = (now + timedelta(days=1)).date()
+    return datetime.combine(tomorrow, datetime.min.time())
+
+
+def _server_timezone_label():
+    """Return a human-readable local timezone label for log timestamps."""
+    local_now = datetime.now().astimezone()
+    offset = local_now.utcoffset() or timedelta(0)
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = "+" if total_minutes >= 0 else "-"
+    hours, minutes = divmod(abs(total_minutes), 60)
+    tz_name = local_now.tzname() or "Local"
+    return f"{tz_name} (UTC{sign}{hours:02d}:{minutes:02d})"
+
+
+def _get_reserved_quota_units():
+    """Return quota units reserved for scheduled updates."""
+    reserved = int(YT_DAILY_QUOTA * MANUAL_REFRESH_RESERVED_QUOTA_RATIO)
+    return max(reserved, YT_REFRESH_COST)
+
+
+def _get_quota_snapshot():
+    """Return aggregated quota information from user_settings."""
+    today = _utc_now().date().isoformat()
+    used = 0
+    with _db_connect() as connection:
+        rows = connection.execute(
+            "SELECT quota_date, quota_used FROM user_settings"
+        ).fetchall()
+
+    for row in rows:
+        if row["quota_date"] == today:
+            used += int(row["quota_used"] or 0)
+
+    app_cap = int(YT_DAILY_QUOTA * YT_QUOTA_CAP_RATIO)
+    remaining_daily = max(YT_DAILY_QUOTA - used, 0)
+    remaining_app_cap = max(app_cap - used, 0)
+    return {
+        "date": today,
+        "used": used,
+        "daily_limit": YT_DAILY_QUOTA,
+        "app_cap": app_cap,
+        "remaining_daily": remaining_daily,
+        "remaining_app_cap": remaining_app_cap,
+        "reserved_for_scheduled": _get_reserved_quota_units(),
+        "reset_at_utc": _next_quota_reset_utc().isoformat(),
+    }
+
+
+def _get_log_runtime_meta():
+    """Return current logging runtime metadata."""
+    return {
+        "level": app.config.get("LOG_LEVEL", LOG_LEVEL),
+        "rotate_enabled": int(app.config.get("LOG_BACKUP_COUNT", LOG_BACKUP_COUNT)) > 0,
+        "max_size_bytes": int(app.config.get("LOG_MAX_SIZE", LOG_MAX_SIZE)),
+        "backup_count": int(app.config.get("LOG_BACKUP_COUNT", LOG_BACKUP_COUNT)),
+        "timestamps_timezone": _server_timezone_label(),
+        "timestamps_are_utc": time.tzname[0] == "UTC" and time.localtime().tm_isdst == 0,
+    }
+
+
+def _find_admin_user(username):
+    """Return the active admin user row for the provided username."""
+    with _db_connect() as connection:
+        return connection.execute(
+            """
+            SELECT id, username, display_name, password_hash, is_admin, is_active
+            FROM users
+            WHERE lower(username) = lower(?)
+            LIMIT 1
+            """,
+            (username,),
+        ).fetchone()
+
+
+def _authenticate_admin(username, password):
+    """Validate admin credentials against the main database."""
+    if not username or not password:
+        return None
+    row = _find_admin_user(username.strip())
+    if row is None or not row["is_admin"] or not row["is_active"] or not row["password_hash"]:
+        return None
+    if not check_password_hash(row["password_hash"], password):
+        return None
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "display_name": row["display_name"] or row["username"],
+    }
+
+
+def _current_admin():
+    """Return the authenticated log viewer admin session."""
+    admin_id = session.get("log_viewer_admin_id")
+    username = session.get("log_viewer_admin_username")
+    if not admin_id or not username:
+        return None
+    return {
+        "id": admin_id,
+        "username": username,
+        "display_name": session.get("log_viewer_admin_display_name") or username,
+    }
+
+
+def require_admin_session(func):
+    """Decorator for log viewer routes protected by admin session."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not _check_auth():
-            return _unauthorized()
+        if not _current_admin():
+            if request.path.startswith("/logs/api/"):
+                return jsonify({"error": "Unauthorized"}), 401
+            return redirect(url_for("login_page", next=request.full_path or request.path))
         return func(*args, **kwargs)
 
     return wrapper
@@ -108,21 +265,56 @@ def _filter_entries(entries, levels=None, search=None, tracking_id=None):
 
 
 @app.get("/")
-@require_basic_auth
 def root():
     """Redirect root to the log viewer page."""
     return redirect("/logs")
 
 
+@app.get("/logs/login")
+def login_page():
+    """Render the log viewer login page."""
+    if _current_admin():
+        return redirect("/logs")
+    return render_template("login.html", error=request.args.get("error"), ui=_login_strings())
+
+
+@app.post("/logs/login")
+def login_submit():
+    """Authenticate an admin against the main database."""
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+    user = _authenticate_admin(username, password)
+    if user is None:
+        return render_template(
+            "login.html",
+            error=_login_strings()["invalid_credentials"],
+            ui=_login_strings(),
+        ), 401
+
+    session.clear()
+    session["log_viewer_admin_id"] = user["id"]
+    session["log_viewer_admin_username"] = user["username"]
+    session["log_viewer_admin_display_name"] = user["display_name"]
+    return redirect("/logs")
+
+
+@app.post("/logs/logout")
+@require_admin_session
+def logout_submit():
+    """Clear the current log viewer session."""
+    session.clear()
+    return redirect("/logs/login")
+
+
 @app.get("/logs")
-@require_basic_auth
+@require_admin_session
 def logs_page():
     """Render the log viewer page."""
-    return render_template("logs.html")
+    return render_template("logs.html", current_admin=_current_admin())
 
 
 @app.get("/logs/api/entries")
-@require_basic_auth
+@require_admin_session
 def log_entries():
     """Return log entries with optional filtering and pagination."""
     levels_param = request.args.get("level", "")
@@ -154,7 +346,7 @@ def log_entries():
 
 
 @app.get("/logs/api/stats")
-@require_basic_auth
+@require_admin_session
 def log_stats():
     """Return basic log statistics for dashboards."""
     entries, _ = _read_log_entries()
@@ -170,6 +362,19 @@ def log_stats():
                 break
 
     return jsonify({"levels": levels, "recent_errors": list(reversed(recent_errors[-20:]))})
+
+
+@app.get("/logs/api/meta")
+@require_admin_session
+def log_meta():
+    """Return log viewer operational metadata."""
+    return jsonify(
+        {
+            "log_runtime": _get_log_runtime_meta(),
+            "quota": _get_quota_snapshot(),
+            "current_admin": _current_admin(),
+        }
+    )
 
 
 def create_app():

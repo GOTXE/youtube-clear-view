@@ -47,9 +47,11 @@
 
             <nav class="admin-page__nav">
               <a class="admin-page__nav-link" href="#summary" data-admin-anchor="summary" data-i18n="adminPageNavSummary">Summary</a>
+              <a class="admin-page__nav-link" href="#timezone" data-admin-anchor="timezone" data-i18n="adminPageNavTimezone">Timezone</a>
               <a class="admin-page__nav-link" href="#users" data-admin-anchor="users" data-i18n="adminPageNavUsers">Users</a>
               <a class="admin-page__nav-link" href="#security" data-admin-anchor="security" data-i18n="adminPageNavSecurity">Security</a>
               <a class="admin-page__nav-link" href="#runtime" data-admin-anchor="runtime" data-i18n="adminPageNavRuntime">Runtime</a>
+              <a class="admin-page__nav-link" href="#logs" data-admin-anchor="logs" data-i18n="adminPageNavLogs">Estado tecnico</a>
             </nav>
 
           </aside>
@@ -62,20 +64,26 @@
               <div class="admin-page__hero-actions">
                 <button id="gestor-header-logout" class="admin-page__toolbar-btn admin-page__toolbar-btn--danger" type="button" data-i18n="signOut">Sign out</button>
                 <button id="gestor-refresh" class="admin-page__toolbar-btn admin-page__toolbar-btn--primary" type="button" data-i18n="adminPageRefresh">Refresh</button>
-                <a id="gestor-open-logs" class="admin-page__toolbar-btn admin-page__toolbar-btn--primary" href="/logs" target="_blank" rel="noreferrer" data-i18n="adminPageOpenLogs">Open logs</a>
               </div>
             </header>
 
             <p id="gestor-status" class="caption admin-page__status" aria-live="polite"></p>
 
-            <section id="summary" class="admin-page__block admin-page__block--summary" aria-labelledby="gestor-summary-title">
+            <section id="summary" class="admin-page__block admin-page__block--summary admin-page__section" data-admin-section="summary" aria-labelledby="gestor-summary-title">
               <div class="admin-page__block-header">
                 <h3 id="gestor-summary-title" class="heading-3" data-i18n="adminPageSummaryTitle">System summary</h3>
               </div>
               <div id="gestor-summary-grid" class="admin-page__metrics"></div>
             </section>
 
-            <section id="users" class="admin-page__block" aria-labelledby="gestor-users-title">
+            <section id="timezone" class="admin-page__block admin-page__section" data-admin-section="timezone" aria-labelledby="gestor-timezone-title" hidden>
+              <div class="admin-page__block-header">
+                <h3 id="gestor-timezone-title" class="heading-3" data-i18n="adminTimezoneTitle">Zona horaria</h3>
+              </div>
+              <div id="gestor-timezone-content" class="admin-page__stack"></div>
+            </section>
+
+            <section id="users" class="admin-page__block admin-page__section" data-admin-section="users" aria-labelledby="gestor-users-title">
               <div class="admin-page__block-header">
                 <h3 id="gestor-users-title" class="heading-3" data-i18n="adminUserManagement">User management</h3>
               </div>
@@ -109,18 +117,76 @@
               </div>
             </section>
 
-            <section id="security" class="admin-page__block" aria-labelledby="gestor-security-title">
+            <section id="security" class="admin-page__block admin-page__section" data-admin-section="security" aria-labelledby="gestor-security-title">
               <div class="admin-page__block-header">
                 <h3 id="gestor-security-title" class="heading-3" data-i18n="adminPasswordPolicyTitle">Password policy</h3>
               </div>
               <div id="gestor-security-content" class="admin-page__stack"></div>
             </section>
 
-            <section id="runtime" class="admin-page__block" aria-labelledby="gestor-runtime-title">
+            <section id="runtime" class="admin-page__block admin-page__section" data-admin-section="runtime" aria-labelledby="gestor-runtime-title">
               <div class="admin-page__block-header">
                 <h3 id="gestor-runtime-title" class="heading-3" data-i18n="adminRuntimeState">Sessions and devices</h3>
               </div>
               <div id="gestor-runtime-content" class="admin-page__stack admin-page__runtime-grid"></div>
+            </section>
+
+            <section id="logs" class="admin-page__block admin-page__section" data-admin-section="logs" aria-labelledby="gestor-logs-title" hidden>
+              <div class="admin-page__block-header">
+                <h3 id="gestor-logs-title" class="heading-3" data-i18n="adminPageLogsTitle">Estado tecnico</h3>
+              </div>
+              <div id="gestor-logs-stats" class="admin-page__logs-stats"></div>
+              <div class="admin-page__logs-toolbar">
+                <div class="field">
+                  <span class="field__label" data-i18n="adminLogsLevelsLabel">Niveles</span>
+                  <div id="gestor-logs-levels" class="admin-page__level-filters" role="group" aria-label="Levels">
+                    <button type="button" class="admin-page__level-chip is-active" data-level="ALL" aria-pressed="true" data-i18n="adminLogsLevelAll">Todos</button>
+                    <button type="button" class="admin-page__level-chip" data-level="CRITICAL" aria-pressed="false" data-i18n="adminLogsLevelCritical">Critico</button>
+                    <button type="button" class="admin-page__level-chip" data-level="ERROR" aria-pressed="false" data-i18n="adminLogsLevelError">Error</button>
+                    <button type="button" class="admin-page__level-chip" data-level="WARNING" aria-pressed="false" data-i18n="adminLogsLevelWarning">Aviso</button>
+                    <button type="button" class="admin-page__level-chip" data-level="INFO" aria-pressed="false" data-i18n="adminLogsLevelInfo">Info</button>
+                    <button type="button" class="admin-page__level-chip" data-level="DEBUG" aria-pressed="false" data-i18n="adminLogsLevelDebug">Debug</button>
+                  </div>
+                </div>
+                <label class="field">
+                  <span class="field__label" data-i18n="adminLogsSearchLabel">Buscar</span>
+                  <input id="gestor-logs-search" class="field__input" type="search" placeholder="Buscar en logs" data-i18n-placeholder="adminLogsSearchPlaceholder">
+                </label>
+                <label class="field">
+                  <span class="field__label" data-i18n="adminLogsTrackingLabel">Tracking ID</span>
+                  <input id="gestor-logs-tracking" class="field__input" type="search" placeholder="ERR-YYYYMMDD-XXXXXX">
+                </label>
+                <button id="gestor-logs-search-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--ghost" type="button" data-i18n="adminLogsApply">Aplicar</button>
+                <button id="gestor-logs-live-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--live admin-page__toolbar-btn--live-on" type="button" data-i18n="adminLogsLive">Live</button>
+              </div>
+
+              <div class="admin-page__logs-meta">
+                <article class="admin-page__panel-card">
+                  <div class="admin-page__block-header">
+                    <h4 class="heading-3" data-i18n="adminLogsRuntimeTitle">Runtime</h4>
+                  </div>
+                  <dl id="gestor-logs-runtime" class="admin-page__meta-list"></dl>
+                </article>
+              </div>
+
+              <div class="admin-page__logs-grid">
+                <article class="admin-page__panel-card">
+                  <div class="admin-page__block-header">
+                    <h4 class="heading-3" data-i18n="adminLogsEntriesTitle">Entradas</h4>
+                    <span id="gestor-logs-count" class="caption">0</span>
+                  </div>
+                  <div id="gestor-logs-entries" class="admin-page__log-entries"></div>
+                  <div class="admin-page__table-actions">
+                    <button id="gestor-logs-more" class="admin-page__mini-btn admin-page__mini-btn--ghost" type="button" data-i18n="adminLogsLoadMore">Cargar mas</button>
+                  </div>
+                </article>
+                <article class="admin-page__panel-card">
+                  <div class="admin-page__block-header">
+                    <h4 class="heading-3" data-i18n="adminLogsRecentErrorsTitle">Errores recientes</h4>
+                  </div>
+                  <div id="gestor-logs-errors" class="admin-page__log-entries"></div>
+                </article>
+              </div>
             </section>
           </div>
         </section>

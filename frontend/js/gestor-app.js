@@ -35,11 +35,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     user: null,
     loading: false,
     query: '',
+    view: 'summary',
     summary: null,
     users: [],
     runtime: [],
+    timezone: null,
     passwordPolicy: null,
-    refreshSchedule: null
+    refreshSchedule: null,
+    logs: {
+      entries: [],
+      hasMore: false,
+      nextOffset: 0,
+      stats: null,
+      meta: null,
+      live: true,
+      liveTimer: null,
+      filters: {
+        level: '',
+        search: '',
+        tracking_id: ''
+      }
+    }
   };
 
   const ui = {
@@ -49,10 +65,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchInput: document.getElementById('gestor-user-search'),
     searchButton: document.getElementById('gestor-user-search-button'),
     summaryGrid: document.getElementById('gestor-summary-grid'),
+    timezoneContent: document.getElementById('gestor-timezone-content'),
     usersBody: document.getElementById('gestor-users-body'),
     security: document.getElementById('gestor-security-content'),
     runtime: document.getElementById('gestor-runtime-content'),
-    navLinks: Array.from(document.querySelectorAll('.admin-page__nav-link'))
+    navLinks: Array.from(document.querySelectorAll('.admin-page__nav-link')),
+    sections: Array.from(document.querySelectorAll('.admin-page__section')),
+    logsStats: document.getElementById('gestor-logs-stats'),
+    logsLevelButtons: Array.from(document.querySelectorAll('#gestor-logs-levels .admin-page__level-chip')),
+    logsSearch: document.getElementById('gestor-logs-search'),
+    logsTracking: document.getElementById('gestor-logs-tracking'),
+    logsLiveButton: document.getElementById('gestor-logs-live-button'),
+    logsSearchButton: document.getElementById('gestor-logs-search-button'),
+    logsRuntime: document.getElementById('gestor-logs-runtime'),
+    logsEntries: document.getElementById('gestor-logs-entries'),
+    logsErrors: document.getElementById('gestor-logs-errors'),
+    logsCount: document.getElementById('gestor-logs-count'),
+    logsMore: document.getElementById('gestor-logs-more')
   };
 
   function setStatus(message, type = 'info') {
@@ -103,6 +132,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function getSupportedTimezones() {
+    if (typeof Intl.supportedValuesOf === 'function') {
+      try {
+        return Intl.supportedValuesOf('timeZone');
+      } catch (error) {
+        return ['UTC', 'Europe/Madrid', 'Europe/London', 'America/New_York', 'America/Los_Angeles'];
+      }
+    }
+    return ['UTC', 'Europe/Madrid', 'Europe/London', 'America/New_York', 'America/Los_Angeles'];
+  }
+
   function makeBadge(label, tone = 'neutral') {
     const badge = document.createElement('span');
     badge.className = `admin-page__badge admin-page__badge--${tone}`;
@@ -133,11 +173,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     return clean;
   }
 
+  function updateVisibleSection() {
+    state.view = getCurrentAnchor();
+    ui.sections.forEach(section => {
+      section.hidden = section.dataset.adminSection !== state.view;
+    });
+    if (!state.logs.filters.level && !state.logs.filters.search && !state.logs.filters.tracking_id) {
+      state.logs.live = true;
+    }
+    syncLogsLivePolling();
+  }
+
   function updateNavActiveState() {
     const active = getCurrentAnchor();
     ui.navLinks.forEach(link => {
       link.classList.toggle('is-active', link.dataset.adminAnchor === active);
     });
+    updateVisibleSection();
   }
 
   function getDeviceIcon(type) {
@@ -154,11 +206,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function splitLogContextBlocks(entry) {
+    return String(entry || '')
+      .split(/\n{2,}/)
+      .map(block => block.trim())
+      .filter(Boolean);
+  }
+
   function renderSummary() {
     ui.summaryGrid.innerHTML = '';
     if (!state.summary) {
       return;
     }
+
+    const quotaRows = [
+      [t('adminQuotaUsedToday'), String(state.summary.quota_used || 0)],
+      [t('adminQuotaRemainingToday'), String(state.summary.quota_remaining || 0)],
+      [t('adminQuotaReservedScheduled'), String(state.summary.quota_reserved_for_scheduled || 0)]
+    ];
 
     const cards = [
       { label: t('adminSummaryUsersTotal'), value: state.summary.users_total || 0, tone: 'neutral' },
@@ -166,7 +231,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       { label: t('adminSummaryChannels'), value: state.summary.channels_total || 0, tone: 'neutral' },
       { label: t('adminSummaryDevices'), value: state.summary.devices_total || 0, tone: 'neutral' },
       { label: t('adminSummaryUnclassified'), value: state.summary.channels_unclassified || 0, tone: (state.summary.channels_unclassified || 0) > 0 ? 'amber' : 'green' },
-      { label: t('adminSummaryQuotaUsed'), value: `${state.summary.quota_used || 0} / ${state.summary.quota_daily_limit || 0}`, tone: 'blue' }
+      {
+        label: t('adminSummaryQuotaUsed'),
+        value: `${state.summary.quota_used || 0} / ${state.summary.quota_daily_limit || 0}`,
+        tone: 'blue',
+        rows: quotaRows
+      }
     ];
 
     cards.forEach(card => {
@@ -184,8 +254,79 @@ document.addEventListener('DOMContentLoaded', async () => {
       article.appendChild(label);
       article.appendChild(value);
 
+      if (Array.isArray(card.rows) && card.rows.length) {
+        const rows = document.createElement('dl');
+        rows.className = 'admin-page__metric-meta';
+        card.rows.forEach(([rowLabel, rowValue]) => {
+          const dt = document.createElement('dt');
+          dt.textContent = rowLabel;
+          const dd = document.createElement('dd');
+          dd.textContent = rowValue;
+          rows.appendChild(dt);
+          rows.appendChild(dd);
+        });
+        article.appendChild(rows);
+      }
+
       ui.summaryGrid.appendChild(article);
     });
+  }
+
+  function renderTimezone() {
+    if (!ui.timezoneContent) {
+      return;
+    }
+    ui.timezoneContent.innerHTML = '';
+
+    const card = document.createElement('article');
+    card.className = 'admin-page__panel-card';
+
+    const title = document.createElement('h4');
+    title.className = 'heading-3';
+    title.textContent = t('adminTimezoneTitle');
+
+    const hint = document.createElement('p');
+    hint.className = 'caption';
+    hint.textContent = t('adminTimezoneDescription');
+
+    const controls = document.createElement('div');
+    controls.className = 'admin-page__inline-controls';
+
+    const select = document.createElement('select');
+    select.className = 'field__input field__input--compact';
+    getSupportedTimezones().forEach(zone => {
+      const option = document.createElement('option');
+      option.value = zone;
+      option.textContent = zone;
+      select.appendChild(option);
+    });
+    select.value = state.timezone?.timezone || state.refreshSchedule?.timezone || getBrowserTimezone();
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'admin-page__mini-btn admin-page__mini-btn--primary';
+    saveButton.textContent = t('adminTimezoneApply');
+    saveButton.addEventListener('click', async () => {
+      saveButton.disabled = true;
+      const response = await api.updateAdminTimezone(select.value);
+      saveButton.disabled = false;
+      if (!response.ok || !response.data) {
+        setStatus(response.error || t('adminTimezoneUpdateError'), 'error');
+        return;
+      }
+      state.timezone = response.data;
+      state.refreshSchedule = { ...(state.refreshSchedule || {}), timezone: response.data.timezone };
+      renderTimezone();
+      renderSecurity();
+      setStatus(t('adminTimezoneUpdated'), 'success');
+    });
+
+    controls.appendChild(select);
+    controls.appendChild(saveButton);
+    card.appendChild(title);
+    card.appendChild(hint);
+    card.appendChild(controls);
+    ui.timezoneContent.appendChild(card);
   }
 
   function getPasswordPolicyHint(option) {
@@ -430,22 +571,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return select;
     });
 
-    const timezoneField = document.createElement('label');
-    timezoneField.className = 'schedule-field';
-
-    const timezoneLabel = document.createElement('span');
-    timezoneLabel.className = 'caption';
-    timezoneLabel.textContent = t('timezone');
-
-    const timezoneInput = document.createElement('input');
-    timezoneInput.className = 'field__input field__input--compact';
-    timezoneInput.type = 'text';
-    timezoneInput.value = state.refreshSchedule?.timezone || getBrowserTimezone();
-    timezoneInput.placeholder = 'Europe/Madrid';
-
-    timezoneField.appendChild(timezoneLabel);
-    timezoneField.appendChild(timezoneInput);
-
     const scheduleMeta = document.createElement('div');
     scheduleMeta.className = 'admin-page__policy-guidance';
 
@@ -478,7 +603,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         .map(select => Number(select.value))
         .filter(hour => Number.isInteger(hour))
         .slice(0, 4);
-      const timezone = timezoneInput.value.trim() || getBrowserTimezone();
+      const timezone = state.timezone?.timezone || state.refreshSchedule?.timezone || getBrowserTimezone();
       scheduleSaveButton.disabled = true;
       const response = await api.updateAdminRefreshSchedule(nextHours, timezone);
       scheduleSaveButton.disabled = false;
@@ -491,7 +616,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       setStatus(t('adminRefreshScheduleUpdated'), 'success');
     });
 
-    scheduleGrid.appendChild(timezoneField);
     scheduleActions.appendChild(scheduleSaveButton);
     scheduleControls.appendChild(scheduleGrid);
     scheduleControls.appendChild(scheduleMeta);
@@ -566,12 +690,282 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function renderMetaList(container, rows) {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = '';
+    rows.forEach(([label, value]) => {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      container.appendChild(dt);
+      container.appendChild(dd);
+    });
+  }
+
+  function setLevelButtonState(button, active) {
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+
+  function syncLogLevelButtons() {
+    const allButton = ui.logsLevelButtons.find(button => button.dataset.level === 'ALL');
+    const valueButtons = ui.logsLevelButtons.filter(button => button.dataset.level !== 'ALL');
+    const activeValues = valueButtons.filter(button => button.classList.contains('is-active'));
+
+    if (activeValues.length === 0) {
+      if (allButton) {
+        setLevelButtonState(allButton, true);
+      }
+      return;
+    }
+
+    if (activeValues.length === valueButtons.length) {
+      if (allButton) {
+        setLevelButtonState(allButton, true);
+      }
+      activeValues.forEach(button => setLevelButtonState(button, false));
+      return;
+    }
+
+    if (allButton) {
+      setLevelButtonState(allButton, false);
+    }
+  }
+
+  function getSelectedLogLevels() {
+    const allButton = ui.logsLevelButtons.find(button => button.dataset.level === 'ALL');
+    if (allButton && allButton.classList.contains('is-active')) {
+      return '';
+    }
+    return ui.logsLevelButtons
+      .filter(button => button.dataset.level !== 'ALL' && button.classList.contains('is-active'))
+      .map(button => button.dataset.level)
+      .join(',');
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) {
+      return '—';
+    }
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function getLogEntryLevel(entry) {
+    return ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].find(level => entry.includes(`[${level}]`)) || '';
+  }
+
+  function stopLogsLivePolling() {
+    if (state.logs.liveTimer) {
+      window.clearInterval(state.logs.liveTimer);
+      state.logs.liveTimer = null;
+    }
+  }
+
+  function syncLogsLivePolling() {
+    stopLogsLivePolling();
+    if (!state.logs.live) {
+      return;
+    }
+    state.logs.liveTimer = window.setInterval(async () => {
+      if (!state.logs.live) {
+        stopLogsLivePolling();
+        return;
+      }
+      await fetchLogs();
+    }, 5000);
+  }
+
+  function setLogsLiveState(enabled) {
+    state.logs.live = Boolean(enabled);
+    if (ui.logsLiveButton) {
+      ui.logsLiveButton.classList.toggle('admin-page__toolbar-btn--live-on', state.logs.live);
+      ui.logsLiveButton.classList.toggle('admin-page__toolbar-btn--live-off', !state.logs.live);
+      ui.logsLiveButton.setAttribute('aria-pressed', state.logs.live ? 'true' : 'false');
+      ui.logsLiveButton.textContent = t('adminLogsLive');
+    }
+    syncLogsLivePolling();
+  }
+
+  function resetLogsFiltersToLiveDefaults() {
+    state.logs.filters.level = '';
+    state.logs.filters.search = '';
+    state.logs.filters.tracking_id = '';
+    state.logs.entries = [];
+    state.logs.hasMore = false;
+    state.logs.nextOffset = 0;
+    if (ui.logsSearch) {
+      ui.logsSearch.value = '';
+    }
+    if (ui.logsTracking) {
+      ui.logsTracking.value = '';
+    }
+    const allButton = ui.logsLevelButtons.find(button => button.dataset.level === 'ALL');
+    if (allButton) {
+      setLevelButtonState(allButton, true);
+    }
+    ui.logsLevelButtons
+      .filter(button => button.dataset.level !== 'ALL')
+      .forEach(button => setLevelButtonState(button, false));
+  }
+
+  function renderLogs() {
+    if (ui.logsStats) {
+      ui.logsStats.innerHTML = '';
+      const levels = state.logs.stats && state.logs.stats.levels ? state.logs.stats.levels : {};
+      ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'].forEach(level => {
+        const card = document.createElement('article');
+        card.className = `admin-page__logs-stat-card admin-page__logs-stat-card--${level.toLowerCase()}`;
+        const label = document.createElement('p');
+        label.className = 'caption';
+        label.textContent = level;
+        const value = document.createElement('p');
+        value.className = 'admin-page__logs-stat-value';
+        value.textContent = String(levels[level] ?? 0);
+        card.appendChild(label);
+        card.appendChild(value);
+        ui.logsStats.appendChild(card);
+      });
+    }
+
+    if (ui.logsRuntime) {
+      const runtime = state.logs.meta && state.logs.meta.log_runtime ? state.logs.meta.log_runtime : {};
+      renderMetaList(ui.logsRuntime, [
+        [t('adminLogsRuntimeLevel'), runtime.level || 'INFO'],
+        [t('adminLogsRuntimeConfiguredLevel'), runtime.configured_level || runtime.level || 'INFO'],
+        [t('adminLogsRuntimeRotate'), runtime.rotate_enabled ? t('adminLogsEnabled') : t('adminLogsDisabled')],
+        [t('adminLogsRuntimeMaxFileSize'), formatBytes(runtime.max_size_bytes || 0)],
+        [t('adminLogsRuntimeBackupsKept'), String(runtime.backup_count ?? 0)],
+        [t('adminLogsRuntimeTimestamps'), runtime.timestamps_timezone || t('adminLogsLocalServerTime')]
+      ]);
+
+      const controls = document.createElement('div');
+      controls.className = 'admin-page__inline-controls';
+
+      const select = document.createElement('select');
+      select.className = 'field__input field__input--compact';
+      ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].forEach(level => {
+        const option = document.createElement('option');
+        option.value = level;
+        option.textContent = level;
+        select.appendChild(option);
+      });
+      select.value = runtime.configured_level || runtime.level || 'INFO';
+
+      const applyButton = document.createElement('button');
+      applyButton.type = 'button';
+      applyButton.className = 'admin-page__mini-btn admin-page__mini-btn--primary';
+      applyButton.textContent = t('adminLogsApplyLevel');
+      applyButton.addEventListener('click', async () => {
+        applyButton.disabled = true;
+        const response = await api.updateAdminLogLevel(select.value);
+        applyButton.disabled = false;
+        if (!response.ok || !response.data) {
+          setStatus(response.error || t('adminLogsLevelUpdateError'), 'error');
+          return;
+        }
+        if (state.logs.meta && state.logs.meta.log_runtime) {
+          state.logs.meta.log_runtime.level = response.data.level;
+          state.logs.meta.log_runtime.configured_level = response.data.configured_level || response.data.level;
+        }
+        renderLogs();
+        setStatus(
+          response.data.restart_required ? t('adminLogsLevelUpdatedRestart') : t('adminLogsLevelUpdated'),
+          response.data.restart_required ? 'warning' : 'success'
+        );
+      });
+
+      controls.appendChild(select);
+      controls.appendChild(applyButton);
+      ui.logsRuntime.appendChild(controls);
+    }
+
+    if (ui.logsEntries) {
+      ui.logsEntries.innerHTML = '';
+      state.logs.entries.forEach(entry => {
+        const blocks = state.logs.filters.tracking_id ? splitLogContextBlocks(entry) : [entry];
+        const wrapper = document.createElement('article');
+        wrapper.className = 'admin-page__log-entry-group';
+
+        blocks.forEach(block => {
+          const line = document.createElement('div');
+          const level = getLogEntryLevel(block).toLowerCase();
+          line.className = `admin-page__log-entry${level ? ` admin-page__log-entry--${level}` : ''}`;
+          line.textContent = block;
+          wrapper.appendChild(line);
+        });
+
+        ui.logsEntries.appendChild(wrapper);
+      });
+    }
+
+    if (ui.logsErrors) {
+      ui.logsErrors.innerHTML = '';
+      const recentErrors = state.logs.stats && Array.isArray(state.logs.stats.recent_errors)
+        ? state.logs.stats.recent_errors
+        : [];
+      recentErrors.forEach(entry => {
+        const line = document.createElement('div');
+        line.className = 'admin-page__log-entry admin-page__log-entry--error';
+        line.textContent = entry;
+        ui.logsErrors.appendChild(line);
+      });
+    }
+
+    if (ui.logsCount) {
+      ui.logsCount.textContent = state.logs.live
+        ? `${state.logs.entries.length} ${t('adminLogsEntriesCount')} · ${t('adminLogsLive')}`
+        : `${state.logs.entries.length} ${t('adminLogsEntriesCount')} · ${t('adminLogsReview')}`;
+    }
+    if (ui.logsMore) {
+      ui.logsMore.disabled = !state.logs.hasMore;
+    }
+  }
+
+  async function fetchLogs({ append = false } = {}) {
+    const params = {
+      limit: 200,
+      offset: append ? state.logs.nextOffset || 0 : 0,
+      level: state.logs.filters.level || undefined,
+      search: state.logs.filters.search || undefined,
+      tracking_id: state.logs.filters.tracking_id || undefined
+    };
+    const [entriesResponse, statsResponse, metaResponse] = await Promise.all([
+      api.getAdminLogEntries(params),
+      api.getAdminLogStats(),
+      api.getAdminLogsMeta()
+    ]);
+
+    if (!entriesResponse.ok || !statsResponse.ok || !metaResponse.ok) {
+      setStatus(t('adminLogsLoadError'), 'error');
+      return;
+    }
+
+    const nextEntries = Array.isArray(entriesResponse.data?.entries) ? entriesResponse.data.entries : [];
+    state.logs.entries = append ? state.logs.entries.concat(nextEntries) : nextEntries;
+    state.logs.hasMore = Boolean(entriesResponse.data?.has_more);
+    state.logs.nextOffset = Number(entriesResponse.data?.next_offset || 0);
+    state.logs.stats = statsResponse.data || null;
+    state.logs.meta = metaResponse.data || null;
+    renderLogs();
+  }
+
   function renderAll() {
     updateNavActiveState();
     renderSummary();
+    renderTimezone();
     renderUsers();
     renderSecurity();
     renderRuntime();
+    renderLogs();
   }
 
   async function refresh(query = state.query) {
@@ -583,8 +977,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.query = query;
     setStatus(t('adminPageLoading'));
 
-    const [summaryResponse, usersResponse, runtimeResponse, passwordPolicyResponse, refreshScheduleResponse] = await Promise.all([
+    const [summaryResponse, timezoneResponse, usersResponse, runtimeResponse, passwordPolicyResponse, refreshScheduleResponse] = await Promise.all([
       api.getAdminSummary(),
+      api.getAdminTimezone(),
       api.getAdminUsers(query),
       api.getAdminRuntimeState(),
       api.getAdminPasswordPolicy(),
@@ -595,6 +990,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (
       !summaryResponse.ok
+      || !timezoneResponse.ok
       || !usersResponse.ok
       || !runtimeResponse.ok
       || !passwordPolicyResponse.ok
@@ -605,12 +1001,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     state.summary = summaryResponse.data;
+    state.timezone = timezoneResponse.data || null;
     state.users = Array.isArray(usersResponse.data && usersResponse.data.users) ? usersResponse.data.users : [];
     state.runtime = Array.isArray(runtimeResponse.data && runtimeResponse.data.users) ? runtimeResponse.data.users : [];
     state.passwordPolicy = passwordPolicyResponse.data || {};
     state.refreshSchedule = refreshScheduleResponse.data || {};
     renderAll();
     setStatus('');
+    if (state.logs.live) {
+      await fetchLogs();
+    }
   }
 
   function showLogin(options = {}) {
@@ -690,9 +1090,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       window.history.replaceState({}, document.title, `${window.location.pathname}${targetId}`);
-      window.setTimeout(updateNavActiveState, 0);
+      window.setTimeout(async () => {
+        updateNavActiveState();
+        if (targetId === '#logs') {
+          await fetchLogs();
+        }
+      }, 0);
     });
   });
+
+  if (ui.logsSearchButton) {
+    ui.logsSearchButton.addEventListener('click', async () => {
+      setLogsLiveState(false);
+      state.logs.filters.level = getSelectedLogLevels();
+      state.logs.filters.search = ui.logsSearch ? ui.logsSearch.value.trim() : '';
+      state.logs.filters.tracking_id = ui.logsTracking ? ui.logsTracking.value.trim() : '';
+      await fetchLogs();
+    });
+  }
+
+  ui.logsLevelButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      if (button.dataset.level === 'ALL') {
+        ui.logsLevelButtons
+          .filter(other => other.dataset.level !== 'ALL')
+          .forEach(other => setLevelButtonState(other, false));
+        setLevelButtonState(button, true);
+      } else {
+        setLevelButtonState(button, !button.classList.contains('is-active'));
+        syncLogLevelButtons();
+      }
+      setLogsLiveState(false);
+      state.logs.filters.level = getSelectedLogLevels();
+      await fetchLogs();
+    });
+  });
+
+  if (ui.logsLiveButton) {
+    ui.logsLiveButton.addEventListener('click', async () => {
+      resetLogsFiltersToLiveDefaults();
+      setLogsLiveState(true);
+      await fetchLogs();
+    });
+  }
+
+  if (ui.logsMore) {
+    ui.logsMore.addEventListener('click', async () => {
+      if (!state.logs.hasMore) {
+        return;
+      }
+      setLogsLiveState(false);
+      await fetchLogs({ append: true });
+    });
+  }
 
   window.addEventListener('auth:changed', async event => {
     const user = event.detail ? event.detail.user : null;
@@ -714,8 +1164,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLogin();
   });
 
-  window.addEventListener('hashchange', updateNavActiveState);
+  window.addEventListener('hashchange', async () => {
+    updateNavActiveState();
+    if (getCurrentAnchor() === 'logs') {
+      await fetchLogs();
+    }
+  });
 
   enforceLightTheme();
+  setLogsLiveState(true);
   await bootstrapPage();
 });

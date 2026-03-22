@@ -1393,17 +1393,25 @@ select {
   flex-direction: column;
   gap: var(--space-2);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .video-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 0 16px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
-.video-card:focus {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
+.video-card:focus,
+.video-card:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--primary) 28%, transparent),
+    0 0 18px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .video-card__thumb {

@@ -514,8 +514,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const activeTheme = document.documentElement.getAttribute('data-theme') === 'light'
         ? 'light'
         : 'dark';
-      const icon = activeTheme === 'dark' ? '🌙' : '☀️';
-      const modeKey = activeTheme === 'dark' ? 'themeDark' : 'themeLight';
+      const nextTheme = activeTheme === 'dark' ? 'light' : 'dark';
+      const icon = nextTheme === 'dark' ? '🌙' : '☀️';
+      const modeKey = nextTheme === 'dark' ? 'themeDark' : 'themeLight';
       const label = t('themeLabel', { mode: t(modeKey), icon });
       const labelSpan = ui.themeToggle.querySelector('.button__label');
       if (labelSpan) {

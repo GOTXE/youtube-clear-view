@@ -59,8 +59,9 @@
     }
 
     if (ui.toggleButton) {
-      const icon = safeTheme === 'dark' ? '🌙' : '☀️';
-      const modeKey = safeTheme === 'dark' ? 'themeDark' : 'themeLight';
+      const nextTheme = safeTheme === 'dark' ? 'light' : 'dark';
+      const icon = nextTheme === 'dark' ? '🌙' : '☀️';
+      const modeKey = nextTheme === 'dark' ? 'themeDark' : 'themeLight';
       const label = t(modeKey);
       ui.toggleButton.setAttribute('aria-pressed', safeTheme === 'dark');
       const labelSpan = ui.toggleButton.querySelector('.button__label');

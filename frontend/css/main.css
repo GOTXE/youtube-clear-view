@@ -391,6 +391,11 @@ select {
 
 .header-context__metric {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
 }
 
 .header-context__metric--updating dd {
@@ -398,21 +403,25 @@ select {
 }
 
 .header-context__metric dt {
-  margin: 0 0 2px;
+  display: block;
+  width: 100%;
+  margin: 0;
   font-size: 0.92rem;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
+  text-align: center;
 }
 
 .header-context__metric dd {
+  display: block;
+  width: 100%;
   margin: 0;
   font-size: 1.3rem;
   font-weight: 600;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .header-status {

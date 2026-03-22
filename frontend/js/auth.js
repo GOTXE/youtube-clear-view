@@ -110,6 +110,10 @@
     return Array.isArray(cachedUsers) ? cachedUsers : [];
   }
 
+  function shouldShowAccountSwitcher() {
+    return Boolean(currentUser) && getKnownGoogleAccounts().length > 1;
+  }
+
   function resolveLoginUrl(path) {
     if (!path) {
       return null;
@@ -415,7 +419,7 @@
     }
 
     if (ui.accountSwitchButton) {
-      ui.accountSwitchButton.hidden = !googleMode;
+      ui.accountSwitchButton.hidden = !shouldShowAccountSwitcher();
     }
 
     if (ui.pairingLoginButton) {
@@ -545,7 +549,7 @@
       button.type = 'button';
       button.id = 'switch-google-account-button';
       button.className = 'menu-item';
-      button.hidden = !isGoogleMode();
+      button.hidden = !shouldShowAccountSwitcher();
       button.addEventListener('click', async () => {
         await openAccountSwitcherModal();
       });
@@ -772,9 +776,7 @@
     updateLoginLink();
     setStatusMessage('');
     applyThemePreference(user.theme_preference);
-    if (isGoogleMode()) {
-      loadSwitchableAccounts();
-    }
+    loadSwitchableAccounts();
     if (broadcast) {
       window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user } }));
     }
@@ -819,7 +821,7 @@
     }
 
     if (ui.accountSwitchButton) {
-      ui.accountSwitchButton.hidden = !googleMode || getKnownGoogleAccounts().length === 0;
+      ui.accountSwitchButton.hidden = !shouldShowAccountSwitcher();
     }
 
     if (ui.pairingLoginButton) {
@@ -897,10 +899,6 @@
   }
 
   async function loadSwitchableAccounts() {
-    if (!isGoogleMode()) {
-      return [];
-    }
-
     const api = getApiClient();
     if (!api) {
       setStatusMessage(t('apiClientNotReady'), 'error');
@@ -918,7 +916,7 @@
       : [];
 
     if (ui.accountSwitchButton) {
-      ui.accountSwitchButton.hidden = cachedUsers.length === 0 && !currentUser;
+      ui.accountSwitchButton.hidden = !shouldShowAccountSwitcher();
     }
 
     return cachedUsers;
@@ -974,12 +972,12 @@
     const footer = document.createElement('footer');
     footer.className = 'confirm-modal__footer account-switcher-modal__footer';
 
-    const newLoginButton = document.createElement('button');
-    newLoginButton.type = 'button';
-    newLoginButton.className = 'button account-switcher-modal__primary-action';
-    newLoginButton.textContent = t('addGoogleAccount');
+    const otherAccountButton = document.createElement('button');
+    otherAccountButton.type = 'button';
+    otherAccountButton.className = 'button button--ghost account-switcher-modal__secondary-action';
+    otherAccountButton.textContent = t('otherAccount');
 
-    footer.appendChild(newLoginButton);
+    footer.appendChild(otherAccountButton);
 
     modal.appendChild(header);
     modal.appendChild(body);
@@ -992,9 +990,11 @@
         closeAccountSwitcherModal();
       }
     });
-    newLoginButton.addEventListener('click', () => {
+    otherAccountButton.addEventListener('click', () => {
       closeAccountSwitcherModal();
-      startGoogleLogin();
+      if (window.ytcvLoginPage && typeof window.ytcvLoginPage.show === 'function') {
+        window.ytcvLoginPage.show();
+      }
     });
 
     ui.accountModal = overlay;
@@ -2844,14 +2844,64 @@
     accounts.forEach(account => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'menu-item';
+      button.className = 'menu-item account-switcher-modal__item';
       button.dataset.userId = String(account.id);
       button.disabled = Boolean(account.is_current);
+
       const label = account.display_name || account.username || account.email || `#${account.id}`;
-      const detail = account.email && account.email !== label ? ` (${account.email})` : '';
-      button.textContent = account.is_current
-        ? `${label}${detail} · ${t('currentAccountLabel')}`
-        : `${label}${detail}`;
+      const detail = account.email && account.email !== label ? account.email : '';
+
+      const avatarShell = document.createElement('span');
+      avatarShell.className = 'session-info__avatar-shell account-switcher-modal__avatar-shell';
+
+      const avatar = document.createElement('img');
+      avatar.className = 'session-info__avatar';
+      avatar.alt = '';
+
+      const fallback = document.createElement('span');
+      fallback.className = 'session-info__avatar-fallback';
+      fallback.setAttribute('aria-hidden', 'true');
+      fallback.textContent = (label || '?').trim().charAt(0) || '?';
+
+      avatarShell.appendChild(avatar);
+      avatarShell.appendChild(fallback);
+
+      if (account.google_avatar_url) {
+        avatar.referrerPolicy = 'no-referrer';
+        avatar.decoding = 'async';
+        avatar.onload = () => {
+          avatarShell.classList.add('is-loaded');
+        };
+        avatar.onerror = () => {
+          avatar.removeAttribute('src');
+          avatarShell.classList.remove('is-loaded');
+        };
+        avatar.src = account.google_avatar_url;
+      }
+
+      const content = document.createElement('span');
+      content.className = 'account-switcher-modal__item-content';
+
+      const title = document.createElement('span');
+      title.className = 'account-switcher-modal__item-title';
+      title.textContent = label;
+      content.appendChild(title);
+
+      const metaText = account.is_current
+        ? detail
+          ? `${detail} · ${t('currentAccountLabel')}`
+          : t('currentAccountLabel')
+        : detail || (account.username && account.username !== label ? account.username : '');
+
+      if (metaText) {
+        const meta = document.createElement('span');
+        meta.className = 'account-switcher-modal__item-meta';
+        meta.textContent = metaText;
+        content.appendChild(meta);
+      }
+
+      button.appendChild(avatarShell);
+      button.appendChild(content);
 
       button.addEventListener('click', async () => {
         await switchGoogleAccount(account.id, button);
@@ -2862,10 +2912,6 @@
   }
 
   async function openAccountSwitcherModal() {
-    if (!isGoogleMode()) {
-      return;
-    }
-
     const modal = buildAccountSwitcherModal();
     if (!modal.parentNode) {
       document.body.appendChild(modal);
@@ -3134,9 +3180,7 @@
 
     const response = await api.getCurrentUser();
     if (response.ok && response.data && response.data.authenticated) {
-      if (isGoogleMode()) {
-        await loadSwitchableAccounts();
-      }
+      await loadSwitchableAccounts();
       setAuthenticated(response.data);
       return response.data;
     }
@@ -3156,9 +3200,7 @@
     }
 
     setUnauthenticated();
-    if (isGoogleMode()) {
-      await loadSwitchableAccounts();
-    } else {
+    if (!isGoogleMode()) {
       await loadUsers();
     }
     return null;
@@ -3181,9 +3223,7 @@
     pendingMfaChallenge = null;
     closeMfaChallengeModal();
     setUnauthenticated();
-    if (isGoogleMode()) {
-      await loadSwitchableAccounts();
-    } else {
+    if (!isGoogleMode()) {
       await loadUsers();
     }
 
@@ -3208,9 +3248,7 @@
     setUnauthenticated();
     if (!isGoogleMode()) {
       loadUsers();
-      return;
     }
-    loadSwitchableAccounts();
   }
 
   function setAuthStatus(message, type = 'info') {

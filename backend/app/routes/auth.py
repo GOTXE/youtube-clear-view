@@ -744,44 +744,31 @@ def logout():
 
 @auth_bp.get("/api/auth/accounts")
 @handle_route_errors
+@require_auth
 def list_switchable_accounts():
-    """Return Google accounts already known in this browser session."""
-    if _auth_mode() != "google":
-        return _forbidden("Google account switching not enabled.")
-
-    known_ids = _get_known_google_user_ids()
-    if not known_ids:
-        return jsonify({"accounts": [], "current_user_id": None})
-
-    token = request.cookies.get(COOKIE_NAME)
-    current_user = find_user_by_session_token(token) if token else None
+    """Return active users available for account switching on this device."""
+    current_user = g.current_user
     users = (
-        User.query.filter(User.id.in_(known_ids), User.auth_provider == "google")
+        User.query.filter_by(is_active=True, is_admin=False)
         .order_by(User.display_name.asc(), User.username.asc())
         .all()
     )
 
-    order = {user_id: index for index, user_id in enumerate(known_ids)}
-    users.sort(key=lambda user: order.get(user.id, len(order)))
-    current_user_id = current_user.id if current_user else None
-
     return jsonify(
         {
             "accounts": [
-                _serialize_switchable_user(user, current_user_id=current_user_id) for user in users
+                _serialize_switchable_user(user, current_user_id=current_user.id) for user in users
             ],
-            "current_user_id": current_user_id,
+            "current_user_id": current_user.id,
         }
     )
 
 
 @auth_bp.post("/api/auth/switch")
 @handle_route_errors
+@require_auth
 def switch_account():
-    """Switch the active session to another known Google account."""
-    if _auth_mode() != "google":
-        return _forbidden("Google account switching not enabled.")
-
+    """Switch the active session to another active user."""
     data = request.get_json(silent=True) or {}
     target_user_id = data.get("user_id")
     try:
@@ -793,11 +780,7 @@ def switch_account():
             400,
         )
 
-    known_ids = _get_known_google_user_ids()
-    if target_user_id not in known_ids:
-        return _forbidden("Account not available for switching in this browser.")
-
-    user = User.query.filter_by(id=target_user_id, auth_provider="google").first()
+    user = User.query.filter_by(id=target_user_id, is_active=True, is_admin=False).first()
     if not user:
         tracking_id = generate_tracking_id()
         return (
@@ -808,15 +791,16 @@ def switch_account():
     if _user_requires_mfa(user):
         _clear_existing_session_from_cookie()
         _store_mfa_challenge(user)
-        _remember_google_user(user.id)
         db.session.commit()
 
         response = jsonify(_serialize_mfa_required(user))
         _clear_session_cookie(response)
         return response
 
+    if user.must_change_password:
+        return _handle_password_change_required(user)
+
     session_token = _issue_session_for_user(user)
-    _remember_google_user(user.id)
     db.session.commit()
 
     response = jsonify(

@@ -2390,8 +2390,42 @@ body.player-overlay-open {
   justify-content: center;
 }
 
-.account-switcher-modal__primary-action {
+.account-switcher-modal__secondary-action {
   min-width: 220px;
+}
+
+.account-switcher-modal__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+}
+
+.account-switcher-modal__avatar-shell {
+  width: 34px;
+  height: 34px;
+}
+
+.account-switcher-modal__item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-switcher-modal__item-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.account-switcher-modal__item-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-observability-modal {

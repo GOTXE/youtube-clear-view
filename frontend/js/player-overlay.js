@@ -423,6 +423,11 @@
     if (ui.markWatched) {
       ui.markWatched.disabled = currentWatched || confirmBusy;
     }
+    if (ui.saveForLater) {
+      ui.saveForLater.hidden = currentInContinueWatching || currentWatched || confirmVisible;
+      ui.saveForLater.disabled = confirmBusy;
+      ui.saveForLater.textContent = t('saveForLater');
+    }
     if (ui.removeProgress) {
       ui.removeProgress.hidden = !currentInContinueWatching || currentWatched || confirmVisible;
       ui.removeProgress.disabled = confirmBusy;
@@ -625,7 +630,7 @@
     }
   }
 
-  async function closeVideoOverlay({ restore = true } = {}) {
+  async function closeVideoOverlay({ restore = true, immediate = false } = {}) {
     if (!ui || !ui.root || ui.root.hidden) {
       return;
     }
@@ -642,19 +647,44 @@
     }
 
     let progressUpdated = false;
+    let persistedVideoId = null;
+    let persistedPosition = 0;
+    let persistedDuration = 0;
+    let persistedContinueWatching = false;
 
     if (!currentWatched) {
       const { position, duration } = estimateProgressState();
       if (position > 0 && position > resumeSeconds) {
+        persistedVideoId = currentVideo && currentVideo.id;
+        persistedPosition = position;
+        persistedDuration = duration;
+        persistedContinueWatching = currentInContinueWatching;
         lastKnownPosition = position;
         lastKnownDuration = duration;
-        await saveProgressPosition(position, duration, {
-          continue_watching: currentInContinueWatching
-        });
         progressUpdated = true;
       }
     }
 
+    if (immediate) {
+      doClose({ restore });
+      if (progressUpdated && persistedVideoId) {
+        (async () => {
+          await saveProgressForVideo(persistedVideoId, persistedPosition, persistedDuration, {
+            continue_watching: persistedContinueWatching
+          });
+          if (typeof window.ytcvReloadCarousels === 'function') {
+            await window.ytcvReloadCarousels({ preserveDOM: false });
+          }
+        })();
+      }
+      return;
+    }
+
+    if (progressUpdated && persistedVideoId) {
+      await saveProgressForVideo(persistedVideoId, persistedPosition, persistedDuration, {
+        continue_watching: persistedContinueWatching
+      });
+    }
     if (progressUpdated && typeof window.ytcvReloadCarousels === 'function') {
       await window.ytcvReloadCarousels({ preserveDOM: false });
     }
@@ -686,6 +716,29 @@
     (async () => {
       if (shouldSave) {
         await saveProgressForVideo(videoId, position, saveDuration, { continue_watching: true });
+      }
+      if (typeof window.ytcvReloadCarousels === 'function') {
+        await window.ytcvReloadCarousels({ preserveDOM: false });
+      }
+    })();
+  }
+
+  async function saveForLater() {
+    const { position, duration } = estimateProgressState();
+    const videoId = currentVideo && currentVideo.id;
+    const saveDuration = duration || (currentVideo && currentVideo.duration) || lastKnownDuration || 0;
+    const savePosition = Math.max(position, resumeSeconds);
+
+    if (savePosition > 0 && currentVideo && !currentWatched) {
+      lastKnownPosition = savePosition;
+      lastKnownDuration = saveDuration;
+    }
+    currentHasSavedProgress = true;
+    currentInContinueWatching = true;
+    doClose();
+    (async () => {
+      if (videoId) {
+        await saveProgressForVideo(videoId, savePosition, saveDuration, { continue_watching: true });
       }
       if (typeof window.ytcvReloadCarousels === 'function') {
         await window.ytcvReloadCarousels({ preserveDOM: false });
@@ -785,6 +838,7 @@
       frame: document.getElementById('player-overlay-frame'),
       close: document.getElementById('player-overlay-close'),
       markWatched: document.getElementById('player-overlay-mark-watched'),
+      saveForLater: document.getElementById('player-overlay-save-for-later'),
       removeProgress: document.getElementById('player-overlay-remove-progress'),
       openYoutube: document.getElementById('player-overlay-open-youtube'),
       confirmMessage: document.getElementById('player-overlay-confirm-message'),
@@ -801,11 +855,11 @@
     }
 
     if (ui.close) {
-      ui.close.addEventListener('click', () => closeVideoOverlay());
+      ui.close.addEventListener('click', () => closeVideoOverlay({ immediate: true }));
     }
 
     if (ui.backdrop) {
-      ui.backdrop.addEventListener('click', () => closeVideoOverlay());
+      ui.backdrop.addEventListener('click', () => closeVideoOverlay({ immediate: true }));
     }
 
     if (ui.markWatched) {
@@ -825,6 +879,12 @@
     if (ui.removeProgress) {
       ui.removeProgress.addEventListener('click', () => {
         removeFromContinueWatching();
+      });
+    }
+
+    if (ui.saveForLater) {
+      ui.saveForLater.addEventListener('click', () => {
+        saveForLater();
       });
     }
 
@@ -934,6 +994,9 @@
     }
     if (ui.confirmLater) {
       ui.confirmLater.textContent = t('skipContinueWatching');
+    }
+    if (ui.saveForLater) {
+      ui.saveForLater.textContent = t('saveForLater');
     }
     syncWatchedButton();
     hideConfirm();

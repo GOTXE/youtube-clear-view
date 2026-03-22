@@ -112,6 +112,18 @@ def ensure_user_channel_schema():
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_refreshed_at DATETIME"))
             if "last_checked_at" not in columns:
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_checked_at DATETIME"))
+            if "last_feed_checked_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_checked_at DATETIME"))
+            if "last_feed_success_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_success_at DATETIME"))
+            if "last_feed_error_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_error_at DATETIME"))
+            if "feed_error_count" not in columns:
+                conn.execute(
+                    text("ALTER TABLE user_channels ADD COLUMN feed_error_count INTEGER NOT NULL DEFAULT 0")
+                )
+            if "refresh_mode_override" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN refresh_mode_override VARCHAR(20)"))
     except Exception as error:
         logger.warning(
             "User channel schema migration skipped: %s",

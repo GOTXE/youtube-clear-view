@@ -137,8 +137,64 @@ def test_refresh_falls_back_to_api_when_feed_fails(app, monkeypatch):
         )
 
         video = Video.query.filter_by(yt_video_id="api-1", channel_id=channel_id).first()
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
         assert summary["new_videos"] == 1
         assert video is not None
         assert video.discovered_via == "api"
         assert service.channel_video_calls == 1
         assert service.video_ids_calls == 0
+        assert subscription.last_feed_checked_at is not None
+        assert subscription.last_feed_error_at is not None
+        assert subscription.feed_error_count == 1
+
+
+def test_refresh_resets_feed_error_count_after_success(app, monkeypatch):
+    user_id, channel_id = _seed_user_and_channel(app)
+
+    class FeedEntry:
+        video_id = "rss-2"
+        channel_id = "UC_TEST_RSS"
+        title = "Recovered RSS Video"
+        published_at = "2026-03-22T11:00:00+00:00"
+        updated_at = "2026-03-22T11:01:00+00:00"
+        channel_title = "RSS Channel"
+        link = "https://www.youtube.com/watch?v=rss-2"
+
+    monkeypatch.setattr(
+        "app.services.video_ingest.fetch_channel_feed",
+        lambda channel_id: {"success": True, "entries": [FeedEntry()]},
+    )
+
+    service = FakeHybridService(
+        completion_items=[
+            {
+                "video_id": "rss-2",
+                "title": "Recovered RSS Video",
+                "description": "Recovered description",
+                "thumbnail": "http://thumb/rss-2.jpg",
+                "published_at": "2026-03-22T11:00:00Z",
+                "duration": 91,
+                "video_category_id": "10",
+                "tags": ["rss"],
+            }
+        ]
+    )
+
+    with app.app_context():
+        user = db.session.get(User, user_id)
+        settings = UserSettings.query.filter_by(user_id=user.id).first()
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        subscription.feed_error_count = 3
+        db.session.commit()
+
+        refresh_user_channels(
+            user,
+            settings,
+            service,
+            now=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None),
+        )
+
+        db.session.refresh(subscription)
+        assert subscription.last_feed_checked_at is not None
+        assert subscription.last_feed_success_at is not None
+        assert subscription.feed_error_count == 0

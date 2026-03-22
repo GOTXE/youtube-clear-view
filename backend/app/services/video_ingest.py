@@ -236,8 +236,14 @@ def _refresh_channel_via_rss(
     now,
 ):
     feed_response = fetch_channel_feed(channel.yt_channel_id)
+    subscription.last_feed_checked_at = now
     if not feed_response.get("success"):
+        subscription.last_feed_error_at = now
+        subscription.feed_error_count = int(subscription.feed_error_count or 0) + 1
         return {"success": False, "rate_limited": False, "fallback_to_api": True}
+
+    subscription.last_feed_success_at = now
+    subscription.feed_error_count = 0
 
     rss_items = [_build_rss_item(entry, now) for entry in feed_response.get("entries", [])]
     ingest_result = _ingest_api_items(
@@ -512,6 +518,7 @@ def iter_refresh_user_channels(
             )
             refresh_result["success"] = True
             refresh_result["rate_limited"] = False
+            refresh_result["used_api_fallback"] = True
 
         if refresh_result.get("rate_limited"):
             rate_limited = True
@@ -531,6 +538,12 @@ def iter_refresh_user_channels(
         channel_new_videos = refresh_result.get("channel_new_videos", 0)
         channel_metadata_updates = refresh_result.get("channel_metadata_updates", 0)
         new_videos += channel_new_videos
+
+        if refresh_result.get("used_api_fallback"):
+            logger.info(
+                "Channel refresh used API fallback after RSS feed failure.",
+                extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
+            )
 
         if latest_seen:
             subscription.last_refreshed_at = latest_seen

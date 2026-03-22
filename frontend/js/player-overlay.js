@@ -475,13 +475,15 @@
     if (currentWatched || typeof currentMarkWatched !== 'function') {
       return;
     }
+    const videoId = currentVideo && currentVideo.id;
     await currentMarkWatched();
     currentWatched = true;
     currentHasSavedProgress = false;
     currentInContinueWatching = false;
     syncWatchedButton();
     syncProgressButtons();
-    clearProgressFromServer();
+    await clearProgressFromServer();
+    await finalizeWatchedTransition(videoId);
   }
 
   function getVideoUrl() {

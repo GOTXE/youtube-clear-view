@@ -225,12 +225,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       [t('adminQuotaReservedScheduled'), String(state.summary.quota_reserved_for_scheduled || 0)]
     ];
 
+    const refreshModeValue = t(`adminSummaryRefreshModeValue${String(state.summary.video_refresh_mode || 'hybrid').replace(/[^a-z_]/gi, '')}`) || String(state.summary.video_refresh_mode || 'hybrid');
+
     const cards = [
       { label: t('adminSummaryUsersTotal'), value: state.summary.users_total || 0, tone: 'neutral' },
       { label: t('adminSummaryAdmins'), value: state.summary.users_admin || 0, tone: 'blue' },
       { label: t('adminSummaryChannels'), value: state.summary.channels_total || 0, tone: 'neutral' },
       { label: t('adminSummaryDevices'), value: state.summary.devices_total || 0, tone: 'neutral' },
       { label: t('adminSummaryUnclassified'), value: state.summary.channels_unclassified || 0, tone: (state.summary.channels_unclassified || 0) > 0 ? 'amber' : 'green' },
+      {
+        label: t('adminSummaryRefreshMode'),
+        value: refreshModeValue,
+        tone: 'blue'
+      },
+      {
+        label: t('adminSummaryRssIncomplete'),
+        value: state.summary.videos_rss_incomplete || 0,
+        tone: (state.summary.videos_rss_incomplete || 0) > 0 ? 'amber' : 'green'
+      },
+      {
+        label: t('adminSummaryFeedErrors'),
+        value: state.summary.channels_feed_errors || 0,
+        tone: (state.summary.channels_feed_errors || 0) > 0 ? 'amber' : 'green'
+      },
       {
         label: t('adminSummaryQuotaUsed'),
         value: `${state.summary.quota_used || 0} / ${state.summary.quota_daily_limit || 0}`,

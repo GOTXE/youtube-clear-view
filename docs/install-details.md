@@ -127,6 +127,31 @@ Tip:
 - The first import may take time (large subscription lists). The UI should show progress.
   If you do not see progress updates, please wait a bit and avoid refreshing the page.
 
+### Channel actions in the menu
+
+Inside the hamburger menu, the **Channels** section now exposes a single
+**Classify channels** action. When you click it, the app asks you to choose one
+of two modes:
+
+- **Basic**
+  - This is the light option.
+  - It tries to classify only channels that are still missing a useful category.
+  - Use it for normal maintenance after importing channels or refreshing videos.
+
+- **Full**
+  - This is the heavier corrective option.
+  - It first gathers recent video evidence for channels that still lack enough data.
+  - Then it asks the system to reconsider **all** your subscribed channels, not only the missing ones.
+  - Use it when the current automatic categories feel wrong and you want the system to try again with fresher evidence.
+
+Practical advice:
+- Use **Basic** first for routine maintenance.
+- Use **Full** only when you want a broader reset of automatic categorization.
+- Manual category changes still take priority over automatic guesses.
+- Once started, both modes keep running on the backend. If you close the browser
+  and come back while the task is still active, the web UI will reattach to its
+  progress automatically.
+
 ---
 
 ## 4) Developer setup (if you want to contribute)

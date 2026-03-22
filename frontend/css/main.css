@@ -2441,6 +2441,63 @@ body.player-overlay-open {
   opacity: 0.78;
 }
 
+.classification-choice-modal {
+  width: min(500px, 92vw);
+}
+
+.classification-choice-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.classification-choice-modal__options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.classification-choice-modal__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 12px 14px;
+  text-align: left;
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+}
+
+.classification-choice-modal__option:hover {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.classification-choice-modal__option-title {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.classification-choice-modal__option-description {
+  display: block;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.classification-choice-modal__footer {
+  justify-content: flex-start;
+}
+
 .admin-observability-modal__body {
   display: flex;
   flex-direction: column;

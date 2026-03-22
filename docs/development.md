@@ -439,6 +439,41 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
   similarity when the signal is clear enough.
 - `TF-IDF` is intentionally stricter and may abstain instead of forcing a weak label.
 
+### Channel classification actions in the UI
+
+The authenticated web UI now exposes a single `Classify channels` action inside the
+**Channels** section of the hamburger menu. Clicking it opens a choice modal with
+two modes:
+
+- `Basic`
+  - Starts the existing background classification flow for channels that are still
+    missing a usable automatic category.
+  - This is the routine “fill the gaps” action.
+
+- `Full`
+  - Runs a broader maintenance flow for the current user:
+    1. enrich unclassified channels with recent video evidence
+    2. force a fresh automatic classification attempt for every subscribed channel
+  - This is intentionally more expensive and should be treated as a corrective
+    action, not a normal daily workflow.
+
+Why it was moved out of the main page:
+- It is not a browsing action.
+- It changes classification state and can take a while.
+- It fits better with other maintenance operations such as importing channels and
+  refreshing videos.
+
+Technical behavior:
+- Frontend trigger: `#classify-channels-button` in the menu
+- Both modes now run as backend background tasks. Reopening the web UI while the
+  task is still active reattaches the client to the existing status poll.
+- Start endpoint: `POST /api/channels/classify`
+- Status endpoint: `GET /api/channels/classify/status`
+- Full mode uses the same backend task plus recent video evidence enrichment
+  before the reclassification phase.
+- After success, the client refreshes the channel list and category carousels so
+  the new assignments are visible immediately.
+
 ## Environment Variables Reference
 
 ### Core

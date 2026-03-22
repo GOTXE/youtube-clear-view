@@ -131,6 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setMenuOpen: null,
     deferAuthenticatedBootstrap: initialAuthStatusFromUrl === 'needs_setup',
     authenticatedDataBootstrapPromise: null,
+    classificationActive: false,
     refreshStatusPoller: null,
     refreshStatusSource: null,
     showInProgressCarousel: false,
@@ -230,7 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoryCarousels: document.getElementById('category-carousels'),
     categoriesLabel: document.getElementById('categories-label'),
     categoriesDescription: document.getElementById('categories-description'),
-    reclassifyBtn: document.getElementById('reclassify-btn'),
     classifyButton: document.getElementById('classify-channels-button')
   };
 
@@ -1158,7 +1158,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function syncRefreshStatus() {
     if (!state.currentUser) {
       state.refreshStatusSource = null;
-      setRefreshProgress('');
+      if (!state.classificationActive) {
+        setRefreshProgress('');
+      }
       return;
     }
 
@@ -1175,13 +1177,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (activeJob) {
       state.refreshStatusSource = globalJob === activeJob ? 'global' : 'manual';
-      setRefreshProgress(t('refreshProgressRunning'));
+      if (!state.classificationActive) {
+        setRefreshProgress(t('refreshProgressRunning'));
+      }
       return;
     }
 
     if (state.refreshStatusSource) {
       state.refreshStatusSource = null;
-      setRefreshProgress('');
+      if (!state.classificationActive) {
+        setRefreshProgress('');
+      }
     }
   }
 
@@ -2981,12 +2987,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Shared classify function ──────────────────────────────────────────────
 
-  async function classifyUnclassifiedChannels(progressCallback) {
+  function classificationProgressMessage(status) {
+    if (!status || !status.active) {
+      return '';
+    }
+    if (status.mode === 'full') {
+      if (status.phase === 'full_video_evidence') {
+        return t('classificationModeRunningFullEvidence');
+      }
+      return t('classificationProgressFull', {
+        cursor: status.cursor,
+        total: status.total,
+        classified: status.classified || 0
+      });
+    }
+    return t('classifyProgress', {
+      cursor: status.cursor,
+      total: status.total,
+      classified: status.classified || 0
+    });
+  }
+
+  async function monitorClassificationTask(mode, progressCallback) {
     const report = progressCallback || (() => {});
     const initialUnclassified = countUnclassifiedChannels();
 
     // Start the background task on the backend
-    const startResp = await api.startClassifyTask();
+    const startResp = await api.startClassifyTask(mode);
     // Nothing to classify
     if (startResp.ok && startResp.data && startResp.data.active === false) {
       setUnclassifiedMetricProgress(false);
@@ -3013,13 +3040,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
           const s = resp.data;
           if (s.active) {
-            const remaining = Math.max(0, initialUnclassified - Number(s.classified || 0));
-            setUnclassifiedMetricProgress(true, remaining);
-            report(t('classifyProgress', {
-              cursor: s.cursor,
-              total: s.total,
-              classified: s.classified
-            }));
+            if (mode === 'full') {
+              setUnclassifiedMetricProgress(true);
+            } else {
+              const remaining = Math.max(0, initialUnclassified - Number(s.classified || 0));
+              setUnclassifiedMetricProgress(true, remaining);
+            }
+            report(classificationProgressMessage(s));
           } else {
             clearInterval(poll);
             report('');
@@ -3046,12 +3073,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const resp = await api.getClassifyStatus();
       if (resp.ok && resp.data && resp.data.active) {
-        classifyUnclassifiedChannels(msg => setRefreshProgress(msg))
+        const mode = resp.data.mode === 'full' ? 'full' : 'basic';
+        state.classificationActive = true;
+        const initialMessage = classificationProgressMessage(resp.data);
+        if (initialMessage) {
+          setRefreshProgress(initialMessage);
+        }
+        monitorClassificationTask(mode, msg => setRefreshProgress(msg))
           .then(count => {
+            state.classificationActive = false;
             setRefreshProgress('');
-            if (count > 0) showNotification(t('classifyComplete', { count }), 'success');
+            if (count > 0) {
+              showNotification(
+                mode === 'full'
+                  ? t('reclassifyComplete', { count })
+                  : t('classifyComplete', { count }),
+                'success'
+              );
+            }
+            void syncRefreshStatus();
           })
-          .catch(() => setRefreshProgress(''));
+          .catch(() => {
+            state.classificationActive = false;
+            setRefreshProgress('');
+            void syncRefreshStatus();
+          });
       }
     } catch (_) {
       // Ignore — status check is best-effort on load
@@ -3062,22 +3108,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!ui.classifyButton) return;
 
     ui.classifyButton.addEventListener('click', async () => {
+      const mode = await openClassificationChoiceModal();
+      if (!mode) {
+        return;
+      }
+
+      if (mode === 'full') {
+        const confirmed = await openConfirmModal(t('classificationModeFullConfirm'));
+        if (!confirmed) {
+          return;
+        }
+      }
+
       ui.classifyButton.disabled = true;
-      const origText = ui.classifyButton.textContent;
       try {
-        const classified = await classifyUnclassifiedChannels(msg => {
-          setRefreshProgress(msg);
-        });
-        if (classified > 0) {
-          showNotification(t('classifyComplete', { count: classified }), 'success');
+        state.classificationActive = true;
+        if (mode === 'full') {
+          await runFullReclassification();
         } else {
-          showNotification(t('classifyNothingToDo'), 'info');
+          await runBasicClassification();
         }
       } catch (_) {
-        showNotification(t('classifyError'), 'error');
+        state.classificationActive = false;
+        showNotification(mode === 'full' ? t('reclassifyError') : t('classifyError'), 'error');
       } finally {
+        state.classificationActive = false;
         ui.classifyButton.disabled = false;
+        ui.classifyButton.textContent = t('classifyChannels');
         setRefreshProgress('');
+        void syncRefreshStatus();
       }
     });
 
@@ -3091,78 +3150,144 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function setupReclassifyButton() {
-    if (!ui.reclassifyBtn) {
+  async function runBasicClassification() {
+    const classified = await monitorClassificationTask('basic', msg => {
+      setRefreshProgress(msg);
+    });
+
+    if (classified > 0) {
+      showNotification(t('classifyComplete', { count: classified }), 'success');
       return;
     }
 
-    ui.reclassifyBtn.addEventListener('click', async () => {
-      const confirmed = await openConfirmModal(t('reclassifyConfirmMessage'));
-      if (!confirmed) {
-        return;
-      }
+    showNotification(t('classifyNothingToDo'), 'info');
+  }
 
-      ui.reclassifyBtn.disabled = true;
-      try {
-        let totalEvidenceChannels = 0;
-        let totalVideosCreated = 0;
-        let totalVideosUpdated = 0;
-        let remaining = 999;
-        setUnclassifiedMetricProgress(true, countUnclassifiedChannels());
+  async function runFullReclassification() {
+    const reclassified = await monitorClassificationTask('full', msg => {
+      setRefreshProgress(msg);
+    });
 
-        // Step 1: Enrich unclassified channels with recent video evidence.
-        ui.reclassifyBtn.textContent = 'Obteniendo evidencia de videos...';
+    if (reclassified > 0) {
+      showNotification(t('reclassifyComplete', { count: reclassified }), 'success');
+      return;
+    }
 
-        while (remaining > 0) {
-          const enrichResponse = await api.enrichChannelVideoEvidence(null, 25, 12, true);
-          if (!enrichResponse.ok) {
-            break;
-          }
-          totalEvidenceChannels += enrichResponse.data.channels_processed || 0;
-          totalVideosCreated += enrichResponse.data.videos_created || 0;
-          totalVideosUpdated += enrichResponse.data.videos_updated || 0;
-          remaining = enrichResponse.data.remaining_unclassified || 0;
-          setUnclassifiedMetricProgress(true, remaining);
-          ui.reclassifyBtn.textContent = `Enriqueciendo... (${totalEvidenceChannels} canales)`;
+    showNotification(t('reclassifyNothingToDo'), 'info');
+  }
 
-          if (enrichResponse.data.channels_processed === 0) {
-            break;
-          }
+  async function openClassificationChoiceModal() {
+    return new Promise(resolve => {
+      let closed = false;
+      const overlay = document.createElement('section');
+      overlay.className = 'confirm-modal-overlay';
+      overlay.id = 'classification-choice-modal';
+
+      const modal = document.createElement('div');
+      modal.className = 'confirm-modal classification-choice-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'classification-choice-title');
+
+      const header = document.createElement('header');
+      header.className = 'confirm-modal__header';
+
+      const title = document.createElement('h2');
+      title.id = 'classification-choice-title';
+      title.className = 'heading-2';
+      title.textContent = t('classificationChoiceTitle');
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'confirm-modal__close';
+      closeButton.setAttribute('aria-label', t('close'));
+      closeButton.textContent = '✕';
+
+      header.append(title, closeButton);
+
+      const body = document.createElement('div');
+      body.className = 'confirm-modal__body classification-choice-modal__body';
+
+      const intro = document.createElement('p');
+      intro.className = 'body';
+      intro.textContent = t('classificationChoiceDescription');
+      body.appendChild(intro);
+
+      const options = document.createElement('div');
+      options.className = 'classification-choice-modal__options';
+
+      const buildOption = (mode, titleKey, descKey) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'button button--ghost classification-choice-modal__option';
+
+        const optionTitle = document.createElement('span');
+        optionTitle.className = 'classification-choice-modal__option-title';
+        optionTitle.textContent = t(titleKey);
+
+        const optionDescription = document.createElement('span');
+        optionDescription.className = 'classification-choice-modal__option-description';
+        optionDescription.textContent = t(descKey);
+
+        button.append(optionTitle, optionDescription);
+        button.addEventListener('click', () => close(mode));
+        return button;
+      };
+
+      options.append(
+        buildOption(
+          'basic',
+          'classificationModeBasicTitle',
+          'classificationModeBasicDescription'
+        ),
+        buildOption(
+          'full',
+          'classificationModeFullTitle',
+          'classificationModeFullDescription'
+        )
+      );
+      body.appendChild(options);
+
+      const footer = document.createElement('footer');
+      footer.className = 'confirm-modal__footer classification-choice-modal__footer';
+
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.className = 'button button--ghost';
+      cancelButton.textContent = t('cancel');
+      footer.appendChild(cancelButton);
+
+      const handleEscape = event => {
+        if (event.key === 'Escape' && document.body.contains(overlay)) {
+          close(null);
         }
+      };
 
-        if (totalEvidenceChannels > 0) {
-          showNotification(
-            `${totalEvidenceChannels} canales enriquecidos con evidencia de video (${totalVideosCreated} nuevos, ${totalVideosUpdated} actualizados)`,
-            'success'
-          );
+      const close = value => {
+        if (closed) {
+          return;
         }
+        closed = true;
+        window.removeEventListener('keydown', handleEscape);
+        overlay.remove();
+        resolve(value || null);
+      };
 
-        // Step 2: Reclassify all channels
-        ui.reclassifyBtn.textContent = t('reclassifying') || 'Reclasificando...';
-
-        const response = await api.reclassifyAllChannels();
-        if (response.ok) {
-          const stats = response.data || {};
-          const reclassified = stats.reclassified || 0;
-          showNotification(`${reclassified} canales clasificados correctamente`, 'success');
-
-          const channelsResponse = await api.getChannels();
-          if (channelsResponse.ok) {
-            state.channels = channelsResponse.data || [];
-            renderChannelList(state.channels);
-            updateHeaderContext();
-          }
-
-          if (state.categoryManager) {
-            await state.categoryManager.init();
-          }
-        } else {
-          showNotification(t('reclassifyError') || 'Error al reclasificar canales', 'error');
+      closeButton.addEventListener('click', () => close(null));
+      cancelButton.addEventListener('click', () => close(null));
+      overlay.addEventListener('click', event => {
+        if (event.target === overlay) {
+          close(null);
         }
-      } finally {
-        setUnclassifiedMetricProgress(false);
-        ui.reclassifyBtn.disabled = false;
-        ui.reclassifyBtn.textContent = t('reclassifyChannels') || 'Reclasificar Canales';
+      });
+      window.addEventListener('keydown', handleEscape);
+
+      modal.append(header, body, footer);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      const firstAction = options.querySelector('button');
+      if (firstAction) {
+        firstAction.focus();
       }
     });
   }
@@ -3203,10 +3328,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await state.categorySelector.loadCategories();
     state.categoriesLoaded = true;
-
-    if (ui.reclassifyBtn) {
-      ui.reclassifyBtn.hidden = false;
-    }
   }
 
   async function bootstrapAuthenticatedDevice() {
@@ -3228,9 +3349,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.authenticatedDataBootstrapPromise = (async () => {
       await loadSettings();
+      const classificationResumePromise = resumeClassifyPollIfActive();
       await initCategorySelector();
       await loadApp();
-      resumeClassifyPollIfActive();
+      await classificationResumePromise;
     })()
       .finally(() => {
         state.authenticatedDataBootstrapPromise = null;
@@ -3424,7 +3546,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupLanguageMenu();
     setupRefresh();
     setupImportButton();
-    setupReclassifyButton();
     setupClassifyButton();
     setupKeyboardNavigation();
     setupDebug();
@@ -3436,6 +3557,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.updateAvailableBanner.addEventListener('click', () => {
         applyUpdateAvailableBanner();
       });
+    }
+
+    if (state.currentUser && !state.deferAuthenticatedBootstrap) {
+      await waitForLoginPageToClose();
+      const showOnboardingReady = consumeOnboardingReadyModalFlag();
+      if (showOnboardingReady) {
+        const dataBootstrapPromise = bootstrapAuthenticatedData();
+        await bootstrapAuthenticatedDevice();
+        await showOnboardingReadyModal();
+        await dataBootstrapPromise;
+      } else {
+        await bootstrapAuthenticated();
+      }
     }
   }
 

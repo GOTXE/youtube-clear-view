@@ -26,9 +26,12 @@ _enrichment_lock = threading.Lock()
 
 def enrich_status_dict(settings):
     """Build a status dict from settings enrich fields."""
+    phase = settings.enrich_phase
+    mode = "full" if phase and phase.startswith("full_") else "basic"
     return {
         "active": settings.enrich_active or False,
-        "phase": settings.enrich_phase,
+        "phase": phase,
+        "mode": mode,
         "cursor": settings.enrich_cursor or 0,
         "total": settings.enrich_total or 0,
         "classified": settings.enrich_classified or 0,
@@ -39,7 +42,7 @@ def enrich_status_dict(settings):
     }
 
 
-def start_enrich_task(app, user, settings):
+def start_enrich_task(app, user, settings, mode="basic"):
     """Initialize enrich fields and launch a daemon thread.
 
     Returns a status dict on success.  Raises ValueError if already running.
@@ -50,16 +53,23 @@ def start_enrich_task(app, user, settings):
             raise ValueError("already_running")
 
     # Count channels needing work
-    topic_count = _count_channels_needing_topics(user.id)
-    unclassified_count = _count_channels_needing_classification(user.id)
-    total = max(topic_count, unclassified_count)
+    if mode == "full":
+        evidence_count = _count_channels_needing_classification(user.id)
+        reclassify_count = _count_all_user_channels(user.id)
+        total = evidence_count + reclassify_count
+        initial_phase = "full_video_evidence"
+    else:
+        topic_count = _count_channels_needing_topics(user.id)
+        unclassified_count = _count_channels_needing_classification(user.id)
+        total = max(topic_count, unclassified_count)
+        initial_phase = "topic_ids"
 
     if total == 0:
         return None
 
     now = utc_now()
     settings.enrich_active = True
-    settings.enrich_phase = "topic_ids"
+    settings.enrich_phase = initial_phase
     settings.enrich_cursor = 0
     settings.enrich_total = total
     settings.enrich_classified = 0
@@ -136,6 +146,20 @@ def _enrich_loop(app, user_id, settings_id):
                 elif phase == "video_evidence":
                     has_more = _run_video_evidence_step(
                         user_id, settings, service, classifier, attempted_ids
+                    )
+                    if not has_more:
+                        _finish_task(settings)
+                        break
+                elif phase == "full_video_evidence":
+                    has_more = _run_full_video_evidence_step(
+                        user_id, settings, service, attempted_ids
+                    )
+                    if not has_more:
+                        settings.enrich_phase = "full_reclassify"
+                        db.session.commit()
+                elif phase == "full_reclassify":
+                    has_more = _run_full_reclassify_step(
+                        user_id, settings, classifier, attempted_ids
                     )
                     if not has_more:
                         _finish_task(settings)
@@ -254,6 +278,76 @@ def _run_video_evidence_step(user_id, settings, service, classifier, attempted_i
     return remaining > 0
 
 
+def _run_full_video_evidence_step(user_id, settings, service, attempted_ids):
+    """Enrich unclassified channels with recent video evidence before a full reclassification."""
+    channels = _channels_needing_classification(
+        user_id, limit=ENRICH_VIDEO_BATCH_SIZE, exclude_ids=attempted_ids
+    )
+    if not channels:
+        return False
+
+    for channel in channels:
+        attempted_ids.add(channel.id)
+        try:
+            response = service.get_channel_videos(
+                channel.yt_channel_id, max_results=ENRICH_VIDEO_MAX_RESULTS
+            )
+            if response.get("success", True):
+                upsert_channel_video_evidence(channel, response.get("videos", []))
+        except Exception as exc:
+            logger.warning(
+                "Failed full video evidence for channel %s: %s",
+                channel.yt_channel_id,
+                exc,
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            db.session.rollback()
+            settings.enrich_errors = (settings.enrich_errors or 0) + 1
+
+    settings.enrich_cursor = min(
+        (settings.enrich_cursor or 0) + len(channels),
+        settings.enrich_total or 0,
+    )
+    db.session.commit()
+
+    remaining = _count_channels_needing_classification(
+        user_id, exclude_ids=attempted_ids
+    )
+    return remaining > 0
+
+
+def _run_full_reclassify_step(user_id, settings, classifier, attempted_ids):
+    """Reclassify all subscribed channels in batches."""
+    channels = _all_user_channels(user_id, limit=ENRICH_VIDEO_BATCH_SIZE, exclude_ids=attempted_ids)
+    if not channels:
+        return False
+
+    for channel in channels:
+        attempted_ids.add(channel.id)
+        try:
+            result = classifier.reclassify_channel(channel)
+            if result:
+                settings.enrich_classified = (settings.enrich_classified or 0) + 1
+        except Exception as exc:
+            logger.warning(
+                "Failed full reclassification for channel %s: %s",
+                channel.yt_channel_id,
+                exc,
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            db.session.rollback()
+            settings.enrich_errors = (settings.enrich_errors or 0) + 1
+
+    settings.enrich_cursor = min(
+        (settings.enrich_cursor or 0) + len(channels),
+        settings.enrich_total or 0,
+    )
+    db.session.commit()
+
+    remaining = _count_all_user_channels(user_id, exclude_ids=attempted_ids)
+    return remaining > 0
+
+
 def _count_channels_needing_topics(user_id, exclude_ids=None):
     """Count subscribed channels without topic_ids."""
     query = (
@@ -273,6 +367,14 @@ def _count_channels_needing_classification(user_id, exclude_ids=None):
         .outerjoin(ChannelCategory, ChannelCategory.channel_id == UserChannel.channel_id)
         .filter(ChannelCategory.id.is_(None))
     )
+    if exclude_ids:
+        query = query.filter(UserChannel.channel_id.notin_(exclude_ids))
+    return query.count()
+
+
+def _count_all_user_channels(user_id, exclude_ids=None):
+    """Count all subscribed channels for a user."""
+    query = UserChannel.query.filter_by(user_id=user_id)
     if exclude_ids:
         query = query.filter(UserChannel.channel_id.notin_(exclude_ids))
     return query.count()
@@ -298,6 +400,15 @@ def _channels_needing_classification(user_id, limit=25, exclude_ids=None):
         .outerjoin(ChannelCategory, ChannelCategory.channel_id == UserChannel.channel_id)
         .filter(ChannelCategory.id.is_(None))
     )
+    if exclude_ids:
+        query = query.filter(UserChannel.channel_id.notin_(exclude_ids))
+    subs = query.limit(limit).all()
+    return [sub.channel for sub in subs]
+
+
+def _all_user_channels(user_id, limit=25, exclude_ids=None):
+    """Return subscribed channels for a user."""
+    query = UserChannel.query.filter_by(user_id=user_id)
     if exclude_ids:
         query = query.filter(UserChannel.channel_id.notin_(exclude_ids))
     subs = query.limit(limit).all()

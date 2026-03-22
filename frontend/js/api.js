@@ -510,8 +510,8 @@ class APIClient {
   }
 
   // Background classification task
-  startClassifyTask() {
-    return this.post('/api/channels/classify');
+  startClassifyTask(mode = 'basic') {
+    return this.post('/api/channels/classify', { mode });
   }
 
   getClassifyStatus() {

@@ -1090,6 +1090,10 @@ def enrich_channel_video_evidence():
 def start_classify_task():
     """Start a background enrichment + classification task."""
     user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    mode = str(payload.get("mode") or "basic").strip().lower()
+    if mode not in {"basic", "full"}:
+        return _bad_request("Invalid classify mode.")
     settings = UserSettings.query.filter_by(user_id=user.id).first()
     if not settings:
         settings = UserSettings(user_id=user.id, preset=DEFAULT_PRESET)
@@ -1097,14 +1101,15 @@ def start_classify_task():
         db.session.commit()
 
     try:
-        status = start_enrich_task(current_app._get_current_object(), user, settings)
+        status = start_enrich_task(current_app._get_current_object(), user, settings, mode=mode)
     except ValueError:
         return jsonify(enrich_status_dict(settings)), 409
 
     if status is None:
         return jsonify({
             "active": False,
-            "message": "All channels are already classified.",
+            "mode": mode,
+            "message": "No channels need classification work.",
         })
 
     return jsonify(status), 202

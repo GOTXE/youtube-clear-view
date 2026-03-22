@@ -238,7 +238,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     registration: null,
     reloading: false,
     pendingBanner: false,
-    presentTimerId: null
+    presentTimerId: null,
+    backendBuildId: null,
+    backendVersionPoller: null
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
@@ -928,6 +930,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     swUpdateState.registration = registration || swUpdateState.registration;
     swUpdateState.pendingBanner = true;
     maybePresentUpdateAvailableBanner();
+  }
+
+  async function checkBackendVersion() {
+    const response = await api.getVersion();
+    if (!response.ok || !response.data || !response.data.backend_build_id) {
+      return;
+    }
+
+    const buildId = String(response.data.backend_build_id);
+    if (!swUpdateState.backendBuildId) {
+      swUpdateState.backendBuildId = buildId;
+      return;
+    }
+
+    if (swUpdateState.backendBuildId !== buildId) {
+      swUpdateState.backendBuildId = buildId;
+      showUpdateAvailableBanner(null);
+    }
+  }
+
+  function startBackendVersionPolling() {
+    if (swUpdateState.backendVersionPoller) {
+      return;
+    }
+
+    checkBackendVersion().catch(() => {});
+    swUpdateState.backendVersionPoller = window.setInterval(() => {
+      checkBackendVersion().catch(() => {});
+    }, 60 * 1000);
   }
 
   async function applyUpdateAvailableBanner() {
@@ -3308,6 +3339,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.initTheme === 'function') {
       window.initTheme();
     }
+
+    startBackendVersionPolling();
 
     if (typeof window.initAuth === 'function') {
       state.currentUser = await window.initAuth();

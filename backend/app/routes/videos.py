@@ -504,6 +504,7 @@ def list_in_progress():
         payload.append(_serialize_video(
             video, video.channel, video.id in watched_ids,
             progress=entry.position_seconds,
+            continue_watching=entry.is_continue_watching,
         ))
 
     next_offset = offset + limit if has_more else None

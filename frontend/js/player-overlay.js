@@ -670,6 +670,7 @@
     const { position, duration, ratio } = estimateProgressState();
     const shouldMarkAsWatched = Boolean(
       !currentWatched
+      && !currentInContinueWatching
       && videoId
       && duration > 0
       && ratio >= AUTO_MARK_RATIO
@@ -705,7 +706,7 @@
           await saveProgressForVideo(persistedVideoId, persistedPosition, persistedDuration, {
             continue_watching: persistedContinueWatching
           });
-          if (typeof window.ytcvReloadCarousels === 'function') {
+          if (!persistedContinueWatching && typeof window.ytcvReloadCarousels === 'function') {
             await window.ytcvReloadCarousels({ preserveDOM: false });
           }
         })();
@@ -725,7 +726,7 @@
         continue_watching: persistedContinueWatching
       });
     }
-    if (progressUpdated && typeof window.ytcvReloadCarousels === 'function') {
+    if (progressUpdated && !persistedContinueWatching && typeof window.ytcvReloadCarousels === 'function') {
       await window.ytcvReloadCarousels({ preserveDOM: false });
     }
 

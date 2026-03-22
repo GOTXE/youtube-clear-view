@@ -136,6 +136,10 @@ class APIClient {
     return this.get('/api/auth/users');
   }
 
+  getVersion() {
+    return this.get('/api/version');
+  }
+
   getCurrentUser() {
     return this.get('/api/auth/current');
   }

@@ -1,6 +1,6 @@
 """API routes package."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify
 
 from app.middleware.error_handler import handle_route_errors
 from app.routes.admin import admin_bp
@@ -20,6 +20,15 @@ health_bp = Blueprint("health", __name__)
 def health_check():
     """Return a simple health status for monitoring."""
     return jsonify({"status": "ok"})
+
+
+@health_bp.get("/api/version")
+@handle_route_errors
+def version_check():
+    """Return the current backend build identifier."""
+    return jsonify({
+        "backend_build_id": current_app.config.get("BACKEND_BUILD_ID"),
+    })
 
 
 def register_routes(app):

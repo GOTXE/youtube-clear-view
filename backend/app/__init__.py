@@ -1,5 +1,6 @@
 """Application factory for YT Clear View."""
 
+from datetime import datetime, timezone
 import os
 from flask import Flask
 
@@ -36,6 +37,10 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config["SECRET_KEY"] = app.config.get("SECRET_KEY") or app.config.get("FLASK_SECRET_KEY")
+    app.config["BACKEND_BUILD_ID"] = os.getenv(
+        "YTCV_BACKEND_BUILD_ID",
+        datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+    )
 
     # Validate configuration early.
     config_class.validate()

@@ -299,6 +299,13 @@ def _refresh_channel_via_rss(
     }
 
 
+def _resolve_refresh_mode(subscription):
+    override = (subscription.refresh_mode_override or "").strip().lower()
+    if override in {"hybrid", "rss_preferred", "api_only"}:
+        return override
+    return Config.VIDEO_REFRESH_MODE
+
+
 def upsert_channel_video_evidence(channel, items):
     """Upsert local video evidence for a channel from YT API items."""
     created = 0
@@ -430,6 +437,7 @@ def iter_refresh_user_channels(
         channel = subscription.channel
         channel_new_videos = 0
         channel_metadata_updates = 0
+        refresh_mode = _resolve_refresh_mode(subscription)
 
         yield {
             "type": "channel_started",
@@ -442,18 +450,42 @@ def iter_refresh_user_channels(
             "new_videos": new_videos,
         }
 
-        refresh_result = _refresh_channel_via_rss(
-            channel,
-            subscription,
-            service,
-            settings,
-            preset,
-            recent_cutoff,
-            older_min_cutoff,
-            older_max_cutoff,
-            ignore_last_refreshed,
-            now,
-        )
+        refresh_result = {"fallback_to_api": True}
+        if refresh_mode != "api_only":
+            refresh_result = _refresh_channel_via_rss(
+                channel,
+                subscription,
+                service,
+                settings,
+                preset,
+                recent_cutoff,
+                older_min_cutoff,
+                older_max_cutoff,
+                ignore_last_refreshed,
+                now,
+            )
+            if refresh_result.get("fallback_to_api") and refresh_mode == "rss_preferred":
+                logger.info(
+                    "Channel refresh skipped API fallback because rss_preferred mode is active.",
+                    extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
+                )
+                subscription.last_checked_at = now
+                db.session.commit()
+                processed_channels += 1
+                yield {
+                    "type": "channel_complete",
+                    "channel_id": channel.id,
+                    "yt_channel_id": channel.yt_channel_id,
+                    "channel_title": channel.title,
+                    "channel_new_videos": 0,
+                    "channel_metadata_updates": 0,
+                    "new_videos": new_videos,
+                    "processed_channels": processed_channels,
+                    "current_channel": index,
+                    "total_channels": total_channels,
+                    "success": False,
+                }
+                continue
 
         if refresh_result.get("fallback_to_api"):
             if not consume(settings, Config.YT_REFRESH_COST):

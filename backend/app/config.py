@@ -50,6 +50,7 @@ class Config:
     YT_QUOTA_CAP_RATIO = float(os.getenv("YT_QUOTA_CAP_RATIO", "0.8"))
     YT_REFRESH_COST = int(os.getenv("YT_REFRESH_COST", "2"))
     YT_RSS_COMPLETION_COST = int(os.getenv("YT_RSS_COMPLETION_COST", "1"))
+    VIDEO_REFRESH_MODE = os.getenv("VIDEO_REFRESH_MODE", "hybrid").strip().lower() or "hybrid"
     MANUAL_REFRESH_RESERVED_QUOTA_RATIO = float(
         os.getenv("MANUAL_REFRESH_RESERVED_QUOTA_RATIO", "0.1")
     )
@@ -140,6 +141,8 @@ class Config:
 
         if Config.YT_DAILY_QUOTA <= 0:
             raise ValueError("YT_DAILY_QUOTA must be positive.")
+        if Config.VIDEO_REFRESH_MODE not in {"hybrid", "rss_preferred", "api_only"}:
+            raise ValueError("VIDEO_REFRESH_MODE must be 'hybrid', 'rss_preferred', or 'api_only'.")
         if not 0 < Config.YT_QUOTA_CAP_RATIO <= 1:
             raise ValueError("YT_QUOTA_CAP_RATIO must be between 0 and 1.")
         if not 0 <= Config.MANUAL_REFRESH_RESERVED_QUOTA_RATIO < 1:

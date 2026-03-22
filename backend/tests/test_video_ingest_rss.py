@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 from app.extensions import db
+from app.config import Config
 from app.models import Channel, User, UserChannel, UserSettings, Video
 from app.services.video_ingest import refresh_user_channels
 
@@ -198,3 +199,47 @@ def test_refresh_resets_feed_error_count_after_success(app, monkeypatch):
         assert subscription.last_feed_checked_at is not None
         assert subscription.last_feed_success_at is not None
         assert subscription.feed_error_count == 0
+
+
+def test_rss_preferred_skips_api_fallback_when_feed_fails(app, monkeypatch):
+    user_id, channel_id = _seed_user_and_channel(app)
+
+    monkeypatch.setattr(
+        "app.services.video_ingest.fetch_channel_feed",
+        lambda channel_id: {"success": False, "entries": [], "status_code": 500},
+    )
+
+    service = FakeHybridService(
+        api_items=[
+            {
+                "video_id": "api-skipped",
+                "title": "API Skipped",
+                "description": "Should not be fetched",
+                "thumbnail": "http://thumb/api-skipped.jpg",
+                "published_at": "2026-03-22T08:00:00Z",
+                "duration": 301,
+                "video_category_id": "24",
+                "tags": ["api"],
+            }
+        ]
+    )
+
+    original_mode = Config.VIDEO_REFRESH_MODE
+    Config.VIDEO_REFRESH_MODE = "rss_preferred"
+    try:
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            settings = UserSettings.query.filter_by(user_id=user.id).first()
+            summary = refresh_user_channels(
+                user,
+                settings,
+                service,
+                now=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None),
+            )
+
+            video = Video.query.filter_by(channel_id=channel_id).first()
+            assert summary["new_videos"] == 0
+            assert video is None
+            assert service.channel_video_calls == 0
+    finally:
+        Config.VIDEO_REFRESH_MODE = original_mode

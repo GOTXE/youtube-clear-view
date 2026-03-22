@@ -13,6 +13,7 @@ from app.services.classification_service import ClassificationService
 from app.services.presets import get_preset
 from app.services.rss_feed import fetch_channel_feed
 from app.services.quota import consume, mark_quota_exhausted, reset_quota_if_needed
+from app.services.site_settings import get_video_refresh_mode
 from app.utils.time import utc_now
 
 logger = get_logger(__name__)
@@ -284,6 +285,14 @@ def _refresh_channel_via_rss(
             mark_quota_exhausted(settings)
             return {"success": False, "rate_limited": True}
         if completion_response.get("success"):
+            logger.info(
+                "RSS-discovered videos queued targeted API completion.",
+                extra={
+                    "tracking_id": generate_tracking_id(),
+                    "channel_id": channel.id,
+                    "video_count": len(completion_ids),
+                },
+            )
             ingest_result["channel_metadata_updates"] += _apply_completion_items(
                 channel,
                 completion_response.get("videos", []),
@@ -303,7 +312,7 @@ def _resolve_refresh_mode(subscription):
     override = (subscription.refresh_mode_override or "").strip().lower()
     if override in {"hybrid", "rss_preferred", "api_only"}:
         return override
-    return Config.VIDEO_REFRESH_MODE
+    return get_video_refresh_mode(Config.VIDEO_REFRESH_MODE)
 
 
 def upsert_channel_video_evidence(channel, items):

@@ -82,6 +82,16 @@ def fetch_channel_feed(channel_id, timeout=10):
         )
         return {"success": False, "entries": [], "status_code": response.status_code}
 
+    logger.info(
+        "RSS feed fetched successfully.",
+        extra={
+            "tracking_id": generate_tracking_id(),
+            "channel_id": channel_id,
+            "rss_entry_count": len(entries),
+            "rss_status_code": response.status_code,
+        },
+    )
+
     return {"success": True, "entries": entries, "status_code": response.status_code}
 
 

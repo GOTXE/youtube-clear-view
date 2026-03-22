@@ -23,12 +23,15 @@ from app.services.site_settings import (
     get_password_policy,
     get_refresh_schedule_timezone,
     get_site_log_level,
+    get_video_refresh_mode,
     serialize_password_policy,
     serialize_refresh_schedule,
+    serialize_video_refresh_mode,
     set_password_policy,
     set_refresh_schedule_hours,
     set_refresh_schedule_timezone,
     set_site_log_level,
+    set_video_refresh_mode,
 )
 from app.services.sqlite_metrics import get_sqlite_metrics_snapshot, set_sqlite_metrics_enabled
 
@@ -423,7 +426,7 @@ def get_admin_summary():
         "channels_unclassified": unclassified_channels,
         "channels_feed_errors": feed_error_channels,
         "active_refreshes": len(list_active_refreshes()),
-        "video_refresh_mode": Config.VIDEO_REFRESH_MODE,
+        "video_refresh_mode": get_video_refresh_mode(Config.VIDEO_REFRESH_MODE),
         "quota_used": quota["used"],
         "quota_daily_limit": quota["daily_limit"],
         "quota_app_cap": quota["app_cap"],
@@ -628,6 +631,38 @@ def update_admin_timezone():
         return _bad_request(str(error))
     db.session.commit()
     return jsonify({"timezone": get_refresh_schedule_timezone(), "restart_required": False})
+
+
+@admin_bp.get("/api/admin/video-refresh-mode")
+@handle_route_errors
+@require_auth
+def get_admin_video_refresh_mode():
+    """Return the active global video refresh mode."""
+    denied = _require_admin()
+    if denied:
+        return denied
+    return jsonify(serialize_video_refresh_mode())
+
+
+@admin_bp.put("/api/admin/video-refresh-mode")
+@handle_route_errors
+@require_auth
+def update_admin_video_refresh_mode():
+    """Persist the global video refresh mode."""
+    denied = _require_admin()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True) or {}
+    mode_name = payload.get("video_refresh_mode")
+    if not isinstance(mode_name, str):
+        return _bad_request("Invalid video refresh mode.")
+    try:
+        set_video_refresh_mode(mode_name)
+    except ValueError as error:
+        return _bad_request(str(error))
+    db.session.commit()
+    current_app.config["VIDEO_REFRESH_MODE"] = get_video_refresh_mode(current_app.config.get("VIDEO_REFRESH_MODE"))
+    return jsonify({"video_refresh_mode": current_app.config["VIDEO_REFRESH_MODE"], "restart_required": False})
 
 
 @admin_bp.put("/api/admin/logs/level")

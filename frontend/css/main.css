@@ -540,6 +540,10 @@ select {
   color: var(--muted);
 }
 
+.admin-page__subtle-warning {
+  color: color-mix(in srgb, #d85858 72%, var(--muted) 28%);
+}
+
 .session-info {
   display: flex;
   flex-wrap: wrap;

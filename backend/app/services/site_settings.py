@@ -17,9 +17,11 @@ REFRESH_SCHEDULE_HOURS_KEY = "refresh_schedule_hours"
 REFRESH_SCHEDULE_TIMEZONE_KEY = "refresh_schedule_timezone"
 REFRESH_SCHEDULE_LAST_RUN_AT_KEY = "refresh_schedule_last_run_at"
 LOG_LEVEL_SETTING_KEY = "log_level"
+VIDEO_REFRESH_MODE_SETTING_KEY = "video_refresh_mode"
 DEFAULT_REFRESH_SCHEDULE_HOURS = [7, 12, 17, 21]
 DEFAULT_REFRESH_SCHEDULE_TIMEZONE = "Europe/Madrid"
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_VIDEO_REFRESH_MODE = "hybrid"
 
 
 def _get_setting_record(setting_key: str) -> SiteSetting | None:
@@ -126,6 +128,44 @@ def set_site_log_level(level_name: str) -> str:
     if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         raise ValueError("Invalid log level.")
     return _set_setting_value(LOG_LEVEL_SETTING_KEY, normalized)
+
+
+def get_video_refresh_mode(default: str | None = None) -> str:
+    record = _get_setting_record(VIDEO_REFRESH_MODE_SETTING_KEY)
+    value = record.setting_value.strip().lower() if record and record.setting_value else ""
+    if value in {"hybrid", "rss_preferred", "api_only"}:
+        return value
+    fallback = (default or current_app.config.get("VIDEO_REFRESH_MODE") or DEFAULT_VIDEO_REFRESH_MODE).strip().lower()
+    return fallback if fallback in {"hybrid", "rss_preferred", "api_only"} else DEFAULT_VIDEO_REFRESH_MODE
+
+
+def set_video_refresh_mode(mode_name: str) -> str:
+    normalized = (mode_name or "").strip().lower()
+    if normalized not in {"hybrid", "rss_preferred", "api_only"}:
+        raise ValueError("Invalid video refresh mode.")
+    return _set_setting_value(VIDEO_REFRESH_MODE_SETTING_KEY, normalized)
+
+
+def serialize_video_refresh_mode() -> dict[str, object]:
+    current_mode = get_video_refresh_mode()
+    options = [
+        {
+            "value": "hybrid",
+            "label": "Hybrid",
+            "description": "RSS for channel updates plus targeted API completion for new videos. Falls back to full API refresh if the feed fails.",
+        },
+        {
+            "value": "rss_preferred",
+            "label": "RSS preferred",
+            "description": "RSS for channel updates plus targeted API completion for new videos. Skips the full API fallback if the feed fails.",
+        },
+        {
+            "value": "api_only",
+            "label": "API only",
+            "description": "Use the legacy API-only refresh path for every channel refresh.",
+        },
+    ]
+    return {"video_refresh_mode": current_mode, "options": options}
 
 
 def get_password_policy() -> str:

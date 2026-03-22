@@ -213,6 +213,23 @@ def test_admin_can_read_and_update_global_refresh_schedule(client):
     assert updated["timezone"] == "UTC"
 
 
+def test_admin_can_read_and_update_video_refresh_mode(client):
+    _login(client, "admin")
+
+    response = client.get("/api/admin/video-refresh-mode")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["video_refresh_mode"] in {"hybrid", "rss_preferred", "api_only"}
+    assert any(option["value"] == "rss_preferred" for option in data["options"])
+
+    response = client.put(
+        "/api/admin/video-refresh-mode",
+        json={"video_refresh_mode": "rss_preferred"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["video_refresh_mode"] == "rss_preferred"
+
+
 def test_admin_can_list_users(client):
     _login(client, "admin")
     _login(client, "alice")

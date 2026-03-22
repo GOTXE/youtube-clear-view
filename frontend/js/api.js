@@ -314,6 +314,14 @@ class APIClient {
     return this.get('/api/admin/refresh-schedule');
   }
 
+  getAdminVideoRefreshMode() {
+    return this.get('/api/admin/video-refresh-mode');
+  }
+
+  updateAdminVideoRefreshMode(mode) {
+    return this.put('/api/admin/video-refresh-mode', { video_refresh_mode: mode });
+  }
+
   updateAdminRefreshSchedule(scheduleHours, timezone) {
     return this.put('/api/admin/refresh-schedule', {
       schedule_hours: scheduleHours,

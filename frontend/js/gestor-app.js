@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     users: [],
     runtime: [],
     timezone: null,
+    videoRefreshMode: null,
     passwordPolicy: null,
     refreshSchedule: null,
     logs: {
@@ -213,6 +214,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       .filter(Boolean);
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function renderSummary() {
     ui.summaryGrid.innerHTML = '';
     if (!state.summary) {
@@ -344,6 +354,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     card.appendChild(hint);
     card.appendChild(controls);
     ui.timezoneContent.appendChild(card);
+
+    const modeCard = document.createElement('article');
+    modeCard.className = 'admin-page__panel-card';
+
+    const modeTitle = document.createElement('h4');
+    modeTitle.className = 'heading-3';
+    modeTitle.textContent = t('adminVideoRefreshModeTitle');
+
+    const modeHint = document.createElement('p');
+    modeHint.className = 'caption';
+    modeHint.textContent = t('adminVideoRefreshModeDescription');
+
+    const modeInline = document.createElement('div');
+    modeInline.className = 'admin-page__inline-controls';
+
+    const modeSelect = document.createElement('select');
+    modeSelect.className = 'field__input field__input--compact';
+    const modeOptions = Array.isArray(state.videoRefreshMode?.options) ? state.videoRefreshMode.options : [];
+    modeOptions.forEach(option => {
+      const optionNode = document.createElement('option');
+      optionNode.value = option.value;
+      optionNode.textContent = t(`adminVideoRefreshModeLabel_${option.value}`);
+      modeSelect.appendChild(optionNode);
+    });
+    modeSelect.value = state.videoRefreshMode?.video_refresh_mode || 'hybrid';
+
+    const modeDetails = document.createElement('p');
+    modeDetails.className = 'caption';
+    const syncModeDetails = () => {
+      const modeValue = modeSelect.value || 'hybrid';
+      if (modeValue === 'rss_preferred') {
+        modeDetails.innerHTML = `${escapeHtml(t('adminVideoRefreshModeHint_rss_preferred_prefix'))} <span class="admin-page__subtle-warning">${escapeHtml(t('adminVideoRefreshModeWarning_rss_preferred'))}</span>`;
+        return;
+      }
+      modeDetails.textContent = t(`adminVideoRefreshModeHint_${modeValue}`);
+    };
+    syncModeDetails();
+    modeSelect.addEventListener('change', syncModeDetails);
+
+    const modeButton = document.createElement('button');
+    modeButton.type = 'button';
+    modeButton.className = 'admin-page__mini-btn admin-page__mini-btn--primary';
+    modeButton.textContent = t('adminVideoRefreshModeApply');
+    modeButton.addEventListener('click', async () => {
+      const nextMode = modeSelect.value || 'hybrid';
+      if (!window.confirm(t(`adminVideoRefreshModeConfirm_${nextMode}`))) {
+        return;
+      }
+      modeButton.disabled = true;
+      const response = await api.updateAdminVideoRefreshMode(nextMode);
+      modeButton.disabled = false;
+      if (!response.ok || !response.data) {
+        setStatus(response.error || t('adminVideoRefreshModeUpdateError'), 'error');
+        return;
+      }
+      state.videoRefreshMode = {
+        ...(state.videoRefreshMode || {}),
+        video_refresh_mode: response.data.video_refresh_mode,
+        options: modeOptions
+      };
+      if (state.summary) {
+        state.summary.video_refresh_mode = response.data.video_refresh_mode;
+      }
+      renderSummary();
+      renderTimezone();
+      setStatus(t('adminVideoRefreshModeUpdated'), 'success');
+    });
+
+    modeInline.appendChild(modeSelect);
+    modeInline.appendChild(modeButton);
+    modeCard.appendChild(modeTitle);
+    modeCard.appendChild(modeHint);
+    modeCard.appendChild(modeInline);
+    modeCard.appendChild(modeDetails);
+    ui.timezoneContent.appendChild(modeCard);
   }
 
   function getPasswordPolicyHint(option) {
@@ -1074,13 +1159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.query = query;
     setStatus(t('adminPageLoading'));
 
-    const [summaryResponse, timezoneResponse, usersResponse, runtimeResponse, passwordPolicyResponse, refreshScheduleResponse] = await Promise.all([
+    const [summaryResponse, timezoneResponse, usersResponse, runtimeResponse, passwordPolicyResponse, refreshScheduleResponse, videoRefreshModeResponse] = await Promise.all([
       api.getAdminSummary(),
       api.getAdminTimezone(),
       api.getAdminUsers(query),
       api.getAdminRuntimeState(),
       api.getAdminPasswordPolicy(),
-      api.getAdminRefreshSchedule()
+      api.getAdminRefreshSchedule(),
+      api.getAdminVideoRefreshMode()
     ]);
 
     state.loading = false;
@@ -1092,6 +1178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       || !runtimeResponse.ok
       || !passwordPolicyResponse.ok
       || !refreshScheduleResponse.ok
+      || !videoRefreshModeResponse.ok
     ) {
       setStatus(t('adminPageLoadError'), 'error');
       return;
@@ -1103,6 +1190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.runtime = Array.isArray(runtimeResponse.data && runtimeResponse.data.users) ? runtimeResponse.data.users : [];
     state.passwordPolicy = passwordPolicyResponse.data || {};
     state.refreshSchedule = refreshScheduleResponse.data || {};
+    state.videoRefreshMode = videoRefreshModeResponse.data || {};
     renderAll();
     setStatus('');
     if (state.logs.live) {

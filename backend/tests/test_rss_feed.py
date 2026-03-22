@@ -4,13 +4,16 @@ from app.services.rss_feed import build_feed_url, parse_feed_entries
 
 
 SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns="http://www.w3.org/2005/Atom">
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
   <title>YouTube channel feed</title>
   <entry>
     <yt:videoId>abc123</yt:videoId>
     <yt:channelId>chan123</yt:channelId>
     <title>Video One</title>
     <link rel="alternate" href="https://www.youtube.com/watch?v=abc123"/>
+    <media:group>
+      <media:thumbnail url="https://i.ytimg.com/vi/abc123/hqdefault.jpg" width="480" height="360"/>
+    </media:group>
     <author>
       <name>Channel Name</name>
     </author>
@@ -50,3 +53,4 @@ def test_parse_feed_entries():
     assert entries[0].published_at == "2026-03-21T10:00:00+00:00"
     assert entries[0].updated_at == "2026-03-21T10:01:00+00:00"
     assert entries[0].link == "https://www.youtube.com/watch?v=abc123"
+    assert entries[0].thumbnail == "https://i.ytimg.com/vi/abc123/hqdefault.jpg"

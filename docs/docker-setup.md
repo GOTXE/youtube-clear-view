@@ -27,15 +27,13 @@ For repetitive local tasks there is also a helper script:
 By default the helper script starts the full dev stack:
 - `backend`
 - `proxy`
-- `log_viewer`
 
 ## Containers
 
 | Service | Image / Build | Ports | Purpose |
 |---|---|---|---|
-| **proxy** | Caddy 2.8 (multi-stage: builds frontend then serves via Caddy) | `8080 → 8080` | Serves the **frontend** static files and reverse-proxies `/api*` to backend and `/logs*` to log_viewer. |
+| **proxy** | Caddy 2.8 (multi-stage: builds frontend then serves via Caddy) | `8080 → 8080` | Serves the **frontend** static files, reverse-proxies `/api*` to backend, and redirects `/logs*` to `gestor`. |
 | **backend** | Python 3.11-slim + Gunicorn | `5550` (internal) | Flask REST API + SQLite database. |
-| **log_viewer** | Python 3.11-slim | `5551` (internal) | Separate microservice for viewing application logs. |
 
 ## How the frontend is served
 
@@ -56,7 +54,6 @@ time. There are no volume mounts for frontend files.
 | Frontend files (`frontend/css/`, `frontend/js/`, `frontend/index.html`, `frontend/sw.js`, etc.) | `docker compose -f infra/compose/compose.v020.yaml build proxy && docker compose -f infra/compose/compose.v020.yaml up -d proxy` |
 | Caddyfile (`infra/proxy/Caddyfile`) | Same as above (rebuild proxy). |
 | Backend code (`backend/app/`, `backend/requirements.txt`) | `docker compose -f infra/compose/compose.v020.yaml build backend && docker compose -f infra/compose/compose.v020.yaml up -d backend` |
-| Log viewer code (`log_viewer/`) | `docker compose -f infra/compose/compose.v020.yaml build log_viewer && docker compose -f infra/compose/compose.v020.yaml up -d log_viewer` |
 | Backend `.env` only (no code changes) | `docker compose -f infra/compose/compose.v020.yaml up -d backend` (restart, no rebuild needed). |
 | Everything | `docker compose -f infra/compose/compose.v020.yaml up -d --build` |
 
@@ -91,14 +88,14 @@ proxy container.
 | Volume | Mounted in | Purpose |
 |---|---|---|
 | `ytcv_data` | backend → `/data` | SQLite database file. |
-| `ytcv_logs` | backend → `/logs`, log_viewer → `/logs` | Shared application log file. |
+| `ytcv_logs` | backend → `/logs` | Application log file. |
 
 ## Caddyfile routing (`infra/proxy/Caddyfile`)
 
 | Path | Target |
 |---|---|
 | `/api*` | `reverse_proxy backend:5550` |
-| `/logs*` | `reverse_proxy log_viewer:5551` |
+| `/logs*` | `308 → /gestor/#logs` |
 | Everything else | Static files from `/srv` (frontend), with SPA fallback to `index.html`. |
 
 ### Cache headers set by Caddy
@@ -114,6 +111,5 @@ proxy container.
 | `infra/compose/compose.v020.yaml` | Main compose file. |
 | `infra/docker/proxy/Dockerfile` | Multi-stage: frontend build + Caddy. |
 | `infra/docker/backend/Dockerfile` | Backend image. |
-| `infra/docker/log_viewer/Dockerfile` | Log viewer image. |
 | `infra/proxy/Caddyfile` | Caddy reverse proxy + static file config. |
 | `frontend/sw.js` | Service Worker with `CACHE_VERSION`. |

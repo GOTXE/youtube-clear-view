@@ -234,6 +234,15 @@ def ensure_video_schema():
                     "ON videos (metadata_incomplete)"
                 )
             )
+            conn.execute(
+                text(
+                    "UPDATE videos "
+                    "SET thumbnail_url = 'https://i.ytimg.com/vi/' || yt_video_id || '/hqdefault.jpg' "
+                    "WHERE yt_video_id IS NOT NULL "
+                    "AND yt_video_id != '' "
+                    "AND (thumbnail_url IS NULL OR thumbnail_url = '')"
+                )
+            )
     except Exception as error:
         logger.warning(
             "Video schema migration skipped: %s",

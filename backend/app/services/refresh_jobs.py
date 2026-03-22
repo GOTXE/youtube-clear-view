@@ -273,3 +273,26 @@ def start_refresh_job(user_id, kind=KIND_MANUAL, channel_id=None, ignore_last_re
     )
     thread.start()
     return job
+
+
+def recover_interrupted_refresh_jobs():
+    """Mark queued/running jobs as failed after an application restart."""
+    stale_jobs = (
+        RefreshJob.query.filter(RefreshJob.status.in_((STATUS_QUEUED, STATUS_RUNNING)))
+        .order_by(RefreshJob.created_at.asc(), RefreshJob.id.asc())
+        .all()
+    )
+    recovered = 0
+    for job in stale_jobs:
+        job.status = STATUS_FAILED
+        job.message = "Refresh interrumpido por reinicio del backend"
+        job.finished_at = utc_now()
+        recovered += 1
+    if recovered:
+        db.session.commit()
+        logger.warning(
+            "Recovered interrupted refresh jobs after startup (count=%s)",
+            recovered,
+            extra={"tracking_id": "SYSTEM"},
+        )
+    return recovered

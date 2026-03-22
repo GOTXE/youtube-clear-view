@@ -100,7 +100,7 @@ def _build_rss_item(entry, now):
         "description": None,
         "video_category_id": None,
         "tags": [],
-        "thumbnail": None,
+        "thumbnail": getattr(entry, "thumbnail", None),
         "published_at": entry.published_at,
         "duration": None,
         "discovered_via": "rss",
@@ -130,6 +130,27 @@ def _apply_completion_items(channel, completion_items, now):
         if _update_video_from_item(video, enriched_item, published_at):
             updates += 1
     return updates
+
+
+def _log_channel_refresh_path(
+    channel,
+    refresh_mode,
+    path,
+    channel_new_videos=0,
+    channel_metadata_updates=0,
+    success=True,
+):
+    logger.info(
+        "Channel refresh path resolved. mode=%s path=%s channel_title=%s yt_channel_id=%s new_videos=%s metadata_updates=%s success=%s",
+        refresh_mode,
+        path,
+        channel.title or "-",
+        channel.yt_channel_id,
+        channel_new_videos,
+        channel_metadata_updates,
+        success,
+        extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
+    )
 
 
 def _ingest_api_items(
@@ -236,12 +257,19 @@ def _refresh_channel_via_rss(
     ignore_last_refreshed,
     now,
 ):
+    used_api_completion = False
     feed_response = fetch_channel_feed(channel.yt_channel_id)
     subscription.last_feed_checked_at = now
     if not feed_response.get("success"):
         subscription.last_feed_error_at = now
         subscription.feed_error_count = int(subscription.feed_error_count or 0) + 1
-        return {"success": False, "rate_limited": False, "fallback_to_api": True}
+        return {
+            "success": False,
+            "rate_limited": False,
+            "fallback_to_api": True,
+            "used_rss": False,
+            "used_api_completion": False,
+        }
 
     subscription.last_feed_success_at = now
     subscription.feed_error_count = 0
@@ -283,8 +311,14 @@ def _refresh_channel_via_rss(
         completion_response = service.get_videos_by_ids(completion_ids)
         if completion_response.get("rate_limited"):
             mark_quota_exhausted(settings)
-            return {"success": False, "rate_limited": True}
+            return {
+                "success": False,
+                "rate_limited": True,
+                "used_rss": True,
+                "used_api_completion": False,
+            }
         if completion_response.get("success"):
+            used_api_completion = True
             logger.info(
                 "RSS-discovered videos queued targeted API completion.",
                 extra={
@@ -305,6 +339,8 @@ def _refresh_channel_via_rss(
         "channel_new_videos": ingest_result["channel_new_videos"],
         "channel_metadata_updates": ingest_result["channel_metadata_updates"],
         "latest_seen": ingest_result["latest_seen"],
+        "used_rss": True,
+        "used_api_completion": used_api_completion,
     }
 
 
@@ -447,6 +483,7 @@ def iter_refresh_user_channels(
         channel_new_videos = 0
         channel_metadata_updates = 0
         refresh_mode = _resolve_refresh_mode(subscription)
+        refresh_path = "api_only" if refresh_mode == "api_only" else "rss"
 
         yield {
             "type": "channel_started",
@@ -474,10 +511,12 @@ def iter_refresh_user_channels(
                 now,
             )
             if refresh_result.get("fallback_to_api") and refresh_mode == "rss_preferred":
+                refresh_path = "rss_failed_no_api_fallback"
                 logger.info(
                     "Channel refresh skipped API fallback because rss_preferred mode is active.",
                     extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
                 )
+                _log_channel_refresh_path(channel, refresh_mode, refresh_path, success=False)
                 subscription.last_checked_at = now
                 db.session.commit()
                 processed_channels += 1
@@ -510,10 +549,12 @@ def iter_refresh_user_channels(
                 }
                 break
 
+            refresh_path = "api_only" if refresh_mode == "api_only" else "api_fallback"
             response = service.get_channel_videos(channel.yt_channel_id)
             if response.get("rate_limited"):
                 mark_quota_exhausted(settings)
                 rate_limited = True
+                _log_channel_refresh_path(channel, refresh_mode, f"{refresh_path}_rate_limited", success=False)
                 db.session.commit()
                 yield {
                     "type": "complete",
@@ -530,6 +571,7 @@ def iter_refresh_user_channels(
                     "Channel refresh failed.",
                     extra={"tracking_id": generate_tracking_id(), "channel_id": channel.id},
                 )
+                _log_channel_refresh_path(channel, refresh_mode, f"{refresh_path}_failed", success=False)
                 subscription.last_checked_at = now
                 db.session.commit()
                 processed_channels += 1
@@ -560,9 +602,14 @@ def iter_refresh_user_channels(
             refresh_result["success"] = True
             refresh_result["rate_limited"] = False
             refresh_result["used_api_fallback"] = True
+        elif refresh_result.get("used_api_completion"):
+            refresh_path = "rss+api_completion"
+        elif refresh_result.get("used_rss"):
+            refresh_path = "rss"
 
         if refresh_result.get("rate_limited"):
             rate_limited = True
+            _log_channel_refresh_path(channel, refresh_mode, f"{refresh_path}_rate_limited", success=False)
             db.session.commit()
             yield {
                 "type": "complete",
@@ -597,6 +644,15 @@ def iter_refresh_user_channels(
         _prune_range(channel.id, older_max_cutoff, older_min_cutoff, True, preset["older_short_cap"])
 
         db.session.commit()
+
+        _log_channel_refresh_path(
+            channel,
+            refresh_mode,
+            refresh_path,
+            channel_new_videos=channel_new_videos,
+            channel_metadata_updates=channel_metadata_updates,
+            success=True,
+        )
 
         if not ChannelCategory.query.filter_by(channel_id=channel.id).first():
             try:

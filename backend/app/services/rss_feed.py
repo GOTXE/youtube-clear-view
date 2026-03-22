@@ -11,7 +11,11 @@ from app.logging.tracking import generate_tracking_id
 
 logger = get_logger(__name__)
 
-ATOM_NS = {"atom": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015"}
+ATOM_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "yt": "http://www.youtube.com/xml/schemas/2015",
+    "media": "http://search.yahoo.com/mrss/",
+}
 
 
 @dataclass
@@ -25,6 +29,7 @@ class FeedEntry:
     updated_at: str | None
     channel_title: str | None
     link: str | None
+    thumbnail: str | None
 
 
 def build_feed_url(channel_id):
@@ -43,6 +48,12 @@ def parse_feed_entries(xml_text):
     for entry in root.findall("atom:entry", ATOM_NS):
         author = entry.find("atom:author", ATOM_NS)
         link = entry.find("atom:link", ATOM_NS)
+        media_group = entry.find("media:group", ATOM_NS)
+        thumbnail_node = (
+            media_group.find("media:thumbnail", ATOM_NS)
+            if media_group is not None
+            else entry.find("media:thumbnail", ATOM_NS)
+        )
         entries.append(
             FeedEntry(
                 video_id=_text(entry.find("yt:videoId", ATOM_NS)),
@@ -52,6 +63,7 @@ def parse_feed_entries(xml_text):
                 updated_at=_text(entry.find("atom:updated", ATOM_NS)),
                 channel_title=_text(author.find("atom:name", ATOM_NS)) if author is not None else None,
                 link=link.get("href") if link is not None else None,
+                thumbnail=thumbnail_node.get("url") if thumbnail_node is not None else None,
             )
         )
 

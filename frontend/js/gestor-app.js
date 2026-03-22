@@ -927,12 +927,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * Parse a log line into structured parts: timestamp, level, module, message.
-   * Expected format: "2026-03-18 17:34:56,981 [ERROR] | r.googleapi(sync.discover) | URL being requested: ..."
+   * Supported formats:
+   * - "[2026-03-22 19:42:44,451] [DEBUG] [-] [urllib3.connectionpool] ..."
+   * - "2026-03-18 17:34:56,981 [ERROR] | module | message"
    */
   function parseLogEntry(entry) {
-    const match = entry.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+\[(\w+)]\s*\|\s*([^|]+?)\s*\|\s*([\s\S]*)$/);
-    if (!match) return null;
-    return { timestamp: match[1], level: match[2], module: match[3].trim(), message: match[4].trim() };
+    const currentMatch = entry.match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\]\s+\[(\w+)\]\s+\[([^\]]*)\]\s+\[([^\]]+)\]\s*([\s\S]*)$/);
+    if (currentMatch) {
+      const tracking = currentMatch[3].trim();
+      const module = currentMatch[4].trim();
+      const message = currentMatch[5].trim();
+      return {
+        timestamp: currentMatch[1],
+        level: currentMatch[2],
+        module: tracking && tracking !== '-' ? `${module} · ${tracking}` : module,
+        message
+      };
+    }
+
+    const legacyMatch = entry.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+\[(\w+)]\s*\|\s*([^|]+?)\s*\|\s*([\s\S]*)$/);
+    if (legacyMatch) {
+      return {
+        timestamp: legacyMatch[1],
+        level: legacyMatch[2],
+        module: legacyMatch[3].trim(),
+        message: legacyMatch[4].trim()
+      };
+    }
+
+    return null;
   }
 
   function buildStructuredLogEntry(text, levelOverride) {

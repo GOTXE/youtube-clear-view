@@ -990,6 +990,44 @@ select {
 
 .tv-action-bar {
   display: none;
+  position: relative;
+}
+
+.tv-refresh-progress {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  width: auto;
+  max-width: min(34%, 32rem);
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--font-body-small);
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+
+.tv-refresh-progress[data-state="running"] {
+  animation: refresh-pulse 1.8s ease-in-out infinite;
+}
+
+.tv-refresh-progress[data-state="complete"] {
+  color: var(--success);
+}
+
+.tv-refresh-progress[data-state="error"] {
+  color: var(--error);
 }
 
 .channel-item:hover {

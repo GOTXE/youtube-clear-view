@@ -66,12 +66,11 @@ Suggested folder layout (simple):
   - `/volume1/ytcv/logs/` (log files)
   - `/volume1/ytcv/backend/` (backend service)
   - `/volume1/ytcv/frontend/` (static web files)
-  - `/volume1/ytcv/log_viewer/` (log viewer service)
 
 What you will configure:
 - Synology Reverse Proxy:
   - one public HTTPS hostname for the UI (recommended)
-  - routes for `/api` (backend) and optionally `/logs` (log viewer)
+  - route for `/api` (backend)
 - `.env` values (OAuth and URLs)
 
 Where it usually fails:
@@ -89,7 +88,7 @@ Why:
 - can be a small always-on device
 
 Typical setup:
-- run backend + log viewer as background services
+- run backend as a background service
 - use a reverse proxy (nginx/caddy) for HTTPS
 - store DB/logs in a persistent folder you own
 
@@ -174,7 +173,7 @@ Common flow:
 If login fails:
 - verify your public URL is HTTPS and reachable from the device
 - verify the OAuth redirect URI matches *exactly* (no extra slashes, correct host, correct scheme)
-- check backend logs for a tracking ID and open the log viewer if available
+- check backend logs for a tracking ID and review it from `Gestor > Logs`
 
 If the app loads but shows no content:
 - confirm you are signed in

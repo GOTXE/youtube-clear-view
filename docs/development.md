@@ -21,7 +21,6 @@ python -c "from app import create_app; create_app(); print('OK')"
 This starts:
 - frontend on `http://localhost:8080`
 - backend on `http://localhost:5550`
-- log viewer on `http://localhost:5551/logs`
 
 ## Container Baseline (v0.2.0)
 
@@ -29,7 +28,6 @@ The v0.2.0 architecture baseline introduces repo-level infrastructure files in
 `infra/`:
 
 - `infra/docker/backend/Dockerfile`
-- `infra/docker/log_viewer/Dockerfile`
 - `infra/docker/proxy/Dockerfile`
 - `infra/proxy/Caddyfile`
 - `infra/compose/compose.v020.yaml`
@@ -38,7 +36,7 @@ This baseline is meant to move the app toward:
 
 - same-origin frontend + API delivery through the proxy
 - repo-level deployment topology
-- an optional log viewer service
+- admin logs integrated into `gestor`
 - a persistent SQLite volume managed by containers
 
 It does not replace the local developer scripts yet.
@@ -586,7 +584,6 @@ Frontend tests use `Vitest` + `jsdom` and live under `frontend/tests/`.
 ## Project Structure
 
 - `backend/`: Flask API + SQLite
-- `log_viewer/`: log monitoring service
 - `frontend/`: static UI
 - `infra/`: repo-level Docker, compose, and proxy baseline for v0.2.0
 - `frontend/i18n/`: UI translation JSON files (EN/ES)
@@ -625,10 +622,10 @@ Use Conventional Commits:
 
 The UI waits for translations to load before rendering to avoid a brief flash of the default language.
 
-## Log Viewer UX
+## Admin Logs UX
 
-- Severity filters, auto-refresh, and highlighted newest entries are available in the log viewer UI.
-- Access via `/logs` on the log viewer service.
+- Severity filters, live review mode, and tracking ID lookup are available in `gestor`.
+- `/logs` redirects to `/gestor/#logs`.
 
 ## Git Workflow
 

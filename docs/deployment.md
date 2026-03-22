@@ -5,7 +5,6 @@
 The repository now includes a repo-level container baseline under `infra/`:
 
 - `infra/docker/backend/Dockerfile`
-- `infra/docker/log_viewer/Dockerfile`
 - `infra/docker/proxy/Dockerfile`
 - `infra/proxy/Caddyfile`
 - `infra/compose/compose.v020.yaml`
@@ -14,7 +13,7 @@ This baseline is the starting point for the v0.2.0 deployment architecture:
 
 - the proxy serves the built frontend bundle
 - `/api` is reverse-proxied to the backend
-- `/logs` can be reverse-proxied to the optional log viewer
+- `/logs` redirects to `gestor`
 - the app is intended to run same-origin behind the proxy
 
 This does not remove the current scripts or the older backend-local compose file yet.
@@ -52,7 +51,7 @@ docker compose up -d --build
 
 Volumes:
 - `backend_data` stores the SQLite DB.
-- `logs` stores log files shared with the log viewer.
+- `logs` stores backend log files.
 
 ### Option C: Repo-level v0.2.0 compose baseline
 
@@ -68,29 +67,14 @@ Notes:
 - the proxy listens on `:8080` in the baseline file
 - the frontend is built into the proxy image and served as same-origin
 - backend SQLite data is mounted on a named volume
-- the baseline compose includes `log_viewer` so `/logs` is always routed consistently
+- admin log review now lives inside `gestor`
 - later tasks may introduce profile-based variants once the proxy contract is split cleanly
-
-## Log Viewer Deployment
-
-### Run Script
-
-```bash
-cd /volume1/Apps/yt-clear-view/log_viewer
-./run_log_viewer.sh
-```
-
-Runs the log viewer on port `5551`.
-
-### Docker Compose
-
-The log viewer is included in `backend/docker-compose.yml`.
 
 ## Reverse Proxy (Nginx / Synology)
 
 - HTTP traffic must redirect to HTTPS.
 - `/api/` -> backend on `127.0.0.1:5550`
-- `/logs/` -> log viewer on `127.0.0.1:5551`
+- `Logs` -> `/gestor/#logs` on the main UI host
 
 Use the example config in `backend/nginx-reverse-proxy.conf` and update:
 - `server_name`
@@ -149,7 +133,7 @@ the instance volume, the thumbnails will be re-downloaded on demand.
 ## Verification Checklist
 
 - `/api/health` returns `{"status": "ok"}`
-- `/logs` prompts for Basic Auth
+- `/logs` redirects to `/gestor/#logs`
 - Frontend loads without console errors
 - Login sets `ytcv_session` cookie (local or Google OAuth)
 - New videos appear after refresh

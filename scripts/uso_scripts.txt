@@ -11,7 +11,6 @@ Por defecto levanta:
 
   - backend
   - proxy
-  - log_viewer
 
 Levantar todo:
 
@@ -40,7 +39,6 @@ Ver logs recientes de un servicio:
 
   docker compose -f infra/compose/compose.v020.yaml logs --tail=200 backend
   docker compose -f infra/compose/compose.v020.yaml logs --tail=200 proxy
-  docker compose -f infra/compose/compose.v020.yaml logs --tail=200 log_viewer
 
 
 BBDD
@@ -69,21 +67,21 @@ Ejemplo: levantar solo proxy
 
   ./scripts/dev_docker.sh up proxy
 
-Ejemplo: levantar solo log_viewer
+Ejemplo: levantar solo backend
 
-  ./scripts/dev_docker.sh up log_viewer
+  ./scripts/dev_docker.sh up backend
 
-Ejemplo: levantar backend + proxy + log_viewer de forma explicita
+Ejemplo: levantar backend + proxy de forma explicita
 
-  ./scripts/dev_docker.sh up backend proxy log_viewer
+  ./scripts/dev_docker.sh up backend proxy
 
 Ejemplo: reconstruir solo proxy
 
   ./scripts/dev_docker.sh up --build proxy
 
-Ejemplo: reconstruir solo log_viewer
+Ejemplo: reconstruir solo backend
 
-  ./scripts/dev_docker.sh up --build log_viewer
+  ./scripts/dev_docker.sh up --build backend
 
 
 PARAR STACK
@@ -101,7 +99,6 @@ Reiniciar solo un servicio:
 
   docker compose -f infra/compose/compose.v020.yaml restart backend
   docker compose -f infra/compose/compose.v020.yaml restart proxy
-  docker compose -f infra/compose/compose.v020.yaml restart log_viewer
 
 Reinicio completo del stack:
 
@@ -111,7 +108,9 @@ Reinicio completo del stack:
 
 NOTA PRACTICA
 
-Si quieres que funcione http://localhost:8080/logs, tiene que estar levantado log_viewer.
+La vista administrativa de logs vive ahora en:
+
+  http://localhost:8080/gestor/#logs
 
 Si ejecutas algo como:
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Local development runner for backend + frontend + log viewer.
+# Local development runner for backend + frontend.
 
 set -euo pipefail
 
@@ -115,31 +115,11 @@ log_info "Starting Flask backend..."
 BACKEND_PID=$!
 log_success "Backend started (PID: ${BACKEND_PID})"
 
-# Setup log viewer venv
-log_venv_create "${ROOT_DIR}/log_viewer/.venv"
-
-LOG_VENV_PY="${ROOT_DIR}/log_viewer/.venv/bin/python"
-log_cmd "Ensuring pip for log_viewer" "${LOG_VENV_PY}" -m ensurepip --upgrade || true
-
-# Install log viewer dependencies
-log_pip_install "${LOG_VENV_PY}" "log_viewer/requirements.txt"
-
-LOG_VIEWER_USER="${LOG_VIEWER_USER:-admin}"
-LOG_VIEWER_PASSWORD="${LOG_VIEWER_PASSWORD:-admin}"
 export LOG_FILE="${LOG_FILE_PATH}"
-export LOG_VIEWER_USER
-export LOG_VIEWER_PASSWORD
-
-# Start log viewer
-log_info "Starting log viewer..."
-"${LOG_VENV_PY}" log_viewer/app.py &
-LOG_VIEWER_PID=$!
-log_success "Log viewer started (PID: ${LOG_VIEWER_PID})"
 
 cleanup() {
     log_info "Shutting down services..."
     kill "${BACKEND_PID}" >/dev/null 2>&1 || true
-    kill "${LOG_VIEWER_PID}" >/dev/null 2>&1 || true
     finalize_run_log 0
 }
 trap cleanup EXIT
@@ -148,7 +128,6 @@ log_info "=============================================="
 log_info "Mode: ${MODE_LABEL}"
 log_info "Backend: http://${FLASK_RUN_HOST}:${FLASK_RUN_PORT}"
 log_info "Backend (LAN): http://${DEV_HOST}:${FLASK_RUN_PORT}"
-log_info "Log viewer: http://localhost:5551/logs"
 log_info "Frontend API_BASE_URL: ${API_BASE_URL_VALUE}"
 log_info "Frontend: ${FRONTEND_PUBLIC_URL}"
 log_info "Frontend bind: http://${FRONTEND_BIND_HOST}:${FRONTEND_PORT}"

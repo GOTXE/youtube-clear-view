@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/infra/compose/compose.v020.yaml"
 DB_PATH="/data/youtube_clear_view.db"
-DEFAULT_SERVICES=(backend proxy log_viewer)
+DEFAULT_SERVICES=(backend proxy)
 BACKEND_HEALTH_TIMEOUT_SECONDS=90
 
 usage() {
@@ -19,8 +19,8 @@ Usage:
   ./scripts/dev_docker.sh db-ls
 
 Commands:
-  up         Start the dev stack. Defaults to: backend proxy log_viewer
-  build      Build one or more services. Defaults to: backend proxy log_viewer
+  up         Start the dev stack. Defaults to: backend proxy
+  build      Build one or more services. Defaults to: backend proxy
   down       Stop the compose stack
   db-reset   Remove the SQLite database from the Docker volume
   db-ls      List database files inside /data

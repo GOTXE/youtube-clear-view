@@ -10,7 +10,6 @@ The system is composed of:
 
 1. **Frontend**: static HTML/CSS/JS (vanilla).
 2. **Backend API**: Flask service with SQLite persistence and YT Data API integration.
-3. **Log Viewer (optional)**: separate Flask service for viewing log files.
 
 ## Deployment Topologies
 
@@ -25,7 +24,7 @@ One hostname serves everything. This avoids most CORS and cookie pitfalls (espec
 [Reverse Proxy]
     | /      -> Frontend static
     | /api   -> Backend API (:5550)
-    | /logs  -> Log Viewer (:5551)  (optional)
+    | /logs  -> redirect to Gestor Logs
 ```
 
 ### Topology B: Split-host (advanced)
@@ -64,10 +63,10 @@ Frontend and API live on different hostnames. This requires strict CORS and cook
 - Centralized error handling with tracking IDs.
 - SQLite tuning to reduce lock contention (WAL + busy timeout).
 
-### Log Viewer (optional)
-- Separate Flask app reading backend log files.
-- HTTP Basic Auth for access control.
-- UI supports severity filters and auto-refresh of entries and recent errors.
+### Admin Logs
+- Logs are managed from the admin `gestor` shell.
+- The backend reads current and rotated log files directly.
+- The UI supports severity filters, tracking ID lookup, and live review mode.
 
 ## Data Model (high level)
 
@@ -142,4 +141,4 @@ Manual overrides via `PUT /api/channels/<id>/category` always take precedence ov
 ## Logging
 
 - Rotating file logs with tracking IDs.
-- Log viewer reads the shared log file path (mounted or shared directory).
+- The backend reads the shared log file path and exposes logs through `gestor`.

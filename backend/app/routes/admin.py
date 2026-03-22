@@ -53,10 +53,7 @@ def _read_admin_log_entries(limit=5000):
     for entry in os.listdir(log_dir):
         if entry == base_name or entry.startswith(f"{base_name}."):
             candidates.append(os.path.join(log_dir, entry))
-    ordered = sorted(
-        candidates,
-        key=lambda path: (0 if os.path.basename(path) == base_name else int(os.path.basename(path).split(".")[-1] or 0)),
-    )
+    ordered = sorted(candidates, key=lambda path: _log_file_sort_key(path, base_name))
     return _tail_lines_from_files(ordered, limit)
 
 
@@ -71,10 +68,20 @@ def _get_admin_log_files():
     for entry in os.listdir(log_dir):
         if entry == base_name or entry.startswith(f"{base_name}."):
             candidates.append(os.path.join(log_dir, entry))
-    return sorted(
-        candidates,
-        key=lambda path: (0 if os.path.basename(path) == base_name else int(os.path.basename(path).split(".")[-1] or 0)),
-    )
+    return sorted(candidates, key=lambda path: _log_file_sort_key(path, base_name))
+
+
+def _log_file_sort_key(path, base_name):
+    """Sort rotated logs from oldest to newest, keeping the current file last."""
+    name = os.path.basename(path)
+    if name == base_name:
+        return (1, 0)
+    suffix = name.removeprefix(f"{base_name}.")
+    try:
+        rotation = int(suffix)
+    except ValueError:
+        rotation = 0
+    return (0, -rotation)
 
 
 def _tail_log_lines(log_file, count):
@@ -111,16 +118,15 @@ def _tail_lines_from_files(log_files, count):
     collected = []
     more_available = False
 
-    for log_file in reversed(log_files):
+    for log_file in log_files:
         if not os.path.exists(log_file):
             continue
         lines, file_has_more = _tail_log_lines(log_file, count)
         if lines:
-            collected = lines + collected
+            collected.extend(lines)
             if len(collected) > count:
                 collected = collected[-count:]
                 more_available = True
-                break
         if file_has_more:
             more_available = True
 

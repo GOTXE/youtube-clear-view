@@ -9,7 +9,7 @@
 
   @logs path /logs*
   handle @logs {
-    reverse_proxy log_viewer:5551
+    redir * /gestor/#logs 308
   }
 
   @gestor path /gestor /gestor/*

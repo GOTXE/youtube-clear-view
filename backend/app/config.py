@@ -40,10 +40,6 @@ class Config:
     SQLITE_METRICS_ENABLED = os.getenv("SQLITE_METRICS_ENABLED", "false").lower() == "true"
     SQLITE_METRICS_SLOW_WRITE_MS = int(os.getenv("SQLITE_METRICS_SLOW_WRITE_MS", "100"))
 
-    LOG_VIEWER_USER = os.getenv("LOG_VIEWER_USER")
-    LOG_VIEWER_PASSWORD = os.getenv("LOG_VIEWER_PASSWORD")
-    LOG_VIEWER_PORT = int(os.getenv("LOG_VIEWER_PORT", "5551"))
-
     GUNICORN_WORKERS = int(os.getenv("GUNICORN_WORKERS", "2"))
 
     YT_DAILY_QUOTA = int(os.getenv("YT_DAILY_QUOTA", "10000"))

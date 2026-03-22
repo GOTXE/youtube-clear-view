@@ -20,9 +20,6 @@ class TestConfig:
     LOG_FILE = "logs/test.log"
     LOG_MAX_SIZE = 1024 * 1024
     LOG_BACKUP_COUNT = 1
-    LOG_VIEWER_USER = "test"
-    LOG_VIEWER_PASSWORD = "test"
-    LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
     LOCAL_SIGNUP_ENABLED = True
     PASSWORD_POLICY = "simple"

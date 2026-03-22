@@ -28,6 +28,7 @@ from .migrations import (
 )
 from .routes import register_routes
 from .services.admin_bootstrap import apply_admin_recovery_if_requested
+from .services.refresh_jobs import recover_interrupted_refresh_jobs
 from .services.scheduler import start_scheduler
 from .services.site_settings import get_site_log_level
 from .services.sqlite_metrics import initialize_sqlite_metrics
@@ -88,6 +89,7 @@ def create_app(config_class=Config):
         ensure_channel_classification_columns()
         ensure_user_channel_rating_columns()
         apply_admin_recovery_if_requested()
+        recover_interrupted_refresh_jobs()
         set_runtime_log_level(get_site_log_level(app.config["LOG_LEVEL"]))
         os.makedirs(os.path.join(app.instance_path, "channel_thumbnails"), exist_ok=True)
 

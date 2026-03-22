@@ -195,10 +195,12 @@ html[data-mode="tv"] .header-status {
   height: 0;
   overflow: visible;
   position: relative;
+  z-index: 35;
+  pointer-events: none;
 }
 
-/* Progress text: inline inside action bar, no background */
-html[data-mode="tv"] .refresh-progress {
+/* Progress text: header fallback only, no background */
+html[data-mode="tv"] .refresh-progress:not(.tv-refresh-progress) {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -233,14 +235,67 @@ html[data-mode="tv"] .refresh-progress[data-state="error"] {
   color: #ef5350;
 }
 
+html[data-mode="tv"] .update-available-banner {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(42rem, calc(100vw - 3rem));
+  max-width: calc(100vw - 3rem);
+  z-index: 40;
+  pointer-events: auto;
+}
+
+html[data-mode="tv"] .update-available-banner:hover {
+  transform: translateX(-50%) translateY(-1px);
+}
+
+html[data-mode="tv"] .update-available-banner:active {
+  transform: translateX(-50%);
+}
+
 /* ── TV Action bar: compact tabs ─────────────────────────────────── */
 
 html[data-mode="tv"] .tv-action-bar {
   position: relative;
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   padding: 6px 0;
   border-bottom: 1px solid var(--border);
+}
+
+html[data-mode="tv"] .tv-refresh-progress {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  max-width: min(34%, 32rem);
+  width: auto;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: #b0c8e8;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+
+html[data-mode="tv"] .tv-refresh-progress[data-state="complete"] {
+  color: #81c784;
+}
+
+html[data-mode="tv"] .tv-refresh-progress[data-state="error"] {
+  color: #ef5350;
 }
 
 html[data-mode="tv"] .tv-action-bar__button {

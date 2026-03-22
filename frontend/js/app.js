@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tvActionBar: document.getElementById('tv-action-bar'),
     tvActionInProgress: document.getElementById('tv-action-in-progress'),
     tvActionWatched: document.getElementById('tv-action-watched'),
+    tvRefreshProgress: document.getElementById('tv-refresh-progress'),
     themeToggle: document.getElementById('theme-toggle'),
     menuToggle: document.getElementById('menu-toggle'),
     menuPanel: document.getElementById('menu-panel'),
@@ -988,6 +989,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return true;
     }
 
+    if (isVisibleNode(ui.refreshProgress) || isVisibleNode(ui.tvRefreshProgress)) {
+      return true;
+    }
+
     const blockers = document.querySelectorAll(
       '.player-overlay, .confirm-modal-overlay, .guide-modal-overlay, .settings-modal-overlay, .category-modal-overlay, .modal, #login-page'
     );
@@ -1236,20 +1241,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       : null;
 
-    if (!ui.refreshProgress) {
+    if (!ui.refreshProgress && !ui.tvRefreshProgress) {
       return;
     }
+
+    const useActionBarSlot = isVisibleNode(ui.tvActionBar);
+    const primaryNode = useActionBarSlot ? ui.tvRefreshProgress : ui.refreshProgress;
+    const secondaryNode = useActionBarSlot ? ui.refreshProgress : ui.tvRefreshProgress;
 
     if (!message) {
-      ui.refreshProgress.hidden = true;
-      ui.refreshProgress.textContent = '';
-      ui.refreshProgress.removeAttribute('data-state');
+      [ui.refreshProgress, ui.tvRefreshProgress].forEach(node => {
+        if (!node) {
+          return;
+        }
+        node.hidden = true;
+        node.textContent = '';
+        node.removeAttribute('data-state');
+      });
       return;
     }
 
-    ui.refreshProgress.hidden = false;
-    ui.refreshProgress.textContent = message;
-    ui.refreshProgress.setAttribute('data-state', status);
+    if (secondaryNode) {
+      secondaryNode.hidden = true;
+      secondaryNode.textContent = '';
+      secondaryNode.removeAttribute('data-state');
+    }
+    if (!primaryNode) {
+      return;
+    }
+    primaryNode.hidden = false;
+    primaryNode.textContent = message;
+    primaryNode.setAttribute('data-state', status);
+  }
+
+  function scheduleRefreshProgressClear(expectedStatus, delayMs) {
+    window.setTimeout(() => {
+      if (state.refreshProgress && state.refreshProgress.status === expectedStatus) {
+        setRefreshProgress('');
+      }
+    }, delayMs);
   }
 
   function clearRefreshStatusPoller() {
@@ -1322,11 +1352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           t('refreshProgressDone', { count: payload.new_videos || 0 }),
           'complete'
         );
-        window.setTimeout(() => {
-          if (state.refreshProgress && state.refreshProgress.status === 'complete') {
-            setRefreshProgress('');
-          }
-        }, 2500);
+        scheduleRefreshProgressClear('complete', 2500);
         return;
       }
 
@@ -1354,11 +1380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         t('refreshProgressDone', { count: payload.new_videos || 0 }),
         'complete'
       );
-      window.setTimeout(() => {
-        if (state.refreshProgress && state.refreshProgress.status === 'complete') {
-          setRefreshProgress('');
-        }
-      }, 2500);
+      scheduleRefreshProgressClear('complete', 2500);
       return;
     }
 
@@ -1375,11 +1397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           'warning'
         );
       }
-      window.setTimeout(() => {
-        if (state.refreshProgress && state.refreshProgress.status === 'warning') {
-          setRefreshProgress('');
-        }
-      }, 4000);
+      scheduleRefreshProgressClear('warning', 4000);
     }
   }
 
@@ -1429,12 +1447,21 @@ document.addEventListener('DOMContentLoaded', async () => {
               helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressCooldown', { minutes: 1 }),
               'warning'
             );
-          } else {
-            setRefreshProgress(t('refreshProgressError'), 'error');
-          }
-          if (typeof onComplete === 'function') {
-            await onComplete(blockedPayload);
-          }
+        } else {
+          setRefreshProgress(t('refreshProgressError'), 'error');
+        }
+        if (
+          blockedPayload.reason === 'refresh_in_progress'
+          || blockedPayload.reason === 'scheduled_priority'
+          || blockedPayload.reason === 'global_refresh_running'
+          || blockedPayload.reason === 'quota_exhausted'
+          || blockedPayload.reason === 'cooldown_active'
+        ) {
+          scheduleRefreshProgressClear('warning', 4000);
+        }
+        if (typeof onComplete === 'function') {
+          await onComplete(blockedPayload);
+        }
           resolve(blockedPayload);
           return;
         }

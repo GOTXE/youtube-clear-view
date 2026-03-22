@@ -338,6 +338,9 @@ def ensure_enrich_settings_columns():
                 ("enrich_classified", "INTEGER DEFAULT 0"),
                 ("enrich_errors", "INTEGER DEFAULT 0"),
                 ("enrich_started_at", "DATETIME"),
+                ("auto_classify_date", "VARCHAR(10)"),
+                ("auto_classify_attempts", "INTEGER DEFAULT 0"),
+                ("auto_classify_last_attempt_at", "DATETIME"),
                 ("last_security_reminder_at", "DATETIME"),
             ]
 

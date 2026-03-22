@@ -151,6 +151,9 @@ Practical advice:
 - Once started, both modes keep running on the backend. If you close the browser
   and come back while the task is still active, the web UI will reattach to its
   progress automatically.
+- If the scheduler is enabled and you still have unclassified channels, the app
+  also tries a **Basic** automatic classification in the background up to two
+  times per day.
 
 ---
 

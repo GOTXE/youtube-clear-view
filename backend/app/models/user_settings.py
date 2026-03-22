@@ -30,6 +30,9 @@ class UserSettings(db.Model):
     enrich_classified = db.Column(db.Integer, default=0)
     enrich_errors = db.Column(db.Integer, default=0)
     enrich_started_at = db.Column(db.DateTime)
+    auto_classify_date = db.Column(db.String(10))
+    auto_classify_attempts = db.Column(db.Integer, default=0)
+    auto_classify_last_attempt_at = db.Column(db.DateTime)
     last_schedule_run_at = db.Column(db.DateTime)
     quota_date = db.Column(db.String(10))
     quota_used = db.Column(db.Integer, default=0)
@@ -99,5 +102,12 @@ class UserSettings(db.Model):
             "enrich_errors": self.enrich_errors or 0,
             "enrich_started_at": (
                 self.enrich_started_at.isoformat() if self.enrich_started_at else None
+            ),
+            "auto_classify_date": self.auto_classify_date,
+            "auto_classify_attempts": self.auto_classify_attempts or 0,
+            "auto_classify_last_attempt_at": (
+                self.auto_classify_last_attempt_at.isoformat()
+                if self.auto_classify_last_attempt_at
+                else None
             ),
         }

@@ -471,6 +471,10 @@ Technical behavior:
 - Status endpoint: `GET /api/channels/classify/status`
 - Full mode uses the same backend task plus recent video evidence enrichment
   before the reclassification phase.
+- When the scheduler is enabled, the backend also attempts a `Basic`
+  classification automatically up to two times per day for each active user
+  that still has unclassified channels, as long as no refresh job is already
+  running for that user.
 - After success, the client refreshes the channel list and category carousels so
   the new assignments are visible immediately.
 

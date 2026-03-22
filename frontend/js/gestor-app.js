@@ -662,8 +662,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.logoutButtons.forEach(button => {
     button.addEventListener('click', async () => {
       button.disabled = true;
-      await api.logout();
-      window.location.assign('/');
+      await api.adminLogout();
+      window.location.assign('/gestor/');
     });
   });
 

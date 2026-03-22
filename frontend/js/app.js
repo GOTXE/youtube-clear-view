@@ -164,6 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menuHeadingChannels: document.getElementById('menu-heading-channels'),
     menuHeadingViewing: document.getElementById('menu-heading-viewing'),
     menuHeadingSystem: document.getElementById('menu-heading-system'),
+    menuGestor: document.getElementById('menu-gestor'),
     menuFilters: document.getElementById('menu-filters'),
     menuCategoryGuide: document.getElementById('menu-category-guide'),
     menuDisplayMode: document.getElementById('menu-display-mode'),
@@ -427,6 +428,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.menuHeadingSystem) {
       ui.menuHeadingSystem.textContent = t('menuSectionSystem');
+    }
+    if (ui.menuGestor) {
+      ui.menuGestor.textContent = t('menuGestorLabel');
     }
     if (ui.menuCategoryGuide) {
       ui.menuCategoryGuide.textContent = t('categoryGuideLabel');
@@ -2593,6 +2597,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.menuSettings.addEventListener('click', () => {
         setMenuOpen(false);
         openSettingsModal();
+      });
+    }
+
+    if (ui.menuGestor) {
+      ui.menuGestor.addEventListener('click', () => {
+        setMenuOpen(false);
+        window.open('/gestor/', '_blank', 'noopener');
       });
     }
 

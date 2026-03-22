@@ -236,7 +236,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const swUpdateState = {
     registration: null,
-    reloading: false
+    reloading: false,
+    pendingBanner: false,
+    presentTimerId: null
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
@@ -863,14 +865,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function showUpdateAvailableBanner(registration) {
+  function isVisibleNode(node) {
+    if (!node || node.hidden) {
+      return false;
+    }
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+    return true;
+  }
+
+  function hasUpdatePresentationBlocker() {
+    if (document.body.classList.contains('player-overlay-open') || document.body.classList.contains('login-page-open')) {
+      return true;
+    }
+
+    const blockers = document.querySelectorAll(
+      '.player-overlay, .confirm-modal-overlay, .guide-modal-overlay, .settings-modal-overlay, .category-modal-overlay, .modal, #login-page'
+    );
+
+    return Array.from(blockers).some(node => isVisibleNode(node));
+  }
+
+  function stopUpdateBannerRetryLoop() {
+    if (swUpdateState.presentTimerId) {
+      window.clearInterval(swUpdateState.presentTimerId);
+      swUpdateState.presentTimerId = null;
+    }
+  }
+
+  function ensureUpdateBannerRetryLoop() {
+    if (swUpdateState.presentTimerId) {
+      return;
+    }
+    swUpdateState.presentTimerId = window.setInterval(() => {
+      if (!swUpdateState.pendingBanner || swUpdateState.reloading) {
+        stopUpdateBannerRetryLoop();
+        return;
+      }
+      maybePresentUpdateAvailableBanner();
+    }, 500);
+  }
+
+  function maybePresentUpdateAvailableBanner() {
     if (!ui.updateAvailableBanner) {
       return;
     }
-    swUpdateState.registration = registration || swUpdateState.registration;
+    if (hasUpdatePresentationBlocker()) {
+      ui.updateAvailableBanner.hidden = true;
+      ensureUpdateBannerRetryLoop();
+      return;
+    }
+
+    stopUpdateBannerRetryLoop();
     ui.updateAvailableBanner.textContent = `${t('updateAvailableReload')} ${t('updateAvailableClick')}`;
     ui.updateAvailableBanner.hidden = false;
     ui.updateAvailableBanner.disabled = false;
+  }
+
+  function showUpdateAvailableBanner(registration) {
+    swUpdateState.registration = registration || swUpdateState.registration;
+    swUpdateState.pendingBanner = true;
+    maybePresentUpdateAvailableBanner();
   }
 
   async function applyUpdateAvailableBanner() {
@@ -878,6 +935,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     swUpdateState.reloading = true;
+    swUpdateState.pendingBanner = false;
+    stopUpdateBannerRetryLoop();
 
     if (ui.updateAvailableBanner) {
       ui.updateAvailableBanner.disabled = true;

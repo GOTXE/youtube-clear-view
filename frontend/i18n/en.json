@@ -314,7 +314,7 @@
   "refreshProgressCooldown": "Please wait a bit before updating again. Try again in about {minutes} min.",
   "refreshProgressAlreadyRunning": "A refresh is already running.",
   "refreshProgressGlobalRunning": "A global update is running right now. When it finishes, your videos will be up to date.",
-  "updateAvailableReload": "Reload for the latest updates!",
+  "updateAvailableReload": "New updates!",
   "updateAvailableClick": "Click to load the new version.",
   "updateAvailableReloading": "Loading the new version...",
   "headerContextOverviewEyebrow": "Global overview",

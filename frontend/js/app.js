@@ -1480,6 +1480,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } else {
       ui.inProgressSection.hidden = true;
+      if (ui.inProgressCount) {
+        ui.inProgressCount.textContent = '0';
+      }
     }
   }
 
@@ -1633,6 +1636,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function toggleOptionalCarousel(sectionName) {
     if (sectionName === 'in_progress') {
       state.showInProgressCarousel = !state.showInProgressCarousel;
+      if (state.showInProgressCarousel) {
+        await refreshInProgressCarouselOnly();
+      }
       if (ui.inProgressSection) {
         const hasItems = Number(ui.inProgressCount ? ui.inProgressCount.textContent || '0' : 0) > 0;
         ui.inProgressSection.hidden = !state.showInProgressCarousel || !hasItems;
@@ -2211,6 +2217,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderWatchedCarousel();
   }
 
+  async function refreshInProgressCarouselOnly() {
+    state.carousels = state.carousels.filter(carousel => {
+      if (!carousel || carousel.containerId !== 'in-progress-carousel') {
+        return true;
+      }
+      if (typeof carousel.destroy === 'function') {
+        carousel.destroy(false);
+      }
+      return false;
+    });
+    if (ui.inProgressCarousel) {
+      ui.inProgressCarousel.innerHTML = '';
+    }
+    if (ui.inProgressSection) {
+      ui.inProgressSection.hidden = true;
+    }
+    await renderInProgressCarousel();
+  }
+
   async function handleVideoMarkedWatched(videoId, options = {}) {
     const id = videoId != null ? String(videoId) : null;
     if (!id) {
@@ -2243,6 +2268,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   window.ytcvHandleVideoMarkedWatched = (videoId, options) => handleVideoMarkedWatched(videoId, options);
+
+  async function handleVideoSavedForLater(videoId) {
+    const id = videoId != null ? String(videoId) : null;
+    if (!id) {
+      return;
+    }
+
+    state.carousels.forEach(carousel => {
+      if (!carousel || typeof carousel.removeVideoById !== 'function') {
+        return;
+      }
+      if (carousel.containerId === 'in-progress-carousel') {
+        return;
+      }
+      carousel.removeVideoById(id);
+    });
+
+    if (state.showInProgressCarousel) {
+      await refreshInProgressCarouselOnly();
+    }
+  }
+
+  window.ytcvHandleVideoSavedForLater = videoId => handleVideoSavedForLater(videoId);
 
   let refreshVisibleTimer = null;
   function scheduleVisibleReload() {

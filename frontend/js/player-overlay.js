@@ -1,6 +1,6 @@
 // Embedded player overlay for desktop/tablet and TV modes.
 // Integrates YouTube IFrame Player API for progress tracking,
-// auto-mark watched at 75%, and playback resume.
+// auto-mark watched at 95%, and playback resume.
 
 (() => {
   const USE_EMBED_ONLY = true;
@@ -34,7 +34,7 @@
   let frameInstanceCounter = 0;
 
   const PROGRESS_POLL_MS = 5000;
-  const AUTO_MARK_RATIO = 0.75;
+  const AUTO_MARK_RATIO = 0.95;
   const CONTINUE_WATCHING_PROMPT_RATIO = 1 / 3;
   const YT_API_TIMEOUT_MS = 4000;
 
@@ -307,7 +307,7 @@
 
     const ratio = lastKnownPosition / lastKnownDuration;
 
-    // Auto-mark at 75%
+    // Auto-mark at 95%
     if (ratio >= AUTO_MARK_RATIO && !autoMarked && !currentWatched) {
       autoMarked = true;
       handleMarkWatched();
@@ -779,7 +779,9 @@
       if (videoId) {
         await saveProgressForVideo(videoId, savePosition, saveDuration, { continue_watching: true });
       }
-      if (typeof window.ytcvReloadCarousels === 'function') {
+      if (typeof window.ytcvHandleVideoSavedForLater === 'function') {
+        await window.ytcvHandleVideoSavedForLater(videoId);
+      } else if (typeof window.ytcvReloadCarousels === 'function') {
         await window.ytcvReloadCarousels({ preserveDOM: false });
       }
     })();

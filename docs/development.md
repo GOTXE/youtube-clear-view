@@ -46,10 +46,44 @@ It does not replace the local developer scripts yet.
 Relevant refresh governance knobs in `backend/.env` / `.env.example`:
 - `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`
 - `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`
+- `VIDEO_REFRESH_MODE`
+- `YT_RSS_COMPLETION_COST`
 - `ADMIN_USERNAMES`
 - `SQLITE_METRICS_ENABLED`
 - `SQLITE_METRICS_SLOW_WRITE_MS`
 - `AUTH_TOKEN_ENCRYPTION_KEY`
+
+## RSS-First Video Refresh
+
+The video refresh pipeline now supports three backend modes:
+
+- `hybrid`
+  - RSS feed discovery first
+  - targeted YouTube API completion only for newly discovered IDs
+  - fallback to the legacy full API refresh when the feed fails
+- `rss_preferred`
+  - RSS feed discovery first
+  - targeted API completion for newly discovered IDs
+  - no full API fallback when the feed fails
+- `api_only`
+  - disables RSS discovery
+  - preserves the legacy per-channel API refresh path
+
+Per-subscription RSS health is tracked in `user_channels`:
+
+- `last_feed_checked_at`
+- `last_feed_success_at`
+- `last_feed_error_at`
+- `feed_error_count`
+- `refresh_mode_override`
+
+Per-video RSS migration state is tracked in `videos`:
+
+- `discovered_via`
+- `metadata_incomplete`
+- `source_last_seen_at`
+- `feed_published_at`
+- `feed_updated_at`
 
 LAN testing from another device:
 - run `DEV_HOST=192.168.1.50 ./scripts/run_local.sh`

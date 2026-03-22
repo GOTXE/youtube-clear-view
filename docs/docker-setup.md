@@ -65,6 +65,17 @@ deploys, set a stable `YTCV_BACKEND_BUILD_ID` in the backend environment and
 change it only for real releases/deploys. Do not use a per-start timestamp,
 or multi-worker Gunicorn instances may generate false update banners.
 
+Relevant backend refresh environment variables:
+
+- `VIDEO_REFRESH_MODE`
+  - `hybrid`: RSS discovery first, API fallback if the feed fails
+  - `rss_preferred`: RSS discovery first, skip API fallback if the feed fails
+  - `api_only`: keep the legacy API-only refresh path
+- `YT_REFRESH_COST`
+  - quota units consumed by the legacy full channel API refresh path
+- `YT_RSS_COMPLETION_COST`
+  - quota units consumed when RSS-discovered videos need targeted metadata completion
+
 ## Service Worker cache
 
 The frontend uses a Service Worker (`frontend/sw.js`) with a **cache-first**

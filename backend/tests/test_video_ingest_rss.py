@@ -1,0 +1,144 @@
+"""Hybrid RSS/API refresh tests."""
+
+from datetime import UTC, datetime
+
+from app.extensions import db
+from app.models import Channel, User, UserChannel, UserSettings, Video
+from app.services.video_ingest import refresh_user_channels
+
+
+class FakeHybridService:
+    """Fake service exposing the API methods used by refresh."""
+
+    def __init__(self, api_items=None, completion_items=None):
+        self.api_items = api_items or []
+        self.completion_items = completion_items or []
+        self.channel_video_calls = 0
+        self.video_ids_calls = 0
+
+    def get_channel_videos(self, channel_id):
+        self.channel_video_calls += 1
+        return {"success": True, "videos": list(self.api_items), "next_page_token": None}
+
+    def get_videos_by_ids(self, video_ids):
+        self.video_ids_calls += 1
+        selected = [item for item in self.completion_items if item["video_id"] in set(video_ids)]
+        return {"success": True, "videos": selected}
+
+
+def _seed_user_and_channel(app):
+    with app.app_context():
+        user = User(username="alice", display_name="Alice")
+        user.set_password("testpassword123")
+        db.session.add(user)
+        db.session.flush()
+
+        channel = Channel(yt_channel_id="UC_TEST_RSS", title="RSS Channel")
+        db.session.add(channel)
+        db.session.flush()
+
+        subscription = UserChannel(user_id=user.id, channel_id=channel.id)
+        db.session.add(subscription)
+
+        settings = UserSettings(user_id=user.id, preset="standard")
+        settings.quota_date = "2026-03-22"
+        settings.quota_used = 0
+        settings.quota_cap = 8000
+        db.session.add(settings)
+
+        db.session.commit()
+        return user.id, channel.id
+
+
+def test_refresh_uses_rss_and_completes_new_video(app, monkeypatch):
+    user_id, channel_id = _seed_user_and_channel(app)
+
+    class FeedEntry:
+        video_id = "rss-1"
+        channel_id = "UC_TEST_RSS"
+        title = "RSS Video"
+        published_at = "2026-03-22T10:00:00+00:00"
+        updated_at = "2026-03-22T10:05:00+00:00"
+        channel_title = "RSS Channel"
+        link = "https://www.youtube.com/watch?v=rss-1"
+
+    monkeypatch.setattr(
+        "app.services.video_ingest.fetch_channel_feed",
+        lambda channel_id: {"success": True, "entries": [FeedEntry()]},
+    )
+
+    service = FakeHybridService(
+        completion_items=[
+            {
+                "video_id": "rss-1",
+                "title": "RSS Video",
+                "description": "Completed description",
+                "thumbnail": "http://thumb/rss-1.jpg",
+                "published_at": "2026-03-22T10:00:00Z",
+                "duration": 125,
+                "video_category_id": "22",
+                "tags": ["travel", "rss"],
+            }
+        ]
+    )
+
+    with app.app_context():
+        user = db.session.get(User, user_id)
+        settings = UserSettings.query.filter_by(user_id=user.id).first()
+        summary = refresh_user_channels(
+            user,
+            settings,
+            service,
+            now=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None),
+        )
+
+        video = Video.query.filter_by(yt_video_id="rss-1", channel_id=channel_id).first()
+        assert summary["new_videos"] == 1
+        assert video is not None
+        assert video.discovered_via == "rss"
+        assert video.metadata_incomplete is False
+        assert video.duration == 125
+        assert video.description == "Completed description"
+        assert service.channel_video_calls == 0
+        assert service.video_ids_calls == 1
+
+
+def test_refresh_falls_back_to_api_when_feed_fails(app, monkeypatch):
+    user_id, channel_id = _seed_user_and_channel(app)
+
+    monkeypatch.setattr(
+        "app.services.video_ingest.fetch_channel_feed",
+        lambda channel_id: {"success": False, "entries": [], "status_code": 500},
+    )
+
+    service = FakeHybridService(
+        api_items=[
+            {
+                "video_id": "api-1",
+                "title": "API Video",
+                "description": "API Desc",
+                "thumbnail": "http://thumb/api-1.jpg",
+                "published_at": "2026-03-22T08:00:00Z",
+                "duration": 301,
+                "video_category_id": "24",
+                "tags": ["api"],
+            }
+        ]
+    )
+
+    with app.app_context():
+        user = db.session.get(User, user_id)
+        settings = UserSettings.query.filter_by(user_id=user.id).first()
+        summary = refresh_user_channels(
+            user,
+            settings,
+            service,
+            now=datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None),
+        )
+
+        video = Video.query.filter_by(yt_video_id="api-1", channel_id=channel_id).first()
+        assert summary["new_videos"] == 1
+        assert video is not None
+        assert video.discovered_via == "api"
+        assert service.channel_video_calls == 1
+        assert service.video_ids_calls == 0

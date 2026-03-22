@@ -199,6 +199,29 @@ def ensure_video_schema():
                 )
             if "tags" not in columns:
                 conn.execute(text("ALTER TABLE videos ADD COLUMN tags TEXT"))
+            if "discovered_via" not in columns:
+                conn.execute(
+                    text("ALTER TABLE videos ADD COLUMN discovered_via VARCHAR(20) NOT NULL DEFAULT 'api'")
+                )
+            if "metadata_incomplete" not in columns:
+                conn.execute(
+                    text("ALTER TABLE videos ADD COLUMN metadata_incomplete BOOLEAN NOT NULL DEFAULT 0")
+                )
+            if "source_last_seen_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN source_last_seen_at DATETIME"))
+            if "feed_published_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN feed_published_at DATETIME"))
+            if "feed_updated_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN feed_updated_at DATETIME"))
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_videos_discovered_via ON videos (discovered_via)")
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_videos_metadata_incomplete "
+                    "ON videos (metadata_incomplete)"
+                )
+            )
     except Exception as error:
         logger.warning(
             "Video schema migration skipped: %s",

@@ -49,6 +49,7 @@ class Config:
     YT_DAILY_QUOTA = int(os.getenv("YT_DAILY_QUOTA", "10000"))
     YT_QUOTA_CAP_RATIO = float(os.getenv("YT_QUOTA_CAP_RATIO", "0.8"))
     YT_REFRESH_COST = int(os.getenv("YT_REFRESH_COST", "2"))
+    YT_RSS_COMPLETION_COST = int(os.getenv("YT_RSS_COMPLETION_COST", "1"))
     MANUAL_REFRESH_RESERVED_QUOTA_RATIO = float(
         os.getenv("MANUAL_REFRESH_RESERVED_QUOTA_RATIO", "0.1")
     )

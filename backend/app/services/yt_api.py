@@ -230,6 +230,35 @@ class YTService:
             self._log_api_error("Failed to fetch channel videos: %s", error)
             return {"videos": [], "next_page_token": None, "success": False}
 
+    def get_videos_by_ids(self, video_ids):
+        """Fetch specific videos by ID for targeted metadata completion."""
+        if not self.client or not video_ids:
+            return {"videos": [], "success": False if not self.client else True}
+
+        clean_ids = [str(video_id).strip() for video_id in video_ids if str(video_id).strip()]
+        if not clean_ids:
+            return {"videos": [], "success": True}
+
+        results = []
+        try:
+            for start in range(0, len(clean_ids), 50):
+                chunk = clean_ids[start : start + 50]
+                response = (
+                    self.client.videos()
+                    .list(part="snippet,contentDetails", id=",".join(chunk))
+                    .execute()
+                )
+                results.extend(self._video_response_map(response.get("items", [])))
+            return {"videos": results, "success": True}
+        except HttpError as error:
+            if self._handle_http_error(error):
+                return {"videos": [], "success": False, "rate_limited": True}
+            self._log_api_error("Failed to fetch videos by ids: %s", error)
+            return {"videos": [], "success": False}
+        except Exception as error:
+            self._log_api_error("Failed to fetch videos by ids: %s", error)
+            return {"videos": [], "success": False}
+
     def _get_uploads_playlist_id(self, channel_id):
         """Fetch and cache the uploads playlist ID for a channel."""
         cache_key = f"uploads_playlist:{channel_id}"

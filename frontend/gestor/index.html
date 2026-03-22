@@ -135,38 +135,36 @@
               <div class="admin-page__block-header">
                 <h3 id="gestor-logs-title" class="heading-3" data-i18n="adminPageLogsTitle">Estado tecnico</h3>
               </div>
-              <div id="gestor-logs-stats" class="admin-page__logs-stats"></div>
+              <div class="admin-page__logs-pills">
+                <div id="gestor-logs-stats" class="admin-page__logs-stats"></div>
+                <dl id="gestor-logs-runtime" class="admin-page__meta-list"></dl>
+              </div>
               <div class="admin-page__logs-toolbar">
-                <div class="field">
-                  <span class="field__label" data-i18n="adminLogsLevelsLabel">Niveles</span>
-                  <div id="gestor-logs-levels" class="admin-page__level-filters" role="group" aria-label="Levels">
-                    <button type="button" class="admin-page__level-chip is-active" data-level="ALL" aria-pressed="true" data-i18n="adminLogsLevelAll">Todos</button>
-                    <button type="button" class="admin-page__level-chip" data-level="CRITICAL" aria-pressed="false" data-i18n="adminLogsLevelCritical">Critico</button>
-                    <button type="button" class="admin-page__level-chip" data-level="ERROR" aria-pressed="false" data-i18n="adminLogsLevelError">Error</button>
-                    <button type="button" class="admin-page__level-chip" data-level="WARNING" aria-pressed="false" data-i18n="adminLogsLevelWarning">Aviso</button>
-                    <button type="button" class="admin-page__level-chip" data-level="INFO" aria-pressed="false" data-i18n="adminLogsLevelInfo">Info</button>
-                    <button type="button" class="admin-page__level-chip" data-level="DEBUG" aria-pressed="false" data-i18n="adminLogsLevelDebug">Debug</button>
+                <div class="admin-page__logs-toolbar-row">
+                  <div class="field">
+                    <span class="field__label" data-i18n="adminLogsLevelsLabel">Niveles</span>
+                    <div id="gestor-logs-levels" class="admin-page__level-filters" role="group" aria-label="Levels">
+                      <button type="button" class="admin-page__level-chip is-active" data-level="ALL" aria-pressed="true" data-i18n="adminLogsLevelAll">Todos</button>
+                      <button type="button" class="admin-page__level-chip" data-level="CRITICAL" aria-pressed="false" data-i18n="adminLogsLevelCritical">Critico</button>
+                      <button type="button" class="admin-page__level-chip" data-level="ERROR" aria-pressed="false" data-i18n="adminLogsLevelError">Error</button>
+                      <button type="button" class="admin-page__level-chip" data-level="WARNING" aria-pressed="false" data-i18n="adminLogsLevelWarning">Aviso</button>
+                      <button type="button" class="admin-page__level-chip" data-level="INFO" aria-pressed="false" data-i18n="adminLogsLevelInfo">Info</button>
+                      <button type="button" class="admin-page__level-chip" data-level="DEBUG" aria-pressed="false" data-i18n="adminLogsLevelDebug">Debug</button>
+                    </div>
                   </div>
                 </div>
-                <label class="field">
-                  <span class="field__label" data-i18n="adminLogsSearchLabel">Buscar</span>
-                  <input id="gestor-logs-search" class="field__input" type="search" placeholder="Buscar en logs" data-i18n-placeholder="adminLogsSearchPlaceholder">
-                </label>
-                <label class="field">
-                  <span class="field__label" data-i18n="adminLogsTrackingLabel">Tracking ID</span>
-                  <input id="gestor-logs-tracking" class="field__input" type="search" placeholder="ERR-YYYYMMDD-XXXXXX">
-                </label>
-                <button id="gestor-logs-search-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--ghost" type="button" data-i18n="adminLogsApply">Aplicar</button>
-                <button id="gestor-logs-live-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--live admin-page__toolbar-btn--live-on" type="button" data-i18n="adminLogsLive">Live</button>
-              </div>
-
-              <div class="admin-page__logs-meta">
-                <article class="admin-page__panel-card">
-                  <div class="admin-page__block-header">
-                    <h4 class="heading-3" data-i18n="adminLogsRuntimeTitle">Runtime</h4>
-                  </div>
-                  <dl id="gestor-logs-runtime" class="admin-page__meta-list"></dl>
-                </article>
+                <div class="admin-page__logs-toolbar-row">
+                  <label class="field">
+                    <span class="field__label" data-i18n="adminLogsSearchLabel">Buscar</span>
+                    <input id="gestor-logs-search" class="field__input" type="search" placeholder="Buscar en logs" data-i18n-placeholder="adminLogsSearchPlaceholder">
+                  </label>
+                  <label class="field">
+                    <span class="field__label" data-i18n="adminLogsTrackingLabel">Tracking ID</span>
+                    <input id="gestor-logs-tracking" class="field__input" type="search" placeholder="ERR-YYYYMMDD-XXXXXX">
+                  </label>
+                  <button id="gestor-logs-search-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--ghost" type="button" data-i18n="adminLogsApply">Aplicar</button>
+                  <button id="gestor-logs-live-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--live admin-page__toolbar-btn--live-on" type="button" data-i18n="adminLogsLive">Live</button>
+                </div>
               </div>
 
               <div class="admin-page__logs-grid">

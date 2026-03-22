@@ -696,12 +696,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     container.innerHTML = '';
     rows.forEach(([label, value]) => {
+      const cell = document.createElement('div');
+      cell.className = 'admin-page__meta-cell';
       const dt = document.createElement('dt');
       dt.textContent = label;
       const dd = document.createElement('dd');
       dd.textContent = value;
-      container.appendChild(dt);
-      container.appendChild(dd);
+      cell.appendChild(dt);
+      cell.appendChild(dd);
+      container.appendChild(cell);
     });
   }
 
@@ -761,6 +764,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getLogEntryLevel(entry) {
     return ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].find(level => entry.includes(`[${level}]`)) || '';
+  }
+
+  /**
+   * Parse a log line into structured parts: timestamp, level, module, message.
+   * Expected format: "2026-03-18 17:34:56,981 [ERROR] | r.googleapi(sync.discover) | URL being requested: ..."
+   */
+  function parseLogEntry(entry) {
+    const match = entry.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+\[(\w+)]\s*\|\s*([^|]+?)\s*\|\s*([\s\S]*)$/);
+    if (!match) return null;
+    return { timestamp: match[1], level: match[2], module: match[3].trim(), message: match[4].trim() };
+  }
+
+  function buildStructuredLogEntry(text, levelOverride) {
+    const parsed = parseLogEntry(text);
+    const level = (levelOverride || getLogEntryLevel(text)).toLowerCase();
+
+    if (!parsed) {
+      const line = document.createElement('div');
+      line.className = `admin-page__log-entry${level ? ` admin-page__log-entry--${level}` : ''}`;
+      line.textContent = text;
+      return line;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = `admin-page__log-entry${level ? ` admin-page__log-entry--${level}` : ''}`;
+
+    const header = document.createElement('div');
+    header.className = 'admin-page__log-entry-header';
+
+    const ts = document.createElement('time');
+    ts.className = 'admin-page__log-ts';
+    ts.textContent = parsed.timestamp;
+
+    const badge = document.createElement('span');
+    badge.className = `admin-page__log-badge admin-page__log-badge--${level}`;
+    badge.textContent = parsed.level;
+
+    const mod = document.createElement('span');
+    mod.className = 'admin-page__log-module';
+    mod.textContent = parsed.module;
+
+    header.appendChild(ts);
+    header.appendChild(badge);
+    header.appendChild(mod);
+
+    const body = document.createElement('div');
+    body.className = 'admin-page__log-body';
+    body.textContent = parsed.message;
+
+    entry.appendChild(header);
+    entry.appendChild(body);
+    return entry;
   }
 
   function stopLogsLivePolling() {
@@ -838,17 +893,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (ui.logsRuntime) {
       const runtime = state.logs.meta && state.logs.meta.log_runtime ? state.logs.meta.log_runtime : {};
-      renderMetaList(ui.logsRuntime, [
-        [t('adminLogsRuntimeLevel'), runtime.level || 'INFO'],
-        [t('adminLogsRuntimeConfiguredLevel'), runtime.configured_level || runtime.level || 'INFO'],
+      const activeLevel = runtime.level || 'INFO';
+      const configuredLevel = runtime.configured_level || activeLevel;
+      const levelMismatch = activeLevel !== configuredLevel;
+
+      const rows = [
+        [t('adminLogsRuntimeLevel'), activeLevel],
         [t('adminLogsRuntimeRotate'), runtime.rotate_enabled ? t('adminLogsEnabled') : t('adminLogsDisabled')],
         [t('adminLogsRuntimeMaxFileSize'), formatBytes(runtime.max_size_bytes || 0)],
         [t('adminLogsRuntimeBackupsKept'), String(runtime.backup_count ?? 0)],
         [t('adminLogsRuntimeTimestamps'), runtime.timestamps_timezone || t('adminLogsLocalServerTime')]
-      ]);
+      ];
+      renderMetaList(ui.logsRuntime, rows);
 
-      const controls = document.createElement('div');
-      controls.className = 'admin-page__inline-controls';
+      const levelRow = document.createElement('div');
+      levelRow.className = 'admin-page__runtime-level-row';
+
+      const levelLabel = document.createElement('span');
+      levelLabel.className = 'admin-page__runtime-level-label';
+      levelLabel.textContent = t('adminLogsRuntimeLevel');
 
       const select = document.createElement('select');
       select.className = 'field__input field__input--compact';
@@ -858,7 +921,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         option.textContent = level;
         select.appendChild(option);
       });
-      select.value = runtime.configured_level || runtime.level || 'INFO';
+      select.value = configuredLevel;
 
       const applyButton = document.createElement('button');
       applyButton.type = 'button';
@@ -883,9 +946,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       });
 
-      controls.appendChild(select);
-      controls.appendChild(applyButton);
-      ui.logsRuntime.appendChild(controls);
+      levelRow.appendChild(levelLabel);
+      levelRow.appendChild(select);
+      levelRow.appendChild(applyButton);
+
+      if (levelMismatch) {
+        const hint = document.createElement('span');
+        hint.className = 'admin-page__runtime-level-hint';
+        hint.textContent = t('adminLogsRuntimeLevelMismatch') || `Active: ${activeLevel}`;
+        levelRow.appendChild(hint);
+      }
+
+      const toolbar = ui.logsRuntime.closest('.admin-page__section')?.querySelector('.admin-page__logs-toolbar');
+      if (toolbar) {
+        const existing = toolbar.querySelector('.admin-page__runtime-level-row');
+        if (existing) {
+          existing.replaceWith(levelRow);
+        } else {
+          toolbar.appendChild(levelRow);
+        }
+      }
     }
 
     if (ui.logsEntries) {
@@ -896,11 +976,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrapper.className = 'admin-page__log-entry-group';
 
         blocks.forEach(block => {
-          const line = document.createElement('div');
-          const level = getLogEntryLevel(block).toLowerCase();
-          line.className = `admin-page__log-entry${level ? ` admin-page__log-entry--${level}` : ''}`;
-          line.textContent = block;
-          wrapper.appendChild(line);
+          wrapper.appendChild(buildStructuredLogEntry(block));
         });
 
         ui.logsEntries.appendChild(wrapper);
@@ -912,12 +988,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const recentErrors = state.logs.stats && Array.isArray(state.logs.stats.recent_errors)
         ? state.logs.stats.recent_errors
         : [];
-      recentErrors.forEach(entry => {
-        const line = document.createElement('div');
-        line.className = 'admin-page__log-entry admin-page__log-entry--error';
-        line.textContent = entry;
-        ui.logsErrors.appendChild(line);
-      });
+      if (recentErrors.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'admin-page__log-empty';
+        empty.textContent = t('adminLogsNoRecentErrors') || 'No recent errors';
+        ui.logsErrors.appendChild(empty);
+      } else {
+        recentErrors.forEach(entry => {
+          ui.logsErrors.appendChild(buildStructuredLogEntry(entry, 'ERROR'));
+        });
+      }
     }
 
     if (ui.logsCount) {
@@ -1099,15 +1179,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  if (ui.logsSearchButton) {
-    ui.logsSearchButton.addEventListener('click', async () => {
-      setLogsLiveState(false);
-      state.logs.filters.level = getSelectedLogLevels();
-      state.logs.filters.search = ui.logsSearch ? ui.logsSearch.value.trim() : '';
-      state.logs.filters.tracking_id = ui.logsTracking ? ui.logsTracking.value.trim() : '';
-      await fetchLogs();
-    });
+  function applyLogsSearch() {
+    setLogsLiveState(false);
+    state.logs.filters.level = getSelectedLogLevels();
+    state.logs.filters.search = ui.logsSearch ? ui.logsSearch.value.trim() : '';
+    state.logs.filters.tracking_id = ui.logsTracking ? ui.logsTracking.value.trim() : '';
+    fetchLogs();
   }
+
+  if (ui.logsSearchButton) {
+    ui.logsSearchButton.addEventListener('click', applyLogsSearch);
+  }
+
+  [ui.logsSearch, ui.logsTracking].forEach(input => {
+    if (input) {
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyLogsSearch();
+        }
+      });
+    }
+  });
 
   ui.logsLevelButtons.forEach(button => {
     button.addEventListener('click', async () => {

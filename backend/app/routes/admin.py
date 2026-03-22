@@ -688,23 +688,26 @@ def get_admin_log_stats():
     if denied:
         return denied
 
-    entries, _ = _read_admin_log_entries(5000)
-    records = _group_log_records(entries)
+    current_day_prefix = f"[{_current_logs_day_prefix()}"
+    log_file = current_app.config.get("LOG_FILE")
     levels = {"DEBUG": 0, "INFO": 0, "WARNING": 0, "ERROR": 0, "CRITICAL": 0}
-    recent_errors = []
-    current_day_prefix = _current_logs_day_prefix()
+    recent_error_lines = []
 
-    for entry in records:
-        if not entry.startswith(f"[{current_day_prefix}"):
-            continue
-        for level in levels:
-            if f"[{level}]" in entry:
-                levels[level] += 1
-                if level in ("ERROR", "CRITICAL"):
-                    recent_errors.append(entry)
-                break
+    if os.path.exists(log_file):
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as fh:
+            for line in fh:
+                if not line.startswith(current_day_prefix):
+                    continue
+                for level in levels:
+                    if f"[{level}]" in line:
+                        levels[level] += 1
+                        if level in ("ERROR", "CRITICAL"):
+                            recent_error_lines.append(line.rstrip("\n"))
+                        break
 
-    return jsonify({"levels": levels, "recent_errors": list(reversed(recent_errors[-20:])), "scope": "daily"})
+    recent_errors = _group_log_records(list(reversed(recent_error_lines[-40:])))
+
+    return jsonify({"levels": levels, "recent_errors": recent_errors[:20], "scope": "daily"})
 
 
 @admin_bp.get("/api/admin/logs/meta")

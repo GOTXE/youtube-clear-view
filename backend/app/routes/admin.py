@@ -13,7 +13,8 @@ from app.logging.logger import get_logger, set_runtime_log_level
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Channel, ChannelCategory, User, UserDevice, Video
+from app.config import Config
+from app.models import Channel, ChannelCategory, User, UserChannel, UserDevice, Video
 from app.services.admin_access import is_admin_user
 from app.services.auth_policy import validate_password
 from app.services.refresh_governance import list_active_refreshes
@@ -397,6 +398,13 @@ def get_admin_summary():
     total_devices = db.session.query(func.count(UserDevice.id)).scalar() or 0
     total_channels = db.session.query(func.count(Channel.id)).scalar() or 0
     total_videos = db.session.query(func.count(Video.id)).scalar() or 0
+    rss_incomplete_videos = db.session.query(func.count(Video.id)).filter(
+        Video.discovered_via == "rss",
+        Video.metadata_incomplete.is_(True),
+    ).scalar() or 0
+    feed_error_channels = db.session.query(func.count(UserChannel.id)).filter(
+        UserChannel.feed_error_count > 0,
+    ).scalar() or 0
     unclassified_channels = db.session.query(func.count(Channel.id)).outerjoin(
         ChannelCategory,
         ChannelCategory.channel_id == Channel.id,
@@ -411,8 +419,11 @@ def get_admin_summary():
         "devices_total": total_devices,
         "channels_total": total_channels,
         "videos_total": total_videos,
+        "videos_rss_incomplete": rss_incomplete_videos,
         "channels_unclassified": unclassified_channels,
+        "channels_feed_errors": feed_error_channels,
         "active_refreshes": len(list_active_refreshes()),
+        "video_refresh_mode": Config.VIDEO_REFRESH_MODE,
         "quota_used": quota["used"],
         "quota_daily_limit": quota["daily_limit"],
         "quota_app_cap": quota["app_cap"],

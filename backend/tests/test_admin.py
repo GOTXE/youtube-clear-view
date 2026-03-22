@@ -4,7 +4,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Channel, User, UserDevice, Video
+from app.models import Channel, User, UserChannel, UserDevice, Video
 from app.services.sqlite_metrics import reset_sqlite_metrics_for_tests, set_sqlite_metrics_enabled
 
 
@@ -58,23 +58,32 @@ def client(app):
 
 
 def _login(client, username):
-    # Try to register (creates + logs in for fresh users).
-    # Fall back to legacy login for users pre-created without a password.
-    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    headers = {"X-YTCV-Surface": "gestor"}
+    # Try to register first. Then always perform a dedicated gestor login so
+    # the admin-scoped cookie is issued after any role changes.
+    reg = client.post(
+        "/api/auth/register",
+        json={"username": username, "password": "testpassword123"},
+        headers=headers,
+    )
     if username == "admin":
         with client.application.app_context():
             user = User.query.filter_by(username="admin").first()
             user.is_admin = True
             db.session.commit()
-    if reg.status_code == 201:
+    if reg.status_code not in {201, 409}:
         return reg
-    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
+    return client.post(
+        "/api/auth/login",
+        json={"username": username, "password": "testpassword123"},
+        headers=headers,
+    )
 
 
 def test_sqlite_observability_requires_admin(client):
     _login(client, "alice")
     response = client.get("/api/admin/observability/sqlite")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_admin_can_read_and_toggle_sqlite_observability(client):
@@ -124,7 +133,16 @@ def test_admin_can_read_summary_metrics(client):
         channel = Channel(yt_channel_id="chan-1", title="Channel One")
         db.session.add(channel)
         db.session.flush()
-        db.session.add(Video(channel_id=channel.id, yt_video_id="vid-1", title="Video One"))
+        db.session.add(UserChannel(user_id=1, channel_id=channel.id, feed_error_count=2))
+        db.session.add(
+            Video(
+                channel_id=channel.id,
+                yt_video_id="vid-1",
+                title="Video One",
+                discovered_via="rss",
+                metadata_incomplete=True,
+            )
+        )
         db.session.add(
             UserDevice(
                 user_id=1,
@@ -145,6 +163,9 @@ def test_admin_can_read_summary_metrics(client):
     assert data["videos_total"] >= 1
     assert "channels_unclassified" in data
     assert "active_refreshes" in data
+    assert data["videos_rss_incomplete"] >= 1
+    assert data["channels_feed_errors"] >= 1
+    assert data["video_refresh_mode"] in {"hybrid", "rss_preferred", "api_only"}
 
 
 def test_sqlite_observability_rejects_invalid_toggle_payload(client):

@@ -432,6 +432,14 @@ def get_admin_summary():
         "quota_app_cap": quota["app_cap"],
         "quota_remaining": quota["remaining_app_cap"],
         "quota_reserved_for_scheduled": quota["reserved_for_scheduled"],
+        "quota_day_pt": quota["quota_day_pt"],
+        "quota_reset_at_pt": quota["reset_at_pt"],
+        "quota_reset_at_app_timezone": quota["reset_at_app_timezone"],
+        "quota_app_timezone": quota["app_timezone"],
+        "quota_official_timezone": quota["official_timezone"],
+        "quota_exhausted": quota["quota_exhausted"],
+        "quota_exhausted_until_pt": quota["quota_exhausted_until_pt"],
+        "quota_exhausted_until_app_timezone": quota["quota_exhausted_until_app_timezone"],
     })
 
 

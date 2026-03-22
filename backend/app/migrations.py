@@ -351,6 +351,49 @@ def ensure_refresh_job_schema():
         )
 
 
+def ensure_quota_event_schema():
+    """Ensure quota_events table exists for global YouTube quota accounting."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS quota_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        quota_day_pt VARCHAR(10) NOT NULL,
+                        api_method VARCHAR(64) NOT NULL,
+                        units INTEGER NOT NULL,
+                        source VARCHAR(64),
+                        success BOOLEAN NOT NULL DEFAULT 1,
+                        user_id INTEGER REFERENCES users(id),
+                        channel_id INTEGER REFERENCES channels(id),
+                        tracking_id VARCHAR(64),
+                        notes TEXT
+                    )
+                    """
+                )
+            )
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_occurred_at ON quota_events (occurred_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_quota_day_pt ON quota_events (quota_day_pt)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_api_method ON quota_events (api_method)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_source ON quota_events (source)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_user_id ON quota_events (user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_channel_id ON quota_events (channel_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_tracking_id ON quota_events (tracking_id)"))
+    except Exception as error:
+        logger.warning(
+            "Quota event schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_enrich_settings_columns():
     """Ensure user_settings table has enrich task columns."""
     engine = db.engine

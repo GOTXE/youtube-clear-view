@@ -28,7 +28,7 @@ from app.services.refresh_jobs import (
     is_global_refresh_running,
     start_refresh_job,
 )
-from app.services.quota import get_global_quota_snapshot, should_block_manual_refresh_for_scheduled_priority
+from app.services.quota import get_global_quota_snapshot
 from app.services.video_ingest import (
     iter_refresh_user_channels,
     refresh_user_channels,
@@ -467,14 +467,15 @@ def refresh_channels():
     if not cooldown_decision.get("allowed"):
         return _manual_refresh_block_response(cooldown_decision)
 
-    if should_block_manual_refresh_for_scheduled_priority():
-        logger.info("Manual refresh rejected due to scheduled quota priority (user_id=%s)", user.id)
+    quota_snapshot = get_global_quota_snapshot(settings.timezone)
+    if quota_snapshot.get("quota_exhausted"):
+        logger.info("Manual refresh rejected because upstream quota is exhausted (user_id=%s)", user.id)
         return jsonify(
             {
                 "error": "Manual refresh blocked.",
-                "reason": "scheduled_priority",
-                "message": "Imposible ejecutar, prioridad update programado",
-                "quota": get_global_quota_snapshot(),
+                "reason": "quota_exhausted",
+                "message": "La cuota de YouTube esta agotada. Los updates quedan en pausa hasta el siguiente reinicio oficial.",
+                "quota": quota_snapshot,
                 "status": 429,
             }
         ), 429
@@ -631,6 +632,7 @@ def import_subscriptions():
         access_token,
         page_token=page_token,
         max_results=max_results,
+        user_id=user.id,
     )
     if items is None:
         if error_status in (401, 403):

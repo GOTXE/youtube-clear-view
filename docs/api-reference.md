@@ -961,6 +961,11 @@ Response:
 
 Returns the current user's preset settings and quota status.
 
+Notes:
+- quota accounting is project-global, not per-user
+- the official YouTube quota day resets at `00:00 America/Los_Angeles`
+- responses also translate the next reset into the user's configured app timezone
+
 Response (example):
 
 ```json
@@ -972,7 +977,7 @@ Response (example):
   "last_schedule_run_at": "2026-01-28T18:06:56.357000",
   "quota_date": "2026-01-28",
   "quota_used": 0,
-  "quota_cap": 8000,
+  "quota_cap": 10000,
   "presets": {
     "minimal": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
     "standard": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
@@ -980,11 +985,44 @@ Response (example):
   },
   "quota": {
     "daily_limit": 10000,
-    "cap_ratio": 0.8,
-    "cap": 8000,
+    "cap_ratio": 1.0,
+    "cap": 10000,
     "used": 0,
-    "remaining": 8000
+    "remaining": 10000,
+    "quota_day_pt": "2026-01-28",
+    "reset_at_pt": "2026-01-29T00:00:00-08:00",
+    "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+    "app_timezone": "Europe/Madrid",
+    "official_timezone": "America/Los_Angeles",
+    "quota_exhausted": false,
+    "quota_exhausted_until_pt": null,
+    "quota_exhausted_until_app_timezone": null
   }
+}
+```
+
+### GET /api/quota/status
+
+Returns the latest persisted quota snapshot for the authenticated user view.
+
+Response (example):
+
+```json
+{
+  "quota_day_pt": "2026-01-28",
+  "used": 2276,
+  "daily_limit": 10000,
+  "app_cap": 10000,
+  "remaining_daily": 7724,
+  "remaining_app_cap": 7724,
+  "reserved_for_scheduled": 2000,
+  "reset_at_pt": "2026-01-29T00:00:00-08:00",
+  "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+  "app_timezone": "Europe/Madrid",
+  "official_timezone": "America/Los_Angeles",
+  "quota_exhausted": false,
+  "quota_exhausted_until_pt": null,
+  "quota_exhausted_until_app_timezone": null
 }
 ```
 

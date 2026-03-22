@@ -14,6 +14,7 @@ from .migrations import (
     ensure_channel_schema,
     ensure_enrich_settings_columns,
     ensure_login_pairing_schema,
+    ensure_quota_event_schema,
     ensure_refresh_job_schema,
     ensure_site_settings_schema,
     ensure_user_channel_rating_columns,
@@ -70,6 +71,7 @@ def create_app(config_class=Config):
         db.create_all()
         ensure_user_schema()
         ensure_user_settings_schema()
+        ensure_quota_event_schema()
         ensure_refresh_job_schema()
         ensure_enrich_settings_columns()
         ensure_user_device_schema()

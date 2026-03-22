@@ -4,7 +4,8 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Channel, User, UserChannel, UserDevice, Video
+from app.models import Channel, QuotaEvent, User, UserChannel, UserDevice, Video
+from app.services.quota import get_current_quota_day_pt
 from app.services.sqlite_metrics import reset_sqlite_metrics_for_tests, set_sqlite_metrics_enabled
 
 
@@ -151,6 +152,14 @@ def test_admin_can_read_summary_metrics(client):
                 user_agent="ua",
             )
         )
+        db.session.add(
+            QuotaEvent(
+                quota_day_pt=get_current_quota_day_pt(),
+                api_method="videos.list",
+                units=7,
+                source="test",
+            )
+        )
         db.session.commit()
 
     response = client.get("/api/admin/summary")
@@ -166,6 +175,10 @@ def test_admin_can_read_summary_metrics(client):
     assert data["videos_rss_incomplete"] >= 1
     assert data["channels_feed_errors"] >= 1
     assert data["video_refresh_mode"] in {"hybrid", "rss_preferred", "api_only"}
+    assert data["quota_used"] >= 7
+    assert data["quota_reset_at_pt"]
+    assert data["quota_reset_at_app_timezone"]
+    assert data["quota_official_timezone"] == "America/Los_Angeles"
 
 
 def test_sqlite_observability_rejects_invalid_toggle_payload(client):

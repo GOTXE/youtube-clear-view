@@ -589,6 +589,10 @@ class APIClient {
     return this.get('/api/settings');
   }
 
+  getQuotaStatus() {
+    return this.get('/api/quota/status');
+  }
+
   updateSettings(data) {
     return this.put('/api/settings', data);
   }

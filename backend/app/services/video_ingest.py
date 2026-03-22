@@ -506,7 +506,7 @@ def iter_refresh_user_channels(
                     "processed_channels": processed_channels,
                     "total_channels": total_channels,
                     "blocked": True,
-                    "reason": "quota_cap_reached",
+                    "reason": "quota_exhausted",
                 }
                 break
 

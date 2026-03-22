@@ -230,6 +230,8 @@ def _consume_events(job, user, settings, service, channel_id, ignore_last_refres
                     event.get("reason") or "blocked",
                     message="Imposible ejecutar, prioridad update programado"
                     if event.get("reason") == "scheduled_priority"
+                    else "La cuota de YouTube esta agotada. Los updates quedan en pausa hasta el siguiente reinicio oficial."
+                    if event.get("reason") == "quota_exhausted"
                     else "blocked",
                     processed_channels=event.get("processed_channels", 0),
                 )

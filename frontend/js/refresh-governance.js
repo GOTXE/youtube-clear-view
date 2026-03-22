@@ -18,6 +18,9 @@
     if (payload.reason === 'global_refresh_running') {
       return t('refreshProgressGlobalRunning');
     }
+    if (payload.reason === 'quota_exhausted') {
+      return t('refreshProgressQuotaExhausted');
+    }
     return t('refreshProgressCooldown', { minutes: getRetryMinutes(payload) });
   }
 
@@ -30,6 +33,9 @@
     }
     if (payload.reason === 'global_refresh_running') {
       return t('refreshGlobalRunning');
+    }
+    if (payload.reason === 'quota_exhausted') {
+      return t('refreshQuotaExhausted');
     }
     return t('refreshCooldownActive', { minutes: getRetryMinutes(payload) });
   }

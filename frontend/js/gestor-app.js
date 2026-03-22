@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     runtime: [],
     timezone: null,
     videoRefreshMode: null,
+    summaryPoller: null,
     passwordPolicy: null,
     refreshSchedule: null,
     logs: {
@@ -85,6 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     logsMore: document.getElementById('gestor-logs-more')
   };
 
+  const SUMMARY_POLL_INTERVAL_MS = 15000;
+
   function setStatus(message, type = 'info') {
     if (!ui.status) {
       return;
@@ -101,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function formatDate(value) {
+  function formatDate(value, timezone = null) {
     if (!value) {
       return '—';
     }
@@ -109,7 +112,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (Number.isNaN(date.getTime())) {
       return '—';
     }
-    return date.toLocaleString();
+    const options = timezone ? { timeZone: timezone } : undefined;
+    return date.toLocaleString([], options);
+  }
+
+  function formatQuotaTimezoneLabel(timezone) {
+    if (!timezone) {
+      return '—';
+    }
+    if (timezone === 'America/Los_Angeles') {
+      return t('quotaOfficialTimezoneLabel');
+    }
+    return timezone;
   }
 
   function getBrowserTimezone() {
@@ -232,7 +246,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const quotaRows = [
       [t('adminQuotaUsedToday'), String(state.summary.quota_used || 0)],
       [t('adminQuotaRemainingToday'), String(state.summary.quota_remaining || 0)],
-      [t('adminQuotaReservedScheduled'), String(state.summary.quota_reserved_for_scheduled || 0)]
+      [t('adminQuotaReservedScheduled'), String(state.summary.quota_reserved_for_scheduled || 0)],
+      [
+        t('adminQuotaState'),
+        state.summary.quota_exhausted ? t('adminQuotaStatePaused') : t('adminQuotaStateActive')
+      ],
+      ...(state.summary.quota_exhausted && state.summary.quota_exhausted_until_app_timezone
+        ? [[
+          t('adminQuotaPausedUntil'),
+          formatDate(state.summary.quota_exhausted_until_app_timezone, state.summary.quota_app_timezone)
+        ]]
+        : []),
+      [
+        t('adminQuotaResetAppTimezone'),
+        formatDate(state.summary.quota_reset_at_app_timezone, state.summary.quota_app_timezone)
+      ],
+      [
+        t('adminQuotaResetOfficial'),
+        formatDate(state.summary.quota_reset_at_pt, state.summary.quota_official_timezone)
+      ]
     ];
 
     const refreshModeValue = t(`adminSummaryRefreshModeValue${String(state.summary.video_refresh_mode || 'hybrid').replace(/[^a-z_]/gi, '')}`) || String(state.summary.video_refresh_mode || 'hybrid');
@@ -303,6 +335,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!ui.timezoneContent) {
       return;
     }
+    const pendingSelectValues = Array.from(ui.timezoneContent.querySelectorAll('select')).map(node => node.value);
+    const pendingTimezoneValue = pendingSelectValues[0] || null;
+    const pendingModeValue = pendingSelectValues[1] || null;
     ui.timezoneContent.innerHTML = '';
 
     const card = document.createElement('article');
@@ -327,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       option.textContent = zone;
       select.appendChild(option);
     });
-    select.value = state.timezone?.timezone || state.refreshSchedule?.timezone || getBrowserTimezone();
+    select.value = pendingTimezoneValue || state.timezone?.timezone || state.refreshSchedule?.timezone || getBrowserTimezone();
 
     const saveButton = document.createElement('button');
     saveButton.type = 'button';
@@ -355,6 +390,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     card.appendChild(controls);
     ui.timezoneContent.appendChild(card);
 
+    if (state.summary) {
+      const quotaInfoCard = document.createElement('article');
+      quotaInfoCard.className = 'admin-page__panel-card';
+
+      const quotaInfoTitle = document.createElement('h4');
+      quotaInfoTitle.className = 'heading-3';
+      quotaInfoTitle.textContent = t('adminTimezoneQuotaInfoTitle');
+
+      const quotaInfoText = document.createElement('p');
+      quotaInfoText.className = 'caption';
+      quotaInfoText.textContent = t('adminTimezoneQuotaInfoDescription', {
+        appReset: formatDate(state.summary.quota_reset_at_app_timezone, state.summary.quota_app_timezone),
+        appTimezone: state.summary.quota_app_timezone || select.value,
+        officialReset: formatDate(state.summary.quota_reset_at_pt, state.summary.quota_official_timezone),
+        officialTimezone: formatQuotaTimezoneLabel(state.summary.quota_official_timezone || 'America/Los_Angeles')
+      });
+
+      quotaInfoCard.appendChild(quotaInfoTitle);
+      quotaInfoCard.appendChild(quotaInfoText);
+      ui.timezoneContent.appendChild(quotaInfoCard);
+    }
+
     const modeCard = document.createElement('article');
     modeCard.className = 'admin-page__panel-card';
 
@@ -378,7 +435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       optionNode.textContent = t(`adminVideoRefreshModeLabel_${option.value}`);
       modeSelect.appendChild(optionNode);
     });
-    modeSelect.value = state.videoRefreshMode?.video_refresh_mode || 'hybrid';
+    modeSelect.value = pendingModeValue || state.videoRefreshMode?.video_refresh_mode || 'hybrid';
 
     const modeDetails = document.createElement('p');
     modeDetails.className = 'caption';
@@ -1140,6 +1197,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderLogs();
   }
 
+  async function refreshSummaryData() {
+    if (!state.user) {
+      return;
+    }
+    const response = await api.getAdminSummary();
+    if (!response.ok || !response.data) {
+      return;
+    }
+    state.summary = response.data;
+    renderSummary();
+    renderTimezone();
+  }
+
+  function stopSummaryPolling() {
+    if (state.summaryPoller) {
+      window.clearInterval(state.summaryPoller);
+      state.summaryPoller = null;
+    }
+  }
+
+  function startSummaryPolling() {
+    if (state.summaryPoller || !state.user) {
+      return;
+    }
+    refreshSummaryData().catch(() => {});
+    state.summaryPoller = window.setInterval(() => {
+      refreshSummaryData().catch(() => {});
+    }, SUMMARY_POLL_INTERVAL_MS);
+  }
+
   function renderAll() {
     updateNavActiveState();
     renderSummary();
@@ -1192,6 +1279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.refreshSchedule = refreshScheduleResponse.data || {};
     state.videoRefreshMode = videoRefreshModeResponse.data || {};
     renderAll();
+    startSummaryPolling();
     setStatus('');
     if (state.logs.live) {
       await fetchLogs();
@@ -1247,6 +1335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.logoutButtons.forEach(button => {
     button.addEventListener('click', async () => {
       button.disabled = true;
+      stopSummaryPolling();
       await api.adminLogout();
       window.location.assign('/gestor/');
     });
@@ -1346,6 +1435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const user = event.detail ? event.detail.user : null;
     state.user = user;
     if (!user) {
+      stopSummaryPolling();
       showLogin();
       return;
     }
@@ -1355,10 +1445,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     enforceLightTheme();
     hideLogin();
+    startSummaryPolling();
     await refresh();
   });
 
   window.addEventListener('auth-required', () => {
+    stopSummaryPolling();
     showLogin();
   });
 

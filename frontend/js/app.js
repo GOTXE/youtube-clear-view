@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     authenticatedDataBootstrapPromise: null,
     classificationActive: false,
     refreshStatusPoller: null,
+    quotaPoller: null,
     refreshStatusSource: null,
     showInProgressCarousel: false,
     showWatchedCarousel: false
@@ -608,6 +609,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ];
       guideSteps.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
     }
+
+    renderQuotaSnapshot();
   }
 
   (window.ytcvI18nReady || Promise.resolve()).then(() => {
@@ -675,6 +678,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function formatLocalizedDateTime(value, timezone) {
+    if (!value) {
+      return '—';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    const options = timezone ? { timeZone: timezone } : undefined;
+    return date.toLocaleString([], options);
+  }
+
+  function formatQuotaTimezoneLabel(timezone) {
+    if (!timezone) {
+      return '—';
+    }
+    if (timezone === 'America/Los_Angeles') {
+      return t('quotaOfficialTimezoneLabel');
+    }
+    return timezone;
+  }
+
+  function renderQuotaSnapshot() {
+    const quota = state.settings && state.settings.quota ? state.settings.quota : null;
+    if (!quota) {
+      if (ui.quotaHint) {
+        ui.quotaHint.textContent = t('quotaHint');
+      }
+      return;
+    }
+
+    if (ui.quotaStatus) {
+      if (quota.quota_exhausted && quota.quota_exhausted_until_app_timezone) {
+        ui.quotaStatus.textContent = t('quotaStatusPaused', {
+          used: quota.used,
+          dailyLimit: quota.daily_limit,
+          pausedUntil: formatLocalizedDateTime(quota.quota_exhausted_until_app_timezone, quota.app_timezone)
+        });
+      } else {
+        ui.quotaStatus.textContent = t('quotaStatus', {
+          used: quota.used,
+          dailyLimit: quota.daily_limit
+        });
+      }
+    }
+
+    if (ui.quotaHint) {
+      ui.quotaHint.textContent = t('quotaHintDetailed', {
+        appReset: formatLocalizedDateTime(quota.reset_at_app_timezone, quota.app_timezone),
+        appTimezone: quota.app_timezone || getTimezone(),
+        officialReset: formatLocalizedDateTime(quota.reset_at_pt, quota.official_timezone),
+        officialTimezone: formatQuotaTimezoneLabel(quota.official_timezone || 'America/Los_Angeles')
+      });
+    }
+  }
+
+  async function refreshQuotaStatus() {
+    if (!state.currentUser || !api.getQuotaStatus) {
+      return;
+    }
+    const response = await api.getQuotaStatus();
+    if (!response.ok || !response.data) {
+      return;
+    }
+
+    state.settings = {
+      ...(state.settings || {}),
+      quota: {
+        ...(state.settings && state.settings.quota ? state.settings.quota : {}),
+        daily_limit: response.data.daily_limit,
+        cap: response.data.app_cap,
+        used: response.data.used,
+        remaining: response.data.remaining_app_cap,
+        quota_day_pt: response.data.quota_day_pt,
+        reset_at_pt: response.data.reset_at_pt,
+        reset_at_app_timezone: response.data.reset_at_app_timezone,
+        app_timezone: response.data.app_timezone,
+        official_timezone: response.data.official_timezone,
+        quota_exhausted: response.data.quota_exhausted,
+        quota_exhausted_until_pt: response.data.quota_exhausted_until_pt,
+        quota_exhausted_until_app_timezone: response.data.quota_exhausted_until_app_timezone
+      }
+    };
+    renderQuotaSnapshot();
+  }
+
+  function stopQuotaPolling() {
+    if (state.quotaPoller) {
+      window.clearInterval(state.quotaPoller);
+      state.quotaPoller = null;
+    }
+  }
+
+  function startQuotaPolling() {
+    if (state.quotaPoller || !state.currentUser || !api.getQuotaStatus) {
+      return;
+    }
+    refreshQuotaStatus().catch(() => {});
+    state.quotaPoller = window.setInterval(() => {
+      refreshQuotaStatus().catch(() => {});
+    }, 15000);
+  }
+
   let confirmResolver = null;
 
   function closeConfirmModal(result) {
@@ -732,13 +838,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         option.classList.toggle('is-selected', isActive);
       }
     });
-    if (ui.quotaStatus && state.settings.quota) {
-      const quota = state.settings.quota;
-      ui.quotaStatus.textContent = t('quotaStatus', {
-        used: quota.used,
-        cap: quota.cap
-      });
-    }
+    renderQuotaSnapshot();
     if (ui.backfillStatus) {
       ui.backfillStatus.textContent = state.settings.backfill_active
         ? t('backfillRunning')
@@ -1317,6 +1417,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           } else if (blockedPayload.reason === 'global_refresh_running') {
             setRefreshProgress(
               helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressGlobalRunning'),
+              'warning'
+            );
+          } else if (blockedPayload.reason === 'quota_exhausted') {
+            setRefreshProgress(
+              helper ? helper.getBlockedProgressMessage(t, blockedPayload) : t('refreshProgressQuotaExhausted'),
               'warning'
             );
           } else if (blockedPayload.reason === 'cooldown_active') {
@@ -3360,6 +3465,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.authenticatedDataBootstrapPromise = (async () => {
       await loadSettings();
+      startQuotaPolling();
       const classificationResumePromise = resumeClassifyPollIfActive();
       await initCategorySelector();
       await loadApp();
@@ -3481,6 +3587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (state.currentUser) {
       startRefreshStatusPoller();
+      startQuotaPolling();
     }
 
     // Check for auth_status URL param before showing login page
@@ -3590,6 +3697,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (user) {
       startRefreshStatusPoller();
+      startQuotaPolling();
       if (state.deferAuthenticatedBootstrap) {
         return;
       }
@@ -3604,6 +3712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       await bootstrapAuthenticated();
     } else {
+      stopQuotaPolling();
       state.channels = [];
       state.selectedChannelId = null;
       state.selectedChannelYtId = null;

@@ -1,5 +1,6 @@
 """YT Data API v3 integration service."""
 
+import json
 import os
 
 from googleapiclient.discovery import build
@@ -7,6 +8,7 @@ from googleapiclient.errors import HttpError
 
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
+from app.services.quota import mark_quota_exhausted, record_quota_event
 from app.services.video_cache import VideoCache
 
 
@@ -50,13 +52,35 @@ class YTService:
         status = getattr(error, "status_code", None)
         if hasattr(error, "resp") and hasattr(error.resp, "status"):
             status = error.resp.status
+
+        reason = None
+        content = getattr(error, "content", None)
+        if content:
+            try:
+                if isinstance(content, bytes):
+                    content = content.decode("utf-8", errors="ignore")
+                payload = json.loads(content)
+                errors = payload.get("error", {}).get("errors", [])
+                if errors:
+                    reason = errors[0].get("reason")
+            except Exception:
+                reason = None
+
+        if reason in {"quotaExceeded", "dailyLimitExceeded"}:
+            mark_quota_exhausted(None)
+            self.logger.warning(
+                "YT API quota exhausted.",
+                extra={"tracking_id": generate_tracking_id()},
+            )
+            return {"rate_limited": True, "quota_exhausted": True}
+
         if status in (403, 429):
             self.logger.warning(
                 "YT API rate limit encountered.",
                 extra={"tracking_id": generate_tracking_id()},
             )
-            return True
-        return False
+            return {"rate_limited": True, "quota_exhausted": False}
+        return {"rate_limited": False, "quota_exhausted": False}
 
     def _parse_duration(self, duration):
         """Parse ISO 8601 duration into seconds."""
@@ -118,6 +142,13 @@ class YTService:
             return cached
 
         try:
+            record_quota_event(
+                api_method="channels.list",
+                units=1,
+                source="channel_info",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=f"yt_channel_id={channel_id}",
+            )
             response = (
                 self.client.channels()
                 .list(part="snippet,topicDetails,brandingSettings", id=channel_id)
@@ -187,6 +218,13 @@ class YTService:
             return cached
 
         try:
+            record_quota_event(
+                api_method="playlistItems.list",
+                units=1,
+                source="channel_refresh",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=f"yt_channel_id={channel_id}",
+            )
             playlist_request = self.client.playlistItems().list(
                 part="snippet,contentDetails",
                 playlistId=uploads_playlist_id,
@@ -203,6 +241,13 @@ class YTService:
             if not video_ids:
                 return {"videos": [], "next_page_token": None, "success": True}
 
+            record_quota_event(
+                api_method="videos.list",
+                units=1,
+                source="channel_refresh",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=f"yt_channel_id={channel_id}",
+            )
             videos_response = (
                 self.client.videos()
                 .list(part="snippet,contentDetails", id=",".join(video_ids))
@@ -217,12 +262,14 @@ class YTService:
             self.cache.set(cache_key, result, self.cache_ttl)
             return result
         except HttpError as error:
-            if self._handle_http_error(error):
+            rate_state = self._handle_http_error(error)
+            if rate_state.get("rate_limited"):
                 return {
                     "videos": [],
                     "next_page_token": None,
                     "success": False,
                     "rate_limited": True,
+                    "quota_exhausted": rate_state.get("quota_exhausted", False),
                 }
             self._log_api_error("Failed to fetch channel videos: %s", error)
             return {"videos": [], "next_page_token": None, "success": False}
@@ -243,6 +290,12 @@ class YTService:
         try:
             for start in range(0, len(clean_ids), 50):
                 chunk = clean_ids[start : start + 50]
+                record_quota_event(
+                    api_method="videos.list",
+                    units=1,
+                    source="video_completion",
+                    notes="targeted_ids",
+                )
                 response = (
                     self.client.videos()
                     .list(part="snippet,contentDetails", id=",".join(chunk))
@@ -251,8 +304,14 @@ class YTService:
                 results.extend(self._video_response_map(response.get("items", [])))
             return {"videos": results, "success": True}
         except HttpError as error:
-            if self._handle_http_error(error):
-                return {"videos": [], "success": False, "rate_limited": True}
+            rate_state = self._handle_http_error(error)
+            if rate_state.get("rate_limited"):
+                return {
+                    "videos": [],
+                    "success": False,
+                    "rate_limited": True,
+                    "quota_exhausted": rate_state.get("quota_exhausted", False),
+                }
             self._log_api_error("Failed to fetch videos by ids: %s", error)
             return {"videos": [], "success": False}
         except Exception as error:
@@ -267,6 +326,13 @@ class YTService:
             return cached
 
         try:
+            record_quota_event(
+                api_method="channels.list",
+                units=1,
+                source="uploads_playlist_lookup",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=f"yt_channel_id={channel_id}",
+            )
             response = (
                 self.client.channels()
                 .list(part="contentDetails", id=channel_id)
@@ -281,7 +347,8 @@ class YTService:
                 self.cache.set(cache_key, playlist_id, self.cache_ttl)
             return playlist_id
         except HttpError as error:
-            if self._handle_http_error(error):
+            rate_state = self._handle_http_error(error)
+            if rate_state.get("rate_limited"):
                 return None
             self._log_api_error("Failed to fetch uploads playlist: %s", error)
             return None
@@ -300,6 +367,13 @@ class YTService:
             return cached
 
         try:
+            record_quota_event(
+                api_method="search.list",
+                units=100,
+                source="video_search",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=query,
+            )
             search_request = self.client.search().list(
                 part="snippet",
                 q=query,
@@ -313,6 +387,13 @@ class YTService:
             if not video_ids:
                 return []
 
+            record_quota_event(
+                api_method="videos.list",
+                units=1,
+                source="video_search",
+                channel_id=channel_id if isinstance(channel_id, int) else None,
+                notes=query,
+            )
             videos_response = (
                 self.client.videos()
                 .list(part="snippet,contentDetails", id=",".join(video_ids))
@@ -322,7 +403,8 @@ class YTService:
             self.cache.set(cache_key, videos, self.cache_ttl)
             return videos
         except HttpError as error:
-            if self._handle_http_error(error):
+            rate_state = self._handle_http_error(error)
+            if rate_state.get("rate_limited"):
                 return []
             self._log_api_error("Failed to search videos: %s", error)
             return []
@@ -341,6 +423,12 @@ class YTService:
             return cached
 
         try:
+            record_quota_event(
+                api_method="videos.list",
+                units=1,
+                source="video_details",
+                notes=video_id,
+            )
             response = (
                 self.client.videos()
                 .list(part="snippet,contentDetails,statistics", id=video_id)
@@ -375,7 +463,8 @@ class YTService:
             self.cache.set(cache_key, details, self.cache_ttl)
             return details
         except HttpError as error:
-            if self._handle_http_error(error):
+            rate_state = self._handle_http_error(error)
+            if rate_state.get("rate_limited"):
                 return None
             self._log_api_error("Failed to fetch video details: %s", error)
             return None

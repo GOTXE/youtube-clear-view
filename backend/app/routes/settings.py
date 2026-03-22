@@ -2,7 +2,6 @@
 
 from flask import Blueprint, g, jsonify, request
 
-from app.config import Config
 from app.extensions import db
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
@@ -10,7 +9,7 @@ from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET, PRESETS
-from app.services.quota import reset_quota_if_needed
+from app.services.quota import get_global_quota_snapshot, reset_quota_if_needed
 from app.services.scheduler import run_backfill_step
 from app.services.video_ingest import refresh_user_channels
 from app.services.yt_api import YTService
@@ -49,14 +48,33 @@ def get_settings():
     payload = settings.to_dict()
     payload.pop("schedule_hours", None)
     payload["presets"] = PRESETS
+    quota = get_global_quota_snapshot(settings.timezone)
     payload["quota"] = {
-        "daily_limit": Config.YT_DAILY_QUOTA,
-        "cap_ratio": Config.YT_QUOTA_CAP_RATIO,
-        "cap": settings.quota_cap,
-        "used": settings.quota_used,
-        "remaining": max(settings.quota_cap - settings.quota_used, 0),
+        "daily_limit": quota["daily_limit"],
+        "cap_ratio": 1.0,
+        "cap": quota["app_cap"],
+        "used": quota["used"],
+        "remaining": quota["remaining_app_cap"],
+        "quota_day_pt": quota["quota_day_pt"],
+        "reset_at_pt": quota["reset_at_pt"],
+        "reset_at_app_timezone": quota["reset_at_app_timezone"],
+        "app_timezone": quota["app_timezone"],
+        "official_timezone": quota["official_timezone"],
+        "quota_exhausted": quota["quota_exhausted"],
+        "quota_exhausted_until_pt": quota["quota_exhausted_until_pt"],
+        "quota_exhausted_until_app_timezone": quota["quota_exhausted_until_app_timezone"],
     }
     return jsonify(payload)
+
+
+@settings_bp.get("/api/quota/status")
+@handle_route_errors
+@require_auth
+def get_quota_status():
+    """Return the current global YouTube quota snapshot."""
+    user = g.current_user
+    settings = _get_or_create_settings(user)
+    return jsonify(get_global_quota_snapshot(settings.timezone))
 
 
 @settings_bp.put("/api/settings")

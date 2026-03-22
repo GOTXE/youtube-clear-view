@@ -18,6 +18,7 @@ REFRESH_SCHEDULE_TIMEZONE_KEY = "refresh_schedule_timezone"
 REFRESH_SCHEDULE_LAST_RUN_AT_KEY = "refresh_schedule_last_run_at"
 LOG_LEVEL_SETTING_KEY = "log_level"
 VIDEO_REFRESH_MODE_SETTING_KEY = "video_refresh_mode"
+QUOTA_EXHAUSTED_UNTIL_KEY = "youtube_quota_exhausted_until"
 DEFAULT_REFRESH_SCHEDULE_HOURS = [7, 12, 17, 21]
 DEFAULT_REFRESH_SCHEDULE_TIMEZONE = "Europe/Madrid"
 DEFAULT_LOG_LEVEL = "INFO"
@@ -166,6 +167,23 @@ def serialize_video_refresh_mode() -> dict[str, object]:
         },
     ]
     return {"video_refresh_mode": current_mode, "options": options}
+
+
+def get_quota_exhausted_until() -> datetime | None:
+    record = _get_setting_record(QUOTA_EXHAUSTED_UNTIL_KEY)
+    if not record or not record.setting_value:
+        return None
+    try:
+        return datetime.fromisoformat(record.setting_value)
+    except ValueError:
+        return None
+
+
+def set_quota_exhausted_until(value: datetime | None) -> str | None:
+    if value is None:
+        _set_setting_value(QUOTA_EXHAUSTED_UNTIL_KEY, "")
+        return None
+    return _set_setting_value(QUOTA_EXHAUSTED_UNTIL_KEY, value.isoformat())
 
 
 def get_password_policy() -> str:

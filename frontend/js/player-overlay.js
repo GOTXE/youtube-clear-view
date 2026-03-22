@@ -406,6 +406,26 @@
     return api.clearProgress(videoId);
   }
 
+  function markVideoWatchedForCurrentUser(videoId) {
+    const api = getApi();
+    if (!api || !videoId) {
+      return Promise.resolve();
+    }
+    const deviceId = typeof window.getDeviceId === 'function' ? window.getDeviceId() : null;
+    return api.markAsWatched(videoId, deviceId || undefined);
+  }
+
+  async function finalizeWatchedTransition(videoId, options = {}) {
+    const shouldRefreshWatched = options.refreshWatched !== false;
+    if (typeof window.ytcvHandleVideoMarkedWatched === 'function') {
+      await window.ytcvHandleVideoMarkedWatched(videoId, { refreshWatched: shouldRefreshWatched });
+      return;
+    }
+    if (typeof window.ytcvReloadCarousels === 'function') {
+      await window.ytcvReloadCarousels({ preserveDOM: false });
+    }
+  }
+
   // ── Watched button ────────────────────────────────────────────────
 
   function syncWatchedButton() {
@@ -646,27 +666,40 @@
       return;
     }
 
+    const videoId = currentVideo && currentVideo.id;
+    const { position, duration, ratio } = estimateProgressState();
+    const shouldMarkAsWatched = Boolean(
+      !currentWatched
+      && videoId
+      && duration > 0
+      && ratio >= AUTO_MARK_RATIO
+    );
+
     let progressUpdated = false;
     let persistedVideoId = null;
     let persistedPosition = 0;
     let persistedDuration = 0;
     let persistedContinueWatching = false;
 
-    if (!currentWatched) {
-      const { position, duration } = estimateProgressState();
-      if (position > 0 && position > resumeSeconds) {
-        persistedVideoId = currentVideo && currentVideo.id;
-        persistedPosition = position;
-        persistedDuration = duration;
-        persistedContinueWatching = currentInContinueWatching;
-        lastKnownPosition = position;
-        lastKnownDuration = duration;
-        progressUpdated = true;
-      }
+    if (!shouldMarkAsWatched && !currentWatched && position > 0 && position > resumeSeconds) {
+      persistedVideoId = videoId;
+      persistedPosition = position;
+      persistedDuration = duration;
+      persistedContinueWatching = currentInContinueWatching;
+      lastKnownPosition = position;
+      lastKnownDuration = duration;
+      progressUpdated = true;
     }
 
     if (immediate) {
       doClose({ restore });
+      if (shouldMarkAsWatched && videoId) {
+        (async () => {
+          await markVideoWatchedForCurrentUser(videoId);
+          await finalizeWatchedTransition(videoId);
+        })();
+        return;
+      }
       if (progressUpdated && persistedVideoId) {
         (async () => {
           await saveProgressForVideo(persistedVideoId, persistedPosition, persistedDuration, {
@@ -677,6 +710,13 @@
           }
         })();
       }
+      return;
+    }
+
+    if (shouldMarkAsWatched && videoId) {
+      doClose({ restore });
+      await markVideoWatchedForCurrentUser(videoId);
+      await finalizeWatchedTransition(videoId);
       return;
     }
 
@@ -693,11 +733,10 @@
   }
 
   async function handleConfirmWatch() {
+    const videoId = currentVideo && currentVideo.id;
     await handleMarkWatched();
     doClose();
-    if (typeof window.ytcvReloadCarousels === 'function') {
-      window.ytcvReloadCarousels();
-    }
+    await finalizeWatchedTransition(videoId);
   }
 
   async function addToContinueWatching() {

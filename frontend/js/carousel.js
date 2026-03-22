@@ -279,6 +279,9 @@ class Carousel {
     card.className = 'video-card';
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
+    if (video.id != null) {
+      card.dataset.videoId = String(video.id);
+    }
 
     const title = video.title || 'Untitled video';
     card.setAttribute('aria-label', `Open ${title}`);
@@ -444,6 +447,20 @@ class Carousel {
     if (card.dataset.watched !== 'true') {
       this.applyWatchedState(card, detailsElement, hasDuration || detailsElement.textContent.length > 0);
     }
+  }
+
+  removeVideoById(videoId) {
+    if (!this.track || videoId == null) {
+      return false;
+    }
+
+    const card = this.track.querySelector(`.video-card[data-video-id="${String(videoId)}"]`);
+    if (!card) {
+      return false;
+    }
+
+    card.remove();
+    return true;
   }
 
   formatDuration(seconds) {

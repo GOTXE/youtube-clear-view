@@ -1370,7 +1370,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function applyFilters(payload, options = {}) {
     const {
-      respectMonthFilter = true
+      respectMonthFilter = true,
+      includeWatched = false
     } = options;
 
     if (!payload || !Array.isArray(payload.videos)) {
@@ -1378,6 +1379,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const filtered = payload.videos.filter(item => {
+      if (!includeWatched && item.watched) {
+        return false;
+      }
+
       if (state.selectedChannelId !== null || state.selectedChannelYtId) {
         const channelId = item.channel && item.channel.id
           ? item.channel.id
@@ -1588,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
-      const filtered = applyFilters(response.data);
+      const filtered = applyFilters(response.data, { includeWatched: true });
       if (offset === 0) {
         totalCount = filtered.videos.length;
       } else {
@@ -1625,7 +1630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function toggleOptionalCarousel(sectionName) {
+  async function toggleOptionalCarousel(sectionName) {
     if (sectionName === 'in_progress') {
       state.showInProgressCarousel = !state.showInProgressCarousel;
       if (ui.inProgressSection) {
@@ -1636,6 +1641,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (sectionName === 'watched') {
       state.showWatchedCarousel = !state.showWatchedCarousel;
+      if (state.showWatchedCarousel) {
+        await refreshWatchedCarouselOnly();
+      }
       if (ui.watchedSection) {
         const hasItems = Number(ui.watchedCount ? ui.watchedCount.textContent || '0' : 0) > 0;
         ui.watchedSection.hidden = !state.showWatchedCarousel || !hasItems;
@@ -2183,6 +2191,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Expose for player overlay to refresh after "Continue later" / "Mark watched"
   window.ytcvReloadCarousels = options => reloadCarousels(options);
+
+  async function refreshWatchedCarouselOnly() {
+    state.carousels = state.carousels.filter(carousel => {
+      if (!carousel || carousel.containerId !== 'watched-carousel') {
+        return true;
+      }
+      if (typeof carousel.destroy === 'function') {
+        carousel.destroy(false);
+      }
+      return false;
+    });
+    if (ui.watchedCarousel) {
+      ui.watchedCarousel.innerHTML = '';
+    }
+    if (ui.watchedSection) {
+      ui.watchedSection.hidden = true;
+    }
+    await renderWatchedCarousel();
+  }
+
+  async function handleVideoMarkedWatched(videoId, options = {}) {
+    const id = videoId != null ? String(videoId) : null;
+    if (!id) {
+      return;
+    }
+
+    state.carousels.forEach(carousel => {
+      if (!carousel || typeof carousel.removeVideoById !== 'function') {
+        return;
+      }
+      if (carousel.containerId === 'watched-carousel') {
+        return;
+      }
+      carousel.removeVideoById(id);
+    });
+
+    if (ui.inProgressSection && ui.inProgressCarousel) {
+      const hasCards = ui.inProgressCarousel.querySelector('.video-card');
+      if (!hasCards) {
+        ui.inProgressSection.hidden = true;
+        if (ui.inProgressCount) {
+          ui.inProgressCount.textContent = '0';
+        }
+      }
+    }
+
+    if (state.showWatchedCarousel && options.refreshWatched !== false) {
+      await refreshWatchedCarouselOnly();
+    }
+  }
+
+  window.ytcvHandleVideoMarkedWatched = (videoId, options) => handleVideoMarkedWatched(videoId, options);
 
   let refreshVisibleTimer = null;
   function scheduleVisibleReload() {

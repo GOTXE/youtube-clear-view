@@ -1,5 +1,7 @@
 """Category management routes."""
 
+from sqlalchemy import select
+
 from flask import Blueprint, g, jsonify, request
 
 from app.extensions import db
@@ -181,26 +183,20 @@ def get_category_videos(category_id):
     if not category_channel_ids:
         return jsonify({"videos": [], "has_more": False, "next_offset": None})
 
-    # Get videos from those channels
+    watched_subquery = select(WatchedVideo.video_id).filter_by(user_id=user.id)
+
+    # Get videos from those channels, excluding watched items so they only live in the watched carousel
     query = (
-        Video.query.filter(Video.channel_id.in_(category_channel_ids))
+        Video.query.filter(
+            Video.channel_id.in_(category_channel_ids),
+            ~Video.id.in_(watched_subquery),
+        )
         .order_by(Video.published_at.desc())
     )
 
     items = query.offset(offset).limit(limit + 1).all()
     has_more = len(items) > limit
     videos = items[:limit]
-
-    # Get watched video IDs for this user
-    video_ids = [video.id for video in videos]
-    watched_ids = set()
-    if video_ids:
-        watched_entries = (
-            WatchedVideo.query.filter_by(user_id=user.id)
-            .filter(WatchedVideo.video_id.in_(video_ids))
-            .all()
-        )
-        watched_ids = {entry.video_id for entry in watched_entries}
 
     # Serialize videos in the same format as /api/videos/latest
     results = []
@@ -209,7 +205,7 @@ def get_category_videos(category_id):
         results.append({
             "video": video.to_dict(),
             "channel": channel.to_dict() if channel else None,
-            "watched": video.id in watched_ids,
+            "watched": False,
         })
 
     next_offset = offset + limit if has_more else None

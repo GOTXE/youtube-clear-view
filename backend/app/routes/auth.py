@@ -23,7 +23,12 @@ from app.services.google_oauth import (
     revoke_google_tokens,
 )
 from app.services.admin_access import is_admin_user
-from app.services.admin_bootstrap import is_bootstrap_required
+from app.services.admin_bootstrap import (
+    clear_bootstrap_window,
+    get_bootstrap_window_info,
+    is_bootstrap_locked,
+    is_bootstrap_required,
+)
 from app.services.auth_policy import (
     sanitize_username_candidate,
     validate_password,
@@ -894,7 +899,8 @@ def auth_provider():
         and current_app.config.get("GOOGLE_CLIENT_SECRET")
         and current_app.config.get("GOOGLE_REDIRECT_URI")
     )
-    return jsonify({
+    bootstrap_required = is_bootstrap_required()
+    payload = {
         "auth_mode": mode,
         "google_login_url": "/api/auth/google" if google_configured else None,
         "google_link_url": "/api/auth/google/link" if google_configured else None,
@@ -902,15 +908,22 @@ def auth_provider():
         "registration_mode": "google_first",
         "password_policy": get_password_policy(),
         "csrf_token": _get_or_create_csrf_token(),
-        "bootstrap_required": is_bootstrap_required(),
-    })
+        "bootstrap_required": bootstrap_required,
+    }
+    if bootstrap_required:
+        payload["bootstrap_window"] = get_bootstrap_window_info()
+    return jsonify(payload)
 
 
 @auth_bp.get("/api/bootstrap/status")
 @handle_route_errors
 def bootstrap_status():
     """Return whether the application still requires an admin bootstrap."""
-    return jsonify({"bootstrap_required": is_bootstrap_required()})
+    bootstrap_required = is_bootstrap_required()
+    payload = {"bootstrap_required": bootstrap_required}
+    if bootstrap_required:
+        payload["bootstrap_window"] = get_bootstrap_window_info()
+    return jsonify(payload)
 
 
 @auth_bp.post("/api/bootstrap/admin")
@@ -919,6 +932,13 @@ def bootstrap_admin():
     """Create the first administrator account when none exists yet."""
     if not is_bootstrap_required():
         return jsonify({"error": "Bootstrap already completed.", "status": 409}), 409
+
+    if is_bootstrap_locked():
+        return jsonify({
+            "error": "Bootstrap window expired. Restart the application to try again.",
+            "status": 423,
+            "locked": True,
+        }), 423
 
     if not _validate_csrf():
         tracking_id = generate_tracking_id()
@@ -954,6 +974,7 @@ def bootstrap_admin():
     db.session.add(user)
     session_token = _issue_session_for_user(user)
     db.session.commit()
+    clear_bootstrap_window()
 
     response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
     _set_admin_session_cookie(response, session_token)

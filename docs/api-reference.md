@@ -171,6 +171,34 @@ Response example:
 }
 ```
 
+### GET /api/admin/logs/meta
+
+Requires an authenticated admin session.
+
+Returns runtime metadata for the current logging setup and quota display.
+
+Response example:
+
+```json
+{
+  "log_runtime": {
+    "level": "INFO",
+    "configured_level": "INFO",
+    "rotate_enabled": true,
+    "max_size_bytes": 10485760,
+    "backup_count": 5,
+    "timestamps_timezone": "CET (UTC+01:00)",
+    "timestamps_are_utc": false
+  },
+  "quota": {
+    "reset_at_utc": "2026-01-29T08:00:00+00:00",
+    "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+    "app_timezone": "Europe/Madrid",
+    "official_timezone": "America/Los_Angeles"
+  }
+}
+```
+
 ---
 
 ## Authentication
@@ -1068,6 +1096,47 @@ Request fields:
 Response:
 - Returns the updated global schedule object.
 
+Notes:
+- The supplied timezone is also applied to runtime log formatting in the current
+  worker process.
+
+### GET /api/admin/timezone
+
+Requires an authenticated admin session.
+
+Returns the current global timezone used by scheduler and log display.
+
+Response example:
+
+```json
+{
+  "timezone": "Europe/Madrid"
+}
+```
+
+### PUT /api/admin/timezone
+
+Requires an authenticated admin session.
+
+Updates the global timezone used by scheduler and runtime log formatting.
+
+Request:
+
+```json
+{
+  "timezone": "UTC"
+}
+```
+
+Response example:
+
+```json
+{
+  "timezone": "UTC",
+  "restart_required": false
+}
+```
+
 ---
 
 ## Channels
@@ -1245,6 +1314,9 @@ Notes:
 - The frontend should treat SSE as the source of refresh progress and use the
   final `complete` or `blocked` event as the end-of-run signal.
 - `backfill=true` forces a refresh that ignores `last_refreshed_at` and re-scans within the preset window.
+- If a refresh worker crashes or the backend restarts mid-run, stale
+  `refresh_jobs` rows are recovered on startup and marked as failed instead of
+  staying indefinitely in `queued` or `running`.
 
 ### GET /api/channels/<channel_id>/videos
 

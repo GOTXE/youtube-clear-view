@@ -72,6 +72,19 @@ Relevant backend refresh environment variables:
   - quota units consumed by the legacy full channel API refresh path
 - `YT_RSS_COMPLETION_COST`
   - quota units consumed when RSS-discovered videos need targeted metadata completion
+- `APP_TIMEZONE`
+  - default timezone used by backend log timestamps before the persisted admin
+    timezone is loaded
+  - keep it aligned with the installation timezone for predictable startup logs
+
+## Log timestamps and refresh recovery
+
+- Backend log timestamps are rendered in the app timezone, not forced to UTC.
+- After startup, the backend aligns runtime log formatting with the persisted
+  global admin timezone (`/api/admin/timezone` / refresh schedule timezone).
+- If the backend restarts while a manual refresh job is still marked as
+  `queued` or `running`, startup recovery marks that stale job as failed so the
+  web UI does not remain stuck showing "updating" forever.
 
 ## Service Worker cache
 

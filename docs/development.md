@@ -46,10 +46,20 @@ Relevant refresh governance knobs in `backend/.env` / `.env.example`:
 - `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`
 - `VIDEO_REFRESH_MODE`
 - `YT_RSS_COMPLETION_COST`
+- `APP_TIMEZONE`
 - `ADMIN_USERNAMES`
 - `SQLITE_METRICS_ENABLED`
 - `SQLITE_METRICS_SLOW_WRITE_MS`
 - `AUTH_TOKEN_ENCRYPTION_KEY`
+
+Notes:
+- `APP_TIMEZONE` controls the default timezone for backend log timestamps during
+  startup.
+- After boot, the active log timezone is updated to the persisted global admin
+  timezone so scheduler settings, gestor log view, and backend timestamps stay
+  aligned.
+- Manual refresh jobs left in `queued` or `running` after a crash/restart are
+  recovered on startup and marked as failed.
 
 ## RSS-First Video Refresh
 

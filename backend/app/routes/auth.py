@@ -1169,9 +1169,13 @@ def google_device_start():
     session[_DEVICE_FLOW_DEVICE_CODE_KEY] = result["device_code"]
     session[_DEVICE_FLOW_INTENT_KEY] = intent
 
+    verification_url = result.get("verification_url", "")
+    qr_code = _build_qr_data_url(verification_url) if verification_url else None
+
     return jsonify({
         "user_code": result.get("user_code"),
-        "verification_url": result.get("verification_url"),
+        "verification_url": verification_url,
+        "qr_code": qr_code,
         "expires_in": result.get("expires_in"),
         "interval": result.get("interval", 5),
     })
@@ -1862,8 +1866,8 @@ def mfa_status():
     )
 
 
-def _build_totp_qr_data_url(otpauth_url: str) -> str | None:
-    """Generate a QR code SVG for the given otpauth URL and return it as a data URL."""
+def _build_qr_data_url(content: str) -> str | None:
+    """Generate a QR code SVG for the given content and return it as a data URL."""
     try:
         import base64
         import io
@@ -1871,7 +1875,7 @@ def _build_totp_qr_data_url(otpauth_url: str) -> str | None:
         import qrcode
         import qrcode.image.svg
 
-        img = qrcode.make(otpauth_url, image_factory=qrcode.image.svg.SvgImage)
+        img = qrcode.make(content, image_factory=qrcode.image.svg.SvgImage)
         buffer = io.BytesIO()
         img.save(buffer)
         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
@@ -1879,7 +1883,7 @@ def _build_totp_qr_data_url(otpauth_url: str) -> str | None:
     except Exception:
         import logging
 
-        logging.getLogger(__name__).exception("Failed to generate TOTP QR code")
+        logging.getLogger(__name__).exception("Failed to generate QR code")
         return None
 
 
@@ -1898,7 +1902,7 @@ def setup_totp():
     return jsonify({
         "secret": secret,
         "otpauth_url": otpauth_url,
-        "qr_code": _build_totp_qr_data_url(otpauth_url),
+        "qr_code": _build_qr_data_url(otpauth_url),
     })
 
 

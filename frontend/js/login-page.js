@@ -29,6 +29,7 @@
   let _pairingPollTimer = null;
   let _pairingPublicId = null;
   let _bootstrapCountdownTimer = null;
+  let _deviceFlowPollTimer = null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -115,8 +116,9 @@
 
   function showView(view, options = {}) {
     if (currentView === 'pairing' && view !== 'pairing') _stopPairingPoll();
+    if (currentView === 'device-flow' && view !== 'device-flow') _stopDeviceFlowPoll();
     currentView = view;
-    const views = ['login', 'wizard', 'pairing', 'bootstrap', 'password-change'];
+    const views = ['login', 'wizard', 'pairing', 'bootstrap', 'password-change', 'device-flow', 'device-flow-confirm'];
     views.forEach(v => {
       const panel = el(`lp-${v}`);
       if (panel) panel.hidden = v !== view;
@@ -143,7 +145,7 @@
   }
 
   function clearErrors() {
-    ['lp-login-error', 'lp-register-error', 'lp-wizard-error', 'lp-bootstrap-error', 'lp-password-change-error'].forEach(id => {
+    ['lp-login-error', 'lp-register-error', 'lp-wizard-error', 'lp-bootstrap-error', 'lp-password-change-error', 'lp-device-flow-error', 'lp-device-flow-confirm-error'].forEach(id => {
       const node = el(id);
       if (node) { node.textContent = ''; node.hidden = true; }
     });
@@ -294,6 +296,40 @@
             </button>
             <p class="login-page__switch caption" data-i18n="adminBootstrapFootnote">Only shown while no administrator account exists.</p>
           </form>
+        </div>
+
+        <!-- DEVICE FLOW PANEL -->
+        <div id="lp-device-flow" class="login-page__panel" hidden>
+          <h2 class="heading-2 login-page__title" data-i18n="deviceFlowTitle">Sign in with Google</h2>
+          <p class="body login-page__subtitle" data-i18n="deviceFlowSubtitle">Authorize this app using your Google account.</p>
+          <div id="lp-device-flow-code-box" class="login-page__device-flow-code" hidden>
+            <p class="login-page__device-flow-instruction" data-i18n="deviceFlowInstruction">Go to the URL below and enter this code:</p>
+            <p class="login-page__device-flow-user-code" id="lp-device-flow-user-code"></p>
+            <p class="login-page__device-flow-url" id="lp-device-flow-url"></p>
+            <div class="login-page__device-flow-qr" id="lp-device-flow-qr"></div>
+            <p class="caption login-page__device-flow-status" id="lp-device-flow-status" data-i18n="deviceFlowWaiting">Waiting for authorization...</p>
+          </div>
+          <p id="lp-device-flow-loading" class="body" data-i18n="deviceFlowStarting">Starting device flow...</p>
+          <p id="lp-device-flow-error" class="login-page__error body" role="alert" hidden></p>
+          <div class="login-page__alt-actions">
+            <button id="lp-device-flow-cancel" class="button button--ghost" type="button" data-i18n="cancel">Cancel</button>
+          </div>
+        </div>
+
+        <!-- DEVICE FLOW CONFIRM PANEL -->
+        <div id="lp-device-flow-confirm" class="login-page__panel" hidden>
+          <h2 class="heading-2 login-page__title" data-i18n="deviceFlowConfirmTitle">Confirm Google account</h2>
+          <div class="login-page__device-flow-identity" id="lp-device-flow-identity">
+            <img id="lp-device-flow-avatar" class="login-page__device-flow-avatar" src="" alt="" width="64" height="64">
+            <p class="body" id="lp-device-flow-name"></p>
+            <p class="caption" id="lp-device-flow-email"></p>
+          </div>
+          <p id="lp-device-flow-confirm-msg" class="body" hidden></p>
+          <p id="lp-device-flow-confirm-error" class="login-page__error body" role="alert" hidden></p>
+          <div class="login-page__alt-actions">
+            <button id="lp-device-flow-confirm-yes" class="button login-page__submit" type="button" data-i18n="deviceFlowConfirmLink">Link account</button>
+            <button id="lp-device-flow-confirm-cancel" class="button button--ghost" type="button" data-i18n="cancel">Cancel</button>
+          </div>
         </div>
 
         <!-- PAIRING PANEL -->
@@ -559,13 +595,11 @@
       });
     }
 
-    // Google
+    // Google (device flow)
     const googleBtn = el('lp-google-button');
     if (googleBtn) {
       googleBtn.addEventListener('click', () => {
-        if (!authProviderData || !authProviderData.google_login_url) return;
-        const url = resolveOAuthUrl(authProviderData.google_login_url);
-        if (url) window.location.href = url;
+        startDeviceFlow('login');
       });
     }
 
@@ -584,6 +618,37 @@
         showView('pairing');
         startPairingFlow();
       });
+    }
+
+    // Device flow cancel
+    const deviceFlowCancel = el('lp-device-flow-cancel');
+    if (deviceFlowCancel) {
+      deviceFlowCancel.addEventListener('click', () => {
+        _stopDeviceFlowPoll();
+        showView('login');
+      });
+    }
+
+    // Device flow confirm link
+    const deviceFlowConfirmYes = el('lp-device-flow-confirm-yes');
+    if (deviceFlowConfirmYes) {
+      deviceFlowConfirmYes.addEventListener('click', async () => {
+        const data = deviceFlowConfirmYes._deviceFlowData;
+        if (!data) return;
+
+        if (data.status === 'confirm_link') {
+          // User confirmed linking — proceed to wizard.
+          showView('wizard', { username: data.existing_username || '' });
+        } else if (data.status === 'new_user') {
+          showView('wizard');
+        }
+      });
+    }
+
+    // Device flow confirm cancel
+    const deviceFlowConfirmCancel = el('lp-device-flow-confirm-cancel');
+    if (deviceFlowConfirmCancel) {
+      deviceFlowConfirmCancel.addEventListener('click', () => showView('login'));
     }
 
     // Pairing cancel
@@ -807,6 +872,145 @@
     }
 
     setError('lp-bootstrap-error', resp.error || t('adminBootstrapError'));
+  }
+
+  // ── Device Flow ──────────────────────────────────────────────────────────
+
+  async function startDeviceFlow(intent) {
+    showView('device-flow');
+    const loadingEl = el('lp-device-flow-loading');
+    const codeBox = el('lp-device-flow-code-box');
+    if (loadingEl) loadingEl.hidden = false;
+    if (codeBox) codeBox.hidden = true;
+
+    const api = getApi();
+    if (!api) return;
+
+    const resp = await api.startDeviceFlow(intent || 'login');
+    if (!resp.ok || !resp.data) {
+      if (loadingEl) loadingEl.hidden = true;
+      setError('lp-device-flow-error', resp.error || t('deviceFlowError'));
+      return;
+    }
+
+    const { user_code, verification_url, qr_code, interval } = resp.data;
+    if (loadingEl) loadingEl.hidden = true;
+    if (codeBox) codeBox.hidden = false;
+
+    const codeEl = el('lp-device-flow-user-code');
+    if (codeEl) codeEl.textContent = user_code || '';
+
+    const urlEl = el('lp-device-flow-url');
+    if (urlEl) {
+      urlEl.innerHTML = '';
+      const link = document.createElement('a');
+      link.href = verification_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = verification_url;
+      urlEl.appendChild(link);
+    }
+
+    const qrEl = el('lp-device-flow-qr');
+    if (qrEl && qr_code) {
+      qrEl.innerHTML = `<img src="${qr_code}" alt="QR" width="180" height="180">`;
+    }
+
+    const statusEl = el('lp-device-flow-status');
+    if (statusEl) statusEl.textContent = t('deviceFlowWaiting');
+
+    _startDeviceFlowPoll(interval || 5);
+  }
+
+  function _startDeviceFlowPoll(intervalSec) {
+    _stopDeviceFlowPoll();
+    const pollMs = Math.max(intervalSec, 5) * 1000;
+
+    _deviceFlowPollTimer = window.setInterval(async () => {
+      const api = getApi();
+      if (!api) return;
+
+      const resp = await api.pollDeviceFlowStatus();
+      if (!resp.ok && !resp.data) {
+        // Network error — keep polling.
+        return;
+      }
+
+      const data = resp.data || {};
+
+      if (data.status === 'pending') {
+        if (data.slow_down) {
+          // Back off: restart with longer interval.
+          _startDeviceFlowPoll(intervalSec + 5);
+        }
+        return;
+      }
+
+      _stopDeviceFlowPoll();
+
+      if (data.status === 'error') {
+        setError('lp-device-flow-error', t('deviceFlowExpired'));
+        return;
+      }
+
+      if (data.status === 'authenticated') {
+        notifyAuthSuccess(data.user);
+        if (data.setup_completed) {
+          hide();
+        } else {
+          showView('wizard', { username: data.user.username });
+        }
+        return;
+      }
+
+      if (data.status === 'confirm_link' || data.status === 'new_user') {
+        _showDeviceFlowConfirm(data);
+        return;
+      }
+
+      // Unexpected status — treat as error.
+      setError('lp-device-flow-error', data.error || t('deviceFlowError'));
+    }, pollMs);
+  }
+
+  function _stopDeviceFlowPoll() {
+    if (_deviceFlowPollTimer) {
+      window.clearInterval(_deviceFlowPollTimer);
+      _deviceFlowPollTimer = null;
+    }
+  }
+
+  function _showDeviceFlowConfirm(data) {
+    showView('device-flow-confirm');
+    const identity = data.google_identity || {};
+
+    const avatarEl = el('lp-device-flow-avatar');
+    if (avatarEl) {
+      avatarEl.src = identity.picture || '';
+      avatarEl.hidden = !identity.picture;
+    }
+
+    const nameEl = el('lp-device-flow-name');
+    if (nameEl) nameEl.textContent = identity.name || '';
+
+    const emailEl = el('lp-device-flow-email');
+    if (emailEl) emailEl.textContent = identity.email || '';
+
+    const msgEl = el('lp-device-flow-confirm-msg');
+    if (msgEl) {
+      if (data.status === 'confirm_link') {
+        msgEl.textContent = t('deviceFlowConfirmLinkMsg').replace('{username}', data.existing_username || '');
+        msgEl.hidden = false;
+      } else {
+        msgEl.hidden = true;
+      }
+    }
+
+    // Store data for the confirm action.
+    const confirmBtn = el('lp-device-flow-confirm-yes');
+    if (confirmBtn) {
+      confirmBtn._deviceFlowData = data;
+    }
   }
 
   async function handlePasswordChangeSave() {

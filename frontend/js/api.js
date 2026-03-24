@@ -200,6 +200,14 @@ class APIClient {
     return this.post('/api/auth/switch', { user_id: userId });
   }
 
+  startDeviceFlow(intent = 'login') {
+    return this.post('/api/auth/google/device/start', { intent });
+  }
+
+  pollDeviceFlowStatus() {
+    return this.get('/api/auth/google/device/status');
+  }
+
   startPairing(deviceIdentifier = null) {
     const payload = {};
     if (deviceIdentifier) {

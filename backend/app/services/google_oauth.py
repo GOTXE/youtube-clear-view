@@ -12,6 +12,7 @@ from app.utils.time import utc_now
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
@@ -170,6 +171,99 @@ def revoke_google_tokens(refresh_token):
         return False
 
     return response.ok
+
+
+def request_device_code():
+    """Request a device code from Google for the OAuth device flow.
+
+    Returns a dict with keys: device_code, user_code, verification_url,
+    expires_in, interval — or None on failure.
+    """
+    config = current_app.config
+    client_id = config.get("GOOGLE_CLIENT_ID")
+    scopes = config.get("GOOGLE_OAUTH_SCOPES")
+    if not client_id:
+        logger.warning(
+            "Cannot request device code: GOOGLE_CLIENT_ID not configured.",
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    try:
+        response = requests.post(
+            GOOGLE_DEVICE_CODE_URL,
+            data={"client_id": client_id, "scope": scopes},
+            timeout=10,
+        )
+    except requests.RequestException as error:
+        logger.warning(
+            "Google device code request failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    if not response.ok:
+        logger.warning(
+            "Google device code request returned %s: %s",
+            response.status_code,
+            response.text[:200],
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    return response.json()
+
+
+def poll_device_token(device_code):
+    """Poll Google for a token using the device code.
+
+    Returns a dict with one of:
+    - Token data (access_token, refresh_token, etc.) on success.
+    - {"pending": True} if the user hasn't authorized yet.
+    - {"error": "<code>"} on terminal errors (expired, access_denied, etc.).
+    - None on network/request failure.
+    """
+    config = current_app.config
+    payload = {
+        "client_id": config.get("GOOGLE_CLIENT_ID"),
+        "client_secret": config.get("GOOGLE_CLIENT_SECRET"),
+        "device_code": device_code,
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+    }
+
+    try:
+        response = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=10)
+    except requests.RequestException as error:
+        logger.warning(
+            "Google device token poll failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    data = {}
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+
+    if response.ok:
+        return data
+
+    error_code = data.get("error", "")
+    if error_code == "authorization_pending":
+        return {"pending": True}
+    if error_code == "slow_down":
+        return {"pending": True, "slow_down": True}
+
+    # Terminal errors: expired_token, access_denied, etc.
+    logger.info(
+        "Device flow token poll terminal error: %s",
+        error_code,
+        extra={"tracking_id": generate_tracking_id()},
+    )
+    return {"error": error_code}
 
 
 def _post_token(payload, action):

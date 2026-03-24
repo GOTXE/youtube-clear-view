@@ -208,6 +208,18 @@ class APIClient {
     return this.get('/api/auth/google/device/status');
   }
 
+  confirmDeviceFlowLink() {
+    return this.post('/api/auth/google/device/confirm-link', {});
+  }
+
+  createDeviceFlowAccount(username, password, confirmPassword) {
+    return this.post('/api/auth/google/device/create-account', {
+      username,
+      password,
+      confirm_password: confirmPassword,
+    });
+  }
+
   startPairing(deviceIdentifier = null) {
     const payload = {};
     if (deviceIdentifier) {

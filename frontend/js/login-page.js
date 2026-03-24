@@ -30,6 +30,7 @@
   let _pairingPublicId = null;
   let _bootstrapCountdownTimer = null;
   let _deviceFlowPollTimer = null;
+  let _deviceFlowPending = false; // true when wizard is used after device flow
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -637,9 +638,20 @@
         if (!data) return;
 
         if (data.status === 'confirm_link') {
-          // User confirmed linking — proceed to wizard.
-          showView('wizard', { username: data.existing_username || '' });
+          // Link Google to existing user via API.
+          const api = getApi();
+          if (!api) return;
+          deviceFlowConfirmYes.disabled = true;
+          const resp = await api.confirmDeviceFlowLink();
+          deviceFlowConfirmYes.disabled = false;
+          if (resp.ok && resp.data && resp.data.user) {
+            notifyAuthSuccess(resp.data.user);
+            hide();
+          } else {
+            setError('lp-device-flow-confirm-error', resp.error || t('deviceFlowError'));
+          }
         } else if (data.status === 'new_user') {
+          _deviceFlowPending = true;
           showView('wizard');
         }
       });
@@ -755,19 +767,26 @@
     const api = getApi();
     if (!api) return;
 
-    const resp = await api.completeSetup(username.trim(), password);
+    let resp;
+    if (_deviceFlowPending) {
+      resp = await api.createDeviceFlowAccount(username.trim(), password, passwordConfirm);
+    } else {
+      resp = await api.completeSetup(username.trim(), password);
+    }
 
     if (submitBtn) submitBtn.disabled = false;
     if (labelEl) labelEl.textContent = t('setupWizardSave');
 
     if (resp.ok && resp.data) {
+      _deviceFlowPending = false;
       try {
         window.sessionStorage.setItem('ytcv_onboarding_ready_modal', 'pending');
       } catch (_) { /* ignore */ }
       window.__ytcvOnboardingReadyModalPending = true;
       hide();
       window.dispatchEvent(new CustomEvent('onboarding:setup-completed'));
-      notifyAuthSuccess(resp.data);
+      const userData = resp.data.user || resp.data;
+      notifyAuthSuccess(userData);
       return;
     }
 

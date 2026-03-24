@@ -31,6 +31,7 @@
   let _bootstrapCountdownTimer = null;
   let _deviceFlowPollTimer = null;
   let _deviceFlowPending = false; // true when wizard is used after device flow
+  let _deviceFlowIntent = 'login'; // 'login' or 'link'
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -896,6 +897,7 @@
   // ── Device Flow ──────────────────────────────────────────────────────────
 
   async function startDeviceFlow(intent) {
+    _deviceFlowIntent = intent || 'login';
     showView('device-flow');
     const loadingEl = el('lp-device-flow-loading');
     const codeBox = el('lp-device-flow-code-box');
@@ -969,6 +971,20 @@
 
       if (data.status === 'error') {
         setError('lp-device-flow-error', t('deviceFlowExpired'));
+        return;
+      }
+
+      // Intent 'link': relink tokens to the current authenticated user.
+      if (_deviceFlowIntent === 'link') {
+        const api2 = getApi();
+        if (api2) {
+          const relinkResp = await api2.relinkDeviceFlow();
+          if (relinkResp.ok) {
+            hide();
+            return;
+          }
+          setError('lp-device-flow-error', relinkResp.error || t('deviceFlowError'));
+        }
         return;
       }
 
@@ -1229,6 +1245,7 @@
     isVisible,
     checkAuthStatusParam,
     showView,
-    releaseAuthGate
+    releaseAuthGate,
+    startDeviceFlow,
   };
 })();

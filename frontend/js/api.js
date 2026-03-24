@@ -220,6 +220,10 @@ class APIClient {
     });
   }
 
+  relinkDeviceFlow() {
+    return this.post('/api/auth/google/device/relink', {});
+  }
+
   startPairing(deviceIdentifier = null) {
     const payload = {};
     if (deviceIdentifier) {

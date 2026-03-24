@@ -967,8 +967,10 @@
       linkBtn.className = 'button';
       linkBtn.textContent = linked ? t('accountYoutubeRelink') : t('accountYoutubeLink');
       linkBtn.addEventListener('click', () => {
-        const url = resolveUrl(window._ytcvAuthProvider.google_link_url);
-        if (url) window.location.href = url;
+        if (window.ytcvLoginPage && window.ytcvLoginPage.startDeviceFlow) {
+          window.ytcvLoginPage.show();
+          window.ytcvLoginPage.startDeviceFlow('link');
+        }
       });
       actionsEl.appendChild(linkBtn);
     }

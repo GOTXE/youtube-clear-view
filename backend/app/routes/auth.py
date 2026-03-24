@@ -1286,6 +1286,110 @@ def google_device_status():
     })
 
 
+@auth_bp.post("/api/auth/google/device/confirm-link")
+@handle_route_errors
+def google_device_confirm_link():
+    """Confirm linking a Google account to an existing local user (email match)."""
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    tokens = session.get("_device_flow_tokens")
+    identity = session.get("_device_flow_identity")
+    if not tokens or not identity:
+        return jsonify({"error": "No pending device flow.", "status": 400}), 400
+
+    google_user_id = identity.get("google_user_id")
+    email = identity.get("email")
+    if not google_user_id or not email:
+        return jsonify({"error": "Incomplete Google identity.", "status": 400}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "No matching user found.", "status": 404}), 404
+
+    # Link Google identity to existing user.
+    user.google_user_id = google_user_id
+    user.email = email
+    user.google_avatar_url = identity.get("picture", "")
+    apply_token_response(user, tokens)
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    session.pop("_device_flow_tokens", None)
+    session.pop("_device_flow_identity", None)
+
+    response = jsonify({
+        "status": "authenticated",
+        "user": _serialize_authenticated_user(user),
+        "setup_completed": user.setup_completed,
+    })
+    _set_admin_session_cookie(response, session_token)
+    return response
+
+
+@auth_bp.post("/api/auth/google/device/create-account")
+@handle_route_errors
+def google_device_create_account():
+    """Create a new local account from a device flow Google identity."""
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
+    tokens = session.get("_device_flow_tokens")
+    identity = session.get("_device_flow_identity")
+    if not tokens or not identity:
+        return jsonify({"error": "No pending device flow.", "status": 400}), 400
+
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    confirm_password = data.get("confirm_password") or ""
+
+    username_ok, username_error = validate_username(username)
+    if not username_ok:
+        return jsonify({"error": username_error, "status": 400}), 400
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match.", "status": 400}), 400
+    password_ok, password_error = validate_password(password, get_password_policy())
+    if not password_ok:
+        return jsonify({"error": password_error, "status": 400}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "Username already taken.", "status": 409}), 409
+
+    google_user_id = identity.get("google_user_id")
+    email = identity.get("email")
+    name = identity.get("name", "")
+    picture = identity.get("picture", "")
+
+    user = User(
+        username=username,
+        display_name=name or username,
+        email=email,
+        google_user_id=google_user_id,
+        google_avatar_url=picture,
+        auth_provider="google",
+        is_active=True,
+        setup_completed=True,
+    )
+    user.set_password(password)
+    apply_token_response(user, tokens)
+    db.session.add(user)
+    session_token = _issue_session_for_user(user)
+    db.session.commit()
+
+    session.pop("_device_flow_tokens", None)
+    session.pop("_device_flow_identity", None)
+
+    response = jsonify({
+        "status": "authenticated",
+        "user": _serialize_authenticated_user(user),
+        "setup_completed": True,
+    })
+    _set_admin_session_cookie(response, session_token)
+    return response, 201
+
+
 @auth_bp.post("/api/auth/google/complete-setup")
 @handle_route_errors
 @require_auth

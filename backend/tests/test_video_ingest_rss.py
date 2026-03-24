@@ -17,13 +17,15 @@ class FakeHybridService:
         self.completion_items = completion_items or []
         self.channel_video_calls = 0
         self.video_ids_calls = 0
+        self.last_quota_session = None
 
     def get_channel_videos(self, channel_id):
         self.channel_video_calls += 1
         return {"success": True, "videos": list(self.api_items), "next_page_token": None}
 
-    def get_videos_by_ids(self, video_ids):
+    def get_videos_by_ids(self, video_ids, quota_session=None):
         self.video_ids_calls += 1
+        self.last_quota_session = quota_session
         selected = [item for item in self.completion_items if item["video_id"] in set(video_ids)]
         return {"success": True, "videos": selected}
 
@@ -104,6 +106,7 @@ def test_refresh_uses_rss_and_completes_new_video(app, monkeypatch, caplog):
         assert video.description == "Completed description"
         assert service.channel_video_calls == 0
         assert service.video_ids_calls == 1
+        assert service.last_quota_session is not None
         assert "path=rss+api_completion" in caplog.text
 
 

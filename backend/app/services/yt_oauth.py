@@ -11,6 +11,18 @@ SUBSCRIPTIONS_URL = "https://www.googleapis.com/youtube/v3/subscriptions"
 logger = get_logger(__name__)
 
 
+def _record_quota_event_safe(**kwargs):
+    """Persist quota telemetry without breaking the OAuth request path."""
+    try:
+        record_quota_event(**kwargs)
+    except Exception as error:
+        logger.warning(
+            "Failed to persist quota event: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def fetch_subscriptions_page(access_token, page_token=None, max_results=50, user_id=None):
     """Fetch a single page of subscriptions for the authenticated YT account."""
     if not access_token:
@@ -25,7 +37,7 @@ def fetch_subscriptions_page(access_token, page_token=None, max_results=50, user
         params["pageToken"] = page_token
 
     try:
-        record_quota_event(
+        _record_quota_event_safe(
             api_method="subscriptions.list",
             units=1,
             source="subscriptions_import",

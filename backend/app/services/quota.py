@@ -104,6 +104,7 @@ def record_quota_event(
     tracking_id: str | None = None,
     notes: str | None = None,
     occurred_at: datetime | None = None,
+    session=None,
 ):
     """Persist a single real YouTube quota consumption event."""
     event_time = occurred_at or utc_now()
@@ -119,6 +120,10 @@ def record_quota_event(
         "tracking_id": tracking_id,
         "notes": notes,
     }
+    if session is not None:
+        session.add(QuotaEvent(**payload))
+        return payload
+
     # Persist quota usage outside the request transaction so an upstream
     # rollback does not erase real API consumption.
     with db.engine.begin() as connection:

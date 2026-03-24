@@ -170,6 +170,7 @@ def _ingest_api_items(
     older_short_count = _range_counts(channel.id, older_max_cutoff, older_min_cutoff, True)
     channel_new_videos = 0
     channel_metadata_updates = 0
+    completion_candidates = set()
 
     for item in response.get("videos", []):
         video_id = item.get("video_id")
@@ -187,6 +188,8 @@ def _ingest_api_items(
         if exists:
             if _update_video_from_item(exists, item, published_at):
                 channel_metadata_updates += 1
+            if exists.metadata_incomplete:
+                completion_candidates.add(video_id)
             continue
 
         if not ignore_last_refreshed and subscription.last_refreshed_at:
@@ -234,6 +237,8 @@ def _ingest_api_items(
         )
         db.session.add(video)
         channel_new_videos += 1
+        if video.metadata_incomplete:
+            completion_candidates.add(video_id)
 
         if latest_seen is None or published_at > latest_seen:
             latest_seen = published_at
@@ -242,6 +247,7 @@ def _ingest_api_items(
         "channel_new_videos": channel_new_videos,
         "channel_metadata_updates": channel_metadata_updates,
         "latest_seen": latest_seen,
+        "completion_candidates": list(completion_candidates),
     }
 
 
@@ -286,17 +292,7 @@ def _refresh_channel_via_rss(
         ignore_last_refreshed,
     )
 
-    completion_ids = [
-        item.get("video_id")
-        for item in rss_items
-        if item.get("video_id")
-        and Video.query.filter_by(yt_video_id=item.get("video_id"), channel_id=channel.id).first()
-        and Video.query.filter_by(
-            yt_video_id=item.get("video_id"),
-            channel_id=channel.id,
-            metadata_incomplete=True,
-        ).first()
-    ]
+    completion_ids = ingest_result.get("completion_candidates", [])
 
     if completion_ids:
         if not consume(settings, Config.YT_RSS_COMPLETION_COST):
@@ -308,7 +304,7 @@ def _refresh_channel_via_rss(
                 "latest_seen": ingest_result["latest_seen"],
             }
 
-        completion_response = service.get_videos_by_ids(completion_ids)
+        completion_response = service.get_videos_by_ids(completion_ids, quota_session=db.session)
         if completion_response.get("rate_limited"):
             mark_quota_exhausted(settings)
             return {

@@ -47,6 +47,17 @@ class YTService:
             extra={"tracking_id": generate_tracking_id()},
         )
 
+    def _record_quota_event_safe(self, **kwargs):
+        """Persist quota telemetry without breaking the API call flow."""
+        try:
+            record_quota_event(**kwargs)
+        except Exception as error:
+            self.logger.warning(
+                "Failed to persist quota event: %s",
+                error,
+                extra={"tracking_id": generate_tracking_id()},
+            )
+
     def _handle_http_error(self, error):
         """Handle HTTP errors and rate limits gracefully."""
         status = getattr(error, "status_code", None)
@@ -142,7 +153,7 @@ class YTService:
             return cached
 
         try:
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="channels.list",
                 units=1,
                 source="channel_info",
@@ -218,7 +229,7 @@ class YTService:
             return cached
 
         try:
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="playlistItems.list",
                 units=1,
                 source="channel_refresh",
@@ -241,7 +252,7 @@ class YTService:
             if not video_ids:
                 return {"videos": [], "next_page_token": None, "success": True}
 
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="videos.list",
                 units=1,
                 source="channel_refresh",
@@ -277,7 +288,7 @@ class YTService:
             self._log_api_error("Failed to fetch channel videos: %s", error)
             return {"videos": [], "next_page_token": None, "success": False}
 
-    def get_videos_by_ids(self, video_ids):
+    def get_videos_by_ids(self, video_ids, quota_session=None):
         """Fetch specific videos by ID for targeted metadata completion."""
         if not self.client or not video_ids:
             return {"videos": [], "success": False if not self.client else True}
@@ -290,11 +301,12 @@ class YTService:
         try:
             for start in range(0, len(clean_ids), 50):
                 chunk = clean_ids[start : start + 50]
-                record_quota_event(
+                self._record_quota_event_safe(
                     api_method="videos.list",
                     units=1,
                     source="video_completion",
                     notes="targeted_ids",
+                    session=quota_session,
                 )
                 response = (
                     self.client.videos()
@@ -326,7 +338,7 @@ class YTService:
             return cached
 
         try:
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="channels.list",
                 units=1,
                 source="uploads_playlist_lookup",
@@ -367,7 +379,7 @@ class YTService:
             return cached
 
         try:
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="search.list",
                 units=100,
                 source="video_search",
@@ -387,7 +399,7 @@ class YTService:
             if not video_ids:
                 return []
 
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="videos.list",
                 units=1,
                 source="video_search",
@@ -423,7 +435,7 @@ class YTService:
             return cached
 
         try:
-            record_quota_event(
+            self._record_quota_event_safe(
                 api_method="videos.list",
                 units=1,
                 source="video_details",

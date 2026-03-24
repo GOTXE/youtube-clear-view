@@ -49,6 +49,21 @@ def test_quota_event_persists_even_if_session_rolls_back(app):
         assert stored[0].units == 1
 
 
+def test_quota_event_uses_current_session_when_requested(app):
+    with app.app_context():
+        record_quota_event(
+            api_method="videos.list",
+            units=1,
+            source="test",
+            notes="session check",
+            session=db.session,
+        )
+        db.session.rollback()
+
+        stored = QuotaEvent.query.all()
+        assert stored == []
+
+
 def test_quota_status_uses_user_timezone_and_latest_ledger_total(app, client, monkeypatch):
     fixed_now = datetime(2026, 3, 22, 12, 0, 0, tzinfo=UTC)
     monkeypatch.setattr("app.services.quota.utc_now", lambda: fixed_now)

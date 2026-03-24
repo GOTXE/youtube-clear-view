@@ -162,3 +162,18 @@ def test_get_video_details(monkeypatch):
     assert details["video_id"] == "vid1"
     assert details["duration"] == 62
     assert details["statistics"]["viewCount"] == "10"
+
+
+def test_quota_telemetry_failure_does_not_break_video_completion(monkeypatch):
+    """Targeted completion must keep working if quota telemetry persistence fails."""
+    monkeypatch.setattr("app.services.yt_api.build", lambda *args, **kwargs: FakeYTClient())
+    monkeypatch.setattr(
+        "app.services.yt_api.record_quota_event",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("quota ledger down")),
+    )
+    service = YTService("key")
+
+    response = service.get_videos_by_ids(["vid1"])
+
+    assert response["success"] is True
+    assert response["videos"][0]["video_id"] == "vid1"

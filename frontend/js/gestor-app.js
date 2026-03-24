@@ -1375,6 +1375,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  function scrollToAdminAnchor(targetId) {
+    if (targetId === '#summary') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const section = document.querySelector(targetId);
+    if (!section) {
+      return;
+    }
+
+    const top = Math.max(0, window.scrollY + section.getBoundingClientRect().top - 16);
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
   ui.navLinks.forEach(link => {
     link.addEventListener('click', event => {
       const targetId = link.getAttribute('href');
@@ -1382,13 +1397,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       event.preventDefault();
-      const section = document.querySelector(targetId);
-      if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
       window.history.replaceState({}, document.title, `${window.location.pathname}${targetId}`);
       window.setTimeout(async () => {
         updateNavActiveState();
+        scrollToAdminAnchor(targetId);
         if (targetId === '#logs') {
           await fetchLogs();
         }
@@ -1479,6 +1491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.addEventListener('hashchange', async () => {
     updateNavActiveState();
+    scrollToAdminAnchor(`#${getCurrentAnchor()}`);
     if (getCurrentAnchor() === 'logs') {
       await fetchLogs();
     }

@@ -20,6 +20,8 @@ from app.services.google_oauth import (
     build_auth_url,
     exchange_code_for_tokens,
     fetch_user_info,
+    poll_device_token,
+    request_device_code,
     revoke_google_tokens,
 )
 from app.services.admin_access import is_admin_user
@@ -1135,6 +1137,141 @@ def google_callback():
     _set_session_cookie(response, session_token)
     _clear_state_cookie(response)
     return response
+
+
+_DEVICE_FLOW_DEVICE_CODE_KEY = "device_flow_device_code"
+_DEVICE_FLOW_INTENT_KEY = "device_flow_intent"
+
+
+def _google_device_flow_configured():
+    """Device flow only needs client_id + client_secret (no redirect URI)."""
+    return bool(
+        current_app.config.get("GOOGLE_CLIENT_ID")
+        and current_app.config.get("GOOGLE_CLIENT_SECRET")
+    )
+
+
+@auth_bp.post("/api/auth/google/device/start")
+@handle_route_errors
+def google_device_start():
+    """Start the Google OAuth device flow and return user_code + verification_url."""
+    if not _google_device_flow_configured():
+        return _server_error("Missing Google OAuth configuration.")
+
+    intent = (request.get_json(silent=True) or {}).get("intent", "login")
+    if intent not in ("login", "link"):
+        intent = "login"
+
+    result = request_device_code()
+    if not result or "device_code" not in result:
+        return _server_error("Could not start device flow.")
+
+    session[_DEVICE_FLOW_DEVICE_CODE_KEY] = result["device_code"]
+    session[_DEVICE_FLOW_INTENT_KEY] = intent
+
+    return jsonify({
+        "user_code": result.get("user_code"),
+        "verification_url": result.get("verification_url"),
+        "expires_in": result.get("expires_in"),
+        "interval": result.get("interval", 5),
+    })
+
+
+@auth_bp.get("/api/auth/google/device/status")
+@handle_route_errors
+def google_device_status():
+    """Poll the device flow status. Returns pending, success, or error."""
+    device_code = session.get(_DEVICE_FLOW_DEVICE_CODE_KEY)
+    if not device_code:
+        return jsonify({"error": "no_device_flow", "status": 400}), 400
+
+    result = poll_device_token(device_code)
+    if result is None:
+        return _server_error("Failed to poll device status.")
+
+    if result.get("pending"):
+        payload = {"status": "pending"}
+        if result.get("slow_down"):
+            payload["slow_down"] = True
+        return jsonify(payload)
+
+    if result.get("error"):
+        session.pop(_DEVICE_FLOW_DEVICE_CODE_KEY, None)
+        session.pop(_DEVICE_FLOW_INTENT_KEY, None)
+        return jsonify({"status": "error", "error": result["error"]})
+
+    # Success: we have tokens.  Fetch Google identity.
+    access_token = result.get("access_token")
+    if not access_token:
+        return _server_error("Device flow returned no access token.")
+
+    user_info = fetch_user_info(access_token)
+    if not user_info or not user_info.get("sub"):
+        return _server_error("Could not retrieve Google identity.")
+
+    google_user_id = user_info["sub"]
+    email = user_info.get("email")
+    name = user_info.get("name", "")
+    picture = user_info.get("picture", "")
+    intent = session.pop(_DEVICE_FLOW_INTENT_KEY, "login")
+    session.pop(_DEVICE_FLOW_DEVICE_CODE_KEY, None)
+
+    # Store token data temporarily in session for the linking/creation step.
+    session["_device_flow_tokens"] = {
+        "access_token": access_token,
+        "refresh_token": result.get("refresh_token"),
+        "expires_in": result.get("expires_in"),
+        "scope": result.get("scope"),
+    }
+    session["_device_flow_identity"] = {
+        "google_user_id": google_user_id,
+        "email": email,
+        "name": name,
+        "picture": picture,
+    }
+
+    # Check if an existing user matches.
+    user = User.query.filter_by(google_user_id=google_user_id).first()
+    email_match_user = None
+    if not user and email:
+        email_match_user = User.query.filter_by(email=email).first()
+
+    if user:
+        # Known Google user — update tokens and log in.
+        apply_token_response(user, result)
+        session_token = _issue_session_for_user(user)
+        db.session.commit()
+        response = jsonify({
+            "status": "authenticated",
+            "user": _serialize_authenticated_user(user),
+            "setup_completed": user.setup_completed,
+        })
+        _set_admin_session_cookie(response, session_token)
+        return response
+
+    if email_match_user:
+        # Email match — needs user confirmation before linking.
+        return jsonify({
+            "status": "confirm_link",
+            "google_identity": {
+                "google_user_id": google_user_id,
+                "email": email,
+                "name": name,
+                "picture": picture,
+            },
+            "existing_username": email_match_user.username,
+        })
+
+    # No match — new user, needs setup wizard.
+    return jsonify({
+        "status": "new_user",
+        "google_identity": {
+            "google_user_id": google_user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+        },
+    })
 
 
 @auth_bp.post("/api/auth/google/complete-setup")

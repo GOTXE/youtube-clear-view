@@ -3,13 +3,12 @@
 import logging
 from datetime import UTC, datetime, timedelta
 import os
-import time
 from zoneinfo import ZoneInfo
 from flask import Blueprint, current_app, g, jsonify, request
 from sqlalchemy import func
 
 from app.extensions import db
-from app.logging.logger import get_logger, set_runtime_log_level
+from app.logging.logger import get_logger, set_runtime_log_level, set_runtime_log_timezone
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
@@ -238,6 +237,13 @@ def _set_runtime_log_level(level_name: str):
     return normalized
 
 
+def _set_runtime_log_timezone(timezone_name: str):
+    """Update runtime timezone used by log formatters in the current worker."""
+    normalized = set_runtime_log_timezone(timezone_name)
+    current_app.config["APP_TIMEZONE"] = normalized
+    return normalized
+
+
 def _serialize_logs_meta():
     """Return runtime metadata useful in the logs view."""
     quota = get_global_quota_snapshot()
@@ -249,7 +255,7 @@ def _serialize_logs_meta():
             "max_size_bytes": int(current_app.config.get("LOG_MAX_SIZE", 0) or 0),
             "backup_count": int(current_app.config.get("LOG_BACKUP_COUNT", 0) or 0),
             "timestamps_timezone": _server_timezone_label(),
-            "timestamps_are_utc": time.tzname[0] == "UTC" and time.localtime().tm_isdst == 0,
+            "timestamps_are_utc": str(current_app.config.get("APP_TIMEZONE", "")).strip().upper() == "UTC",
         },
         "quota": {
             **quota,
@@ -614,6 +620,8 @@ def update_refresh_schedule_settings():
         return _bad_request(str(error))
 
     db.session.commit()
+    if timezone_name is not None:
+        _set_runtime_log_timezone(timezone_name)
     return jsonify(serialize_refresh_schedule())
 
 
@@ -644,6 +652,7 @@ def update_admin_timezone():
     except ValueError as error:
         return _bad_request(str(error))
     db.session.commit()
+    _set_runtime_log_timezone(timezone_name)
     return jsonify({"timezone": get_refresh_schedule_timezone(), "restart_required": False})
 
 

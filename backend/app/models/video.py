@@ -28,6 +28,7 @@ class Video(db.Model):
 
     channel = db.relationship("Channel", back_populates="videos")
     watched_entries = db.relationship("WatchedVideo", back_populates="video", cascade="all, delete-orphan")
+    progress_entries = db.relationship("VideoProgress", back_populates="video", cascade="all, delete-orphan")
 
     def to_dict(self):
         """Serialize the video for JSON responses."""
@@ -95,7 +96,7 @@ class VideoProgress(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", backref="video_progress_entries")
-    video = db.relationship("Video", backref="progress_entries")
+    video = db.relationship("Video", back_populates="progress_entries")
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "video_id", name="uq_user_video_progress"),

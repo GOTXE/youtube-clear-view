@@ -222,6 +222,28 @@ def test_admin_can_read_and_update_global_refresh_schedule(client):
     assert updated["schedule_hours"] == [6, 14, 22]
     assert updated["timezone"] == "UTC"
 
+    meta_response = client.get("/api/admin/logs/meta")
+    assert meta_response.status_code == 200
+    meta = meta_response.get_json()
+    assert meta["log_runtime"]["timestamps_are_utc"] is True
+    assert "UTC+00:00" in meta["log_runtime"]["timestamps_timezone"]
+
+
+def test_admin_can_update_runtime_log_timezone(client):
+    _login(client, "admin")
+
+    response = client.put("/api/admin/timezone", json={"timezone": "Europe/Madrid"})
+    assert response.status_code == 200
+    updated = response.get_json()
+    assert updated["timezone"] == "Europe/Madrid"
+    assert updated["restart_required"] is False
+
+    meta_response = client.get("/api/admin/logs/meta")
+    assert meta_response.status_code == 200
+    meta = meta_response.get_json()
+    assert meta["log_runtime"]["timestamps_are_utc"] is False
+    assert "Europe/Madrid" not in meta["log_runtime"]["timestamps_timezone"]
+
 
 def test_admin_can_read_and_update_video_refresh_mode(client):
     _login(client, "admin")

@@ -1,6 +1,7 @@
 """Application configuration loaded from environment variables."""
 
 import os
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -32,6 +33,7 @@ class Config:
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", str(10 * 1024 * 1024)))
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+    APP_TIMEZONE = os.getenv("APP_TIMEZONE", "Europe/Madrid").strip() or "Europe/Madrid"
     ADMIN_USERNAMES = os.getenv("ADMIN_USERNAMES", "")
     ADMIN_BOOTSTRAP_USERNAME = os.getenv("ADMIN_BOOTSTRAP_USERNAME", "")
     ADMIN_BOOTSTRAP_PASSWORD = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "")
@@ -114,6 +116,10 @@ class Config:
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if Config.LOG_LEVEL.upper() not in valid_levels:
             raise ValueError("LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL.")
+        try:
+            ZoneInfo(Config.APP_TIMEZONE)
+        except Exception as error:
+            raise ValueError("APP_TIMEZONE must be a valid IANA timezone.") from error
 
         auth_mode = (Config.AUTH_MODE or "local").lower()
         if auth_mode not in ("local", "google"):

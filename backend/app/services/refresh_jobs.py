@@ -176,22 +176,34 @@ def _execute_job(app, job_id, user_id, kind, channel_id=None, ignore_last_refres
             channel_id,
             total_channels,
         )
+        try:
+            if kind == KIND_MANUAL:
+                with acquire_manual_refresh(user_id, channel_id=channel_id, now=utc_now()) as lease:
+                    if not lease.get("acquired"):
+                        logger.info(
+                            "Refresh job blocked by governance (job_id=%s, user_id=%s, reason=%s)",
+                            job.id,
+                            user_id,
+                            lease.get("reason") or "refresh_in_progress",
+                        )
+                        mark_job_blocked(job, lease.get("reason") or "refresh_in_progress", message="blocked")
+                        return
+                    _consume_events(job, user, settings, service, channel_id, ignore_last_refreshed)
+                return
 
-        if kind == KIND_MANUAL:
-            with acquire_manual_refresh(user_id, channel_id=channel_id, now=utc_now()) as lease:
-                if not lease.get("acquired"):
-                    logger.info(
-                        "Refresh job blocked by governance (job_id=%s, user_id=%s, reason=%s)",
-                        job.id,
-                        user_id,
-                        lease.get("reason") or "refresh_in_progress",
-                    )
-                    mark_job_blocked(job, lease.get("reason") or "refresh_in_progress", message="blocked")
-                    return
-                _consume_events(job, user, settings, service, channel_id, ignore_last_refreshed)
-            return
-
-        _consume_events(job, user, settings, service, channel_id, ignore_last_refreshed)
+            _consume_events(job, user, settings, service, channel_id, ignore_last_refreshed)
+        except Exception:
+            db.session.rollback()
+            logger.exception(
+                "Refresh job crashed unexpectedly (job_id=%s, user_id=%s, kind=%s, channel_id=%s)",
+                job_id,
+                user_id,
+                kind,
+                channel_id,
+            )
+            failed_job = db.session.get(RefreshJob, job_id)
+            if failed_job is not None and failed_job.status not in (STATUS_COMPLETED, STATUS_BLOCKED, STATUS_FAILED):
+                mark_job_failed(failed_job, message="Refresh failed due to an internal error")
 
 
 def _consume_events(job, user, settings, service, channel_id, ignore_last_refreshed):

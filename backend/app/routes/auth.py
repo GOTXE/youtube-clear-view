@@ -1155,6 +1155,10 @@ def _google_device_flow_configured():
 @handle_route_errors
 def google_device_start():
     """Start the Google OAuth device flow and return user_code + verification_url."""
+    if not _validate_csrf():
+        tracking_id = generate_tracking_id()
+        return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
+
     if not _google_device_flow_configured():
         return _server_error("Missing Google OAuth configuration.")
 
@@ -1202,6 +1206,8 @@ def google_device_status():
     if result.get("error"):
         session.pop(_DEVICE_FLOW_DEVICE_CODE_KEY, None)
         session.pop(_DEVICE_FLOW_INTENT_KEY, None)
+        session.pop("_device_flow_tokens", None)
+        session.pop("_device_flow_identity", None)
         return jsonify({"status": "error", "error": result["error"]})
 
     # Success: we have tokens.  Fetch Google identity.
@@ -1245,6 +1251,8 @@ def google_device_status():
         apply_token_response(user, result)
         session_token = _issue_session_for_user(user)
         db.session.commit()
+        session.pop("_device_flow_tokens", None)
+        session.pop("_device_flow_identity", None)
         response = jsonify({
             "status": "authenticated",
             "user": _serialize_authenticated_user(user),

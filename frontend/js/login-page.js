@@ -901,7 +901,7 @@
     if (codeEl) codeEl.textContent = user_code || '';
 
     const urlEl = el('lp-device-flow-url');
-    if (urlEl) {
+    if (urlEl && verification_url && verification_url.startsWith('https://')) {
       urlEl.innerHTML = '';
       const link = document.createElement('a');
       link.href = verification_url;
@@ -924,7 +924,7 @@
 
   function _startDeviceFlowPoll(intervalSec) {
     _stopDeviceFlowPoll();
-    const pollMs = Math.max(intervalSec, 5) * 1000;
+    const pollMs = Math.min(Math.max(intervalSec, 5), 60) * 1000;
 
     _deviceFlowPollTimer = window.setInterval(async () => {
       const api = getApi();

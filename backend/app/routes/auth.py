@@ -1390,6 +1390,46 @@ def google_device_create_account():
     return response, 201
 
 
+@auth_bp.post("/api/auth/google/device/relink")
+@handle_route_errors
+@require_auth
+def google_device_relink():
+    """Relink Google tokens for an authenticated user via device flow."""
+    tokens = session.get("_device_flow_tokens")
+    identity = session.get("_device_flow_identity")
+    if not tokens or not identity:
+        return jsonify({"error": "No pending device flow.", "status": 400}), 400
+
+    user = g.current_user
+    google_user_id = identity.get("google_user_id")
+
+    # Safety: ensure the Google identity matches the current user or is new.
+    if user.google_user_id and user.google_user_id != google_user_id:
+        existing = User.query.filter_by(google_user_id=google_user_id).first()
+        if existing and existing.id != user.id:
+            session.pop("_device_flow_tokens", None)
+            session.pop("_device_flow_identity", None)
+            return jsonify({
+                "error": "This Google account is already linked to another user.",
+                "status": 409,
+            }), 409
+
+    user.google_user_id = google_user_id
+    user.email = identity.get("email") or user.email
+    user.google_avatar_url = identity.get("picture", "")
+    apply_token_response(user, tokens)
+    db.session.commit()
+
+    session.pop("_device_flow_tokens", None)
+    session.pop("_device_flow_identity", None)
+
+    return jsonify({
+        "user_id": user.id,
+        "google_user_id": user.google_user_id,
+        "google_auth_status": user.google_auth_status,
+    })
+
+
 @auth_bp.post("/api/auth/google/complete-setup")
 @handle_route_errors
 @require_auth

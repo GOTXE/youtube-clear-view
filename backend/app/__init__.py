@@ -27,7 +27,11 @@ from .migrations import (
     ensure_video_schema,
 )
 from .routes import register_routes
-from .services.admin_bootstrap import apply_admin_recovery_if_requested
+from .services.admin_bootstrap import (
+    apply_admin_recovery_if_requested,
+    is_bootstrap_required,
+    reset_bootstrap_window,
+)
 from .services.refresh_jobs import recover_interrupted_refresh_jobs
 from .services.scheduler import start_scheduler
 from .services.site_settings import get_site_log_level
@@ -93,6 +97,8 @@ def create_app(config_class=Config):
         ensure_channel_classification_columns()
         ensure_user_channel_rating_columns()
         apply_admin_recovery_if_requested()
+        if is_bootstrap_required():
+            reset_bootstrap_window()
         recover_interrupted_refresh_jobs()
         app.config["APP_TIMEZONE"] = set_runtime_log_timezone(get_refresh_schedule_timezone())
         set_runtime_log_level(get_site_log_level(app.config["LOG_LEVEL"]))

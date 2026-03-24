@@ -135,6 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshStatusPoller: null,
     quotaPoller: null,
     refreshStatusSource: null,
+    lastUpdatedTicker: null,
     showInProgressCarousel: false,
     showWatchedCarousel: false
   };
@@ -2158,6 +2159,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       : t('lastUpdatedAbsolute', { date: latest.toLocaleString() });
   }
 
+  function stopLastUpdatedTicker() {
+    if (state.lastUpdatedTicker) {
+      window.clearInterval(state.lastUpdatedTicker);
+      state.lastUpdatedTicker = null;
+    }
+  }
+
+  function startLastUpdatedTicker() {
+    stopLastUpdatedTicker();
+    state.lastUpdatedTicker = window.setInterval(() => {
+      if (!state.currentUser) {
+        return;
+      }
+      updateLastUpdatedLabel(state.channels);
+    }, 30 * 1000);
+  }
+
   function getLatestCheckedAt(channels) {
     const timestamps = (channels || [])
       .map(channel => channel.last_checked_at || channel.last_refreshed_at)
@@ -2218,6 +2236,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await reloadCarousels();
     state.initialContentReady = true;
+  }
+
+  async function refreshVisibleStateDuringUpdate() {
+    await syncChannelsState();
+    renderChannelList(state.channels);
+    updateChannelCount(state.channels);
+    updateLastUpdatedLabel(state.channels);
+    updateHeaderContext();
+    await updateVideoCounts();
+    await reloadCarousels();
   }
 
   function startAutoRefresh(channelId = null, options = {}) {
@@ -2476,7 +2504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     refreshVisibleTimer = window.setTimeout(async () => {
       refreshVisibleTimer = null;
-      await reloadCarousels();
+      await refreshVisibleStateDuringUpdate();
     }, 700);
   }
 
@@ -3694,6 +3722,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupClassifyButton();
     setupKeyboardNavigation();
     setupDebug();
+    startLastUpdatedTicker();
 
     window.addEventListener('ytcv:update-available', event => {
       showUpdateAvailableBanner(event.detail && event.detail.registration ? event.detail.registration : null);
@@ -3723,6 +3752,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentUser = user;
 
     if (user) {
+      startLastUpdatedTicker();
       startRefreshStatusPoller();
       startQuotaPolling();
       if (state.deferAuthenticatedBootstrap) {
@@ -3739,6 +3769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       await bootstrapAuthenticated();
     } else {
+      stopLastUpdatedTicker();
       stopQuotaPolling();
       state.channels = [];
       state.selectedChannelId = null;

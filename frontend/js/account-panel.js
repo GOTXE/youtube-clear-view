@@ -56,7 +56,7 @@
     modal.setAttribute('aria-modal', 'true');
 
     modal.innerHTML = `
-      <div class="modal__content account-panel__confirm-card">
+      <div class="modal__content account-panel__confirm-card account-panel__confirm-card--danger">
         <h3 class="heading-3">${t('accountDeviceDeleteTitle')}</h3>
         <p class="body">${t('accountDeviceDeleteConfirm', { device: label || '—' })}</p>
         <div class="account-panel__actions">

@@ -1560,6 +1560,7 @@ select {
 .modal {
   position: fixed;
   inset: 0;
+  z-index: 950;
   background: var(--overlay);
   display: flex;
   align-items: center;
@@ -2155,7 +2156,7 @@ select {
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
-  z-index: 140;
+  z-index: 950;
 }
 
 .confirm-modal-overlay[hidden] {
@@ -2316,12 +2317,24 @@ html[data-theme="light"] .account-panel__card::before {
 .player-overlay__close {
   width: 44px;
   height: 44px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--error) 42%, transparent);
   border-radius: var(--radius-2);
-  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
-  color: var(--text);
+  background: color-mix(in srgb, var(--error) 82%, black 18%);
+  color: white;
+  box-shadow: 0 10px 24px rgba(127, 29, 29, 0.28);
   cursor: pointer;
   flex-shrink: 0;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.player-overlay__close:hover,
+.player-overlay__close:focus-visible {
+  background: color-mix(in srgb, var(--error) 90%, black 10%);
+  box-shadow: 0 12px 26px rgba(127, 29, 29, 0.34);
+}
+
+.player-overlay__close:active {
+  transform: translateY(1px);
 }
 
 .player-overlay__body {
@@ -4435,6 +4448,27 @@ body.login-page-open #app .app-footer {
 
 .account-panel__confirm-card {
   max-width: 420px;
+}
+
+.account-panel__confirm-card--danger {
+  border-color: color-mix(in srgb, var(--error) 58%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--error) 24%, transparent),
+    0 18px 48px var(--shadow),
+    0 0 32px color-mix(in srgb, var(--error) 18%, transparent);
+}
+
+.account-panel__confirm-card--danger::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: calc(var(--radius-3) + 14px);
+  border: 5px solid color-mix(in srgb, var(--error) 74%, white 26%);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--error) 46%, transparent),
+    0 0 46px color-mix(in srgb, var(--error) 24%, transparent),
+    inset 0 0 14px color-mix(in srgb, white 30%, transparent);
+  pointer-events: none;
 }
 
 /* Pairing code display (login page) */

@@ -28,6 +28,7 @@
   let visible = false;
   let _pairingPollTimer = null;
   let _pairingPublicId = null;
+  let _bootstrapCountdownTimer = null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -128,6 +129,14 @@
     if (view === 'bootstrap') {
       const input = el('lp-bootstrap-username');
       if (input) window.setTimeout(() => input.focus(), 0);
+      const bw = authProviderData && authProviderData.bootstrap_window;
+      if (bw && bw.locked) {
+        _showBootstrapLocked();
+      } else if (bw && bw.remaining_seconds > 0) {
+        _startBootstrapCountdown(bw.remaining_seconds);
+      }
+    } else {
+      _stopBootstrapCountdown();
     }
 
     clearErrors();
@@ -236,6 +245,10 @@
         <div id="lp-bootstrap" class="login-page__panel" hidden>
           <h2 class="heading-2 login-page__title" data-i18n="adminBootstrapTitle">Configure administrator</h2>
           <p class="body login-page__subtitle" data-i18n="adminBootstrapSubtitle">This is the first startup. Create the administrator account for this site.</p>
+          <p id="lp-bootstrap-countdown" class="body login-page__countdown" hidden></p>
+          <div id="lp-bootstrap-locked-msg" class="login-page__locked" hidden>
+            <p class="body" data-i18n="adminBootstrapLocked">Bootstrap window expired. Restart the application to try again.</p>
+          </div>
           <form id="lp-bootstrap-form" class="login-page__form" novalidate>
             <label class="field">
               <span class="field__label" data-i18n="adminBootstrapUsername">Username</span>
@@ -700,6 +713,52 @@
     setError('lp-wizard-error', resp.error || t('setupWizardError'));
   }
 
+  function _startBootstrapCountdown(remainingSeconds) {
+    _stopBootstrapCountdown();
+    const countdownEl = el('lp-bootstrap-countdown');
+    if (!countdownEl || remainingSeconds <= 0) {
+      _showBootstrapLocked();
+      return;
+    }
+
+    let remaining = remainingSeconds;
+    countdownEl.hidden = false;
+    const update = () => {
+      const min = Math.floor(remaining / 60);
+      const sec = remaining % 60;
+      const time = `${min}:${String(sec).padStart(2, '0')}`;
+      countdownEl.textContent = t('adminBootstrapCountdown').replace('{time}', time);
+    };
+    update();
+
+    _bootstrapCountdownTimer = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        _stopBootstrapCountdown();
+        _showBootstrapLocked();
+        return;
+      }
+      update();
+    }, 1000);
+  }
+
+  function _stopBootstrapCountdown() {
+    if (_bootstrapCountdownTimer) {
+      window.clearInterval(_bootstrapCountdownTimer);
+      _bootstrapCountdownTimer = null;
+    }
+  }
+
+  function _showBootstrapLocked() {
+    _stopBootstrapCountdown();
+    const countdownEl = el('lp-bootstrap-countdown');
+    if (countdownEl) countdownEl.hidden = true;
+    const lockedEl = el('lp-bootstrap-locked-msg');
+    if (lockedEl) lockedEl.hidden = false;
+    const formEl = el('lp-bootstrap-form');
+    if (formEl) formEl.hidden = true;
+  }
+
   async function handleBootstrapSave() {
     const username = (el('lp-bootstrap-username') || {}).value || '';
     const displayName = (el('lp-bootstrap-display-name') || {}).value || '';
@@ -732,6 +791,11 @@
     if (resp.ok && resp.data) {
       window.location.assign('/gestor');
       notifyAuthSuccess(resp.data);
+      return;
+    }
+
+    if (resp.status === 423) {
+      _showBootstrapLocked();
       return;
     }
 

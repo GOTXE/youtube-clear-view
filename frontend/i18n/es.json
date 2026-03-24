@@ -599,6 +599,8 @@
   "adminBootstrapError": "No se pudo crear la cuenta administradora.",
   "adminBootstrapAlreadyCompleted": "La configuracion inicial del administrador ya se ha completado.",
   "adminBootstrapFootnote": "Solo aparece mientras no exista ninguna cuenta administradora.",
+  "adminBootstrapCountdown": "Tiempo restante: {time}",
+  "adminBootstrapLocked": "Ventana de instalacion agotada. Reinicia la aplicacion para intentarlo de nuevo.",
   "passwordChangeRequiredTitle": "Cambiar contrasena",
   "passwordChangeRequiredSubtitle": "Debes cambiar la contrasena temporal antes de entrar en la app.",
   "passwordChangeRequiredSubmit": "Actualizar contrasena",

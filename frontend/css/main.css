@@ -4031,6 +4031,23 @@ body.login-page-open #app .app-footer {
   font-size: 0.875rem;
 }
 
+.login-page__countdown {
+  text-align: center;
+  color: var(--warning, #d97706);
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin: 0 0 var(--space-2) 0;
+}
+
+.login-page__locked {
+  text-align: center;
+  color: var(--error);
+  padding: var(--space-4);
+  border: 1px solid var(--error);
+  border-radius: var(--radius, 0.5rem);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
 .login-page__divider {
   display: flex;
   align-items: center;

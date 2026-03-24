@@ -598,6 +598,8 @@
   "adminBootstrapError": "Could not create the administrator account.",
   "adminBootstrapAlreadyCompleted": "Administrator bootstrap is already completed.",
   "adminBootstrapFootnote": "Only shown while no administrator account exists.",
+  "adminBootstrapCountdown": "Time remaining: {time}",
+  "adminBootstrapLocked": "Bootstrap window expired. Restart the application to try again.",
   "passwordChangeRequiredTitle": "Change your password",
   "passwordChangeRequiredSubtitle": "Your temporary password must be changed before entering the app.",
   "passwordChangeRequiredSubmit": "Update password",

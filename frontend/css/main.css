@@ -4076,6 +4076,10 @@ body.login-page-open #app .app-footer {
   margin: var(--space-3) 0;
 }
 
+.login-page__device-flow-qr img {
+  border-radius: 8px;
+}
+
 .login-page__device-flow-identity {
   display: flex;
   flex-direction: column;

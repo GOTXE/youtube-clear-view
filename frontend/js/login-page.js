@@ -517,6 +517,16 @@
         if (resp.data.csrf_token && typeof api.setCsrfToken === 'function') {
           api.setCsrfToken(resp.data.csrf_token);
         }
+        // If bootstrap is locked, enforce locked state now (authProviderData
+        // may not have been available when showView('bootstrap') ran).
+        const bw = resp.data.bootstrap_window;
+        if (currentView === 'bootstrap' && bw) {
+          if (bw.locked) {
+            _showBootstrapLocked();
+          } else if (bw.remaining_seconds > 0 && !_bootstrapCountdownTimer) {
+            _startBootstrapCountdown(bw.remaining_seconds);
+          }
+        }
       }
     } catch (_) { /* ignore */ }
     applyAuthProviderButtons();
@@ -586,14 +596,7 @@
     const goRegister = el('lp-go-register');
     if (goRegister) {
       goRegister.addEventListener('click', () => {
-        if (!authProviderData || !authProviderData.google_login_url) {
-          setError('lp-login-error', t('googleLoginUnavailable'));
-          return;
-        }
-        const url = resolveOAuthUrl(authProviderData.google_login_url);
-        if (url) {
-          window.location.href = url;
-        }
+        startDeviceFlow('login');
       });
     }
 
@@ -840,8 +843,17 @@
     if (countdownEl) countdownEl.hidden = true;
     const lockedEl = el('lp-bootstrap-locked-msg');
     if (lockedEl) lockedEl.hidden = false;
-    const formEl = el('lp-bootstrap-form');
-    if (formEl) formEl.hidden = true;
+    // Hide everything inside the bootstrap panel except the locked message.
+    // Use style.display because the hidden attribute is overridden by CSS
+    // rules that set explicit display values (e.g. display:flex on the form).
+    const panel = el('lp-bootstrap');
+    if (panel) {
+      Array.from(panel.children).forEach(child => {
+        if (child.id !== 'lp-bootstrap-locked-msg') {
+          child.style.display = 'none';
+        }
+      });
+    }
   }
 
   async function handleBootstrapSave() {
@@ -1021,8 +1033,13 @@
 
     const avatarEl = el('lp-device-flow-avatar');
     if (avatarEl) {
-      avatarEl.src = identity.picture || '';
-      avatarEl.hidden = !identity.picture;
+      if (identity.picture) {
+        avatarEl.src = identity.picture;
+        avatarEl.hidden = false;
+        avatarEl.onerror = () => { avatarEl.hidden = true; };
+      } else {
+        avatarEl.hidden = true;
+      }
     }
 
     const nameEl = el('lp-device-flow-name');

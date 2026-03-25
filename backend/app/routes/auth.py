@@ -2019,7 +2019,11 @@ def mfa_status():
 
 
 def _build_qr_data_url(content: str) -> str | None:
-    """Generate a QR code SVG for the given content and return it as a data URL."""
+    """Generate a QR code SVG with white background for the given content.
+
+    Returns a data URL (base64-encoded SVG) that renders well on any
+    background colour, including dark themes.
+    """
     try:
         import base64
         import io
@@ -2027,10 +2031,23 @@ def _build_qr_data_url(content: str) -> str | None:
         import qrcode
         import qrcode.image.svg
 
-        img = qrcode.make(content, image_factory=qrcode.image.svg.SvgImage)
-        buffer = io.BytesIO()
-        img.save(buffer)
-        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        img = qrcode.make(content, image_factory=qrcode.image.svg.SvgPathImage)
+        raw = io.BytesIO()
+        img.save(raw)
+        svg_str = raw.getvalue().decode("utf-8")
+
+        # Inject a white rounded-rect background right after the opening <svg ...> tag
+        # so the QR is readable on any dark surface.
+        import re
+
+        svg_str = re.sub(
+            r"(<svg[^>]*>)",
+            r'\1<rect width="100%" height="100%" rx="8" ry="8" fill="white"/>',
+            svg_str,
+            count=1,
+        )
+
+        encoded = base64.b64encode(svg_str.encode("utf-8")).decode("ascii")
         return f"data:image/svg+xml;base64,{encoded}"
     except Exception:
         import logging

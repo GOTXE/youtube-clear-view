@@ -886,8 +886,11 @@
     if (labelEl) labelEl.textContent = t('adminBootstrapSubmit');
 
     if (resp.ok && resp.data) {
-      window.location.assign('/gestor');
-      notifyAuthSuccess(resp.data);
+      // Admin created in DB but NOT logged in — show the normal login page
+      // so the user can create their first account via Google device flow.
+      authProviderData = { ...(authProviderData || {}), bootstrap_required: false };
+      await loadAuthProvider();
+      showView('login');
       return;
     }
 

@@ -974,13 +974,13 @@ def bootstrap_admin():
     )
     user.set_password(password)
     db.session.add(user)
-    session_token = _issue_session_for_user(user)
     db.session.commit()
     clear_bootstrap_window()
 
-    response = jsonify(_serialize_authenticated_user(user) | {"authenticated": True})
-    _set_admin_session_cookie(response, session_token)
-    return response, 201
+    # Do NOT issue a session cookie — the admin account is only stored
+    # in the DB.  After bootstrap the frontend shows the normal login
+    # page so the first real user can sign in via Google device flow.
+    return jsonify({"ok": True, "username": username}), 201
 
 
 _GOOGLE_OAUTH_INTENT_KEY = "google_oauth_intent"

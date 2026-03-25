@@ -80,6 +80,8 @@ class Config:
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+    GOOGLE_DEVICE_CLIENT_ID = os.getenv("GOOGLE_DEVICE_CLIENT_ID") or os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_DEVICE_CLIENT_SECRET = os.getenv("GOOGLE_DEVICE_CLIENT_SECRET") or os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_OAUTH_SCOPES = os.getenv(
         "GOOGLE_OAUTH_SCOPES",
         "openid email profile https://www.googleapis.com/auth/youtube.readonly",

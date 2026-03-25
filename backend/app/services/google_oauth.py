@@ -180,11 +180,11 @@ def request_device_code():
     expires_in, interval — or None on failure.
     """
     config = current_app.config
-    client_id = config.get("GOOGLE_CLIENT_ID")
+    client_id = config.get("GOOGLE_DEVICE_CLIENT_ID")
     scopes = config.get("GOOGLE_OAUTH_SCOPES")
     if not client_id:
         logger.warning(
-            "Cannot request device code: GOOGLE_CLIENT_ID not configured.",
+            "Cannot request device code: GOOGLE_DEVICE_CLIENT_ID not configured.",
             extra={"tracking_id": generate_tracking_id()},
         )
         return None
@@ -226,8 +226,8 @@ def poll_device_token(device_code):
     """
     config = current_app.config
     payload = {
-        "client_id": config.get("GOOGLE_CLIENT_ID"),
-        "client_secret": config.get("GOOGLE_CLIENT_SECRET"),
+        "client_id": config.get("GOOGLE_DEVICE_CLIENT_ID"),
+        "client_secret": config.get("GOOGLE_DEVICE_CLIENT_SECRET"),
         "device_code": device_code,
         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
     }

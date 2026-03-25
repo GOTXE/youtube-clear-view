@@ -491,11 +491,11 @@
       }
       const googleButton = el('lp-google-button');
       if (googleButton) {
-        googleButton.hidden = true;
+        googleButton.style.display = 'none';
       }
       const deviceButton = el('lp-device-button');
       if (deviceButton) {
-        deviceButton.hidden = true;
+        deviceButton.style.display = 'none';
       }
       const switchLine = overlay.querySelector('#lp-login .login-page__switch');
       if (switchLine) {
@@ -548,11 +548,14 @@
     );
     const hasDeviceCodes = !gestorSurface && Boolean(authProviderData && authProviderData.device_pairing_enabled);
 
-    if (googleBtn) googleBtn.hidden = !hasGoogle;
-    if (passkeyBtn) passkeyBtn.hidden = !hasPasskeys;
-    if (deviceBtn) deviceBtn.hidden = !hasDeviceCodes;
+    // Google button temporarily hidden (code kept for future use)
+    // Use style.display because CSS inline-flex on .login-page__alt-button
+    // overrides the hidden attribute.
+    if (googleBtn) googleBtn.style.display = 'none';
+    if (passkeyBtn) passkeyBtn.style.display = hasPasskeys ? '' : 'none';
+    if (deviceBtn) deviceBtn.style.display = hasDeviceCodes ? '' : 'none';
 
-    const anyAlt = hasGoogle || hasPasskeys || hasDeviceCodes;
+    const anyAlt = hasPasskeys || hasDeviceCodes;
     if (divider) divider.hidden = !anyAlt;
   }
 

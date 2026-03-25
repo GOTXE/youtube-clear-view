@@ -902,6 +902,10 @@ def auth_provider():
         and current_app.config.get("GOOGLE_REDIRECT_URI")
     )
     bootstrap_required = is_bootstrap_required()
+    device_flow_configured = bool(
+        current_app.config.get("GOOGLE_DEVICE_CLIENT_ID")
+        and current_app.config.get("GOOGLE_DEVICE_CLIENT_SECRET")
+    )
     payload = {
         "auth_mode": mode,
         "google_login_url": "/api/auth/google" if google_configured else None,
@@ -911,6 +915,7 @@ def auth_provider():
         "password_policy": get_password_policy(),
         "csrf_token": _get_or_create_csrf_token(),
         "bootstrap_required": bootstrap_required,
+        "device_pairing_enabled": device_flow_configured,
     }
     if bootstrap_required:
         payload["bootstrap_window"] = get_bootstrap_window_info()

@@ -14,8 +14,11 @@ from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.config import Config
 from app.models import Channel, ChannelCategory, User, UserChannel, UserDevice, Video
+from app.models.quota_event import QuotaEvent
+from app.models.refresh_job import RefreshJob
+from app.models.video import VideoProgress
 from app.services.admin_access import is_admin_user
-from app.services.auth_policy import validate_password
+from app.services.auth_policy import validate_password, validate_username
 from app.services.refresh_governance import list_active_refreshes
 from app.services.quota import get_global_quota_snapshot
 from app.services.site_settings import (
@@ -550,6 +553,66 @@ def admin_reset_user_password(user_id):
     user.session_created_at = None
     db.session.commit()
     return jsonify(_serialize_admin_user(user))
+
+
+@admin_bp.put("/api/admin/users/<int:user_id>")
+@handle_route_errors
+@require_auth
+def update_admin_user(user_id):
+    """Update a user's username or display_name (admin)."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    payload = request.get_json(silent=True) or {}
+    user = db.session.get(User, user_id)
+    if not user:
+        return _bad_request("User not found.")
+
+    new_username = payload.get("username")
+    if new_username is not None:
+        new_username = new_username.strip()
+        username_ok, username_error = validate_username(new_username)
+        if not username_ok:
+            return _bad_request(username_error)
+        if User.query.filter(User.username == new_username, User.id != user.id).first():
+            return jsonify({"error": "Username already taken.", "status": 409}), 409
+        user.username = new_username
+
+    new_display_name = payload.get("display_name")
+    if new_display_name is not None:
+        user.display_name = new_display_name.strip() or user.username
+
+    db.session.commit()
+    return jsonify(_serialize_admin_user(user))
+
+
+@admin_bp.delete("/api/admin/users/<int:user_id>")
+@handle_route_errors
+@require_auth
+def delete_admin_user(user_id):
+    """Permanently delete a user and all associated data."""
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    current_user = g.current_user
+    user = db.session.get(User, user_id)
+    if not user:
+        return _bad_request("User not found.")
+    if user.id == current_user.id:
+        return _bad_request("You cannot delete your own account.")
+    if user.is_admin and _get_other_admin_count(user.id) == 0:
+        return _bad_request("Cannot delete the last admin.")
+
+    # Nullify FK references in tables without cascade
+    QuotaEvent.query.filter_by(user_id=user.id).update({"user_id": None})
+    RefreshJob.query.filter_by(user_id=user.id).delete()
+    VideoProgress.query.filter_by(user_id=user.id).delete()
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @admin_bp.get("/api/admin/security/password-policy")

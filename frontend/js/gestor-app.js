@@ -525,6 +525,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refresh(state.query);
   }
 
+  async function renameUser(user, newUsername) {
+    const response = await api.updateAdminUser(user.id, { username: newUsername });
+    if (!response.ok || !response.data) {
+      setStatus(response.error || t('unableUpdateAdminUser'), 'error');
+      return;
+    }
+    setStatus(t('adminUserUpdated'), 'success');
+    await refresh(state.query);
+  }
+
+  async function deleteUser(user) {
+    const confirmed = window.confirm(t('adminDeleteUserConfirm', { user: user.display_name || user.username || `#${user.id}` }));
+    if (!confirmed) return;
+    const response = await api.deleteAdminUser(user.id);
+    if (!response.ok) {
+      setStatus(response.error || t('unableUpdateAdminUser'), 'error');
+      return;
+    }
+    setStatus(t('adminUserDeleted'), 'success');
+    await refresh(state.query);
+  }
+
   function renderUsers() {
     ui.usersBody.innerHTML = '';
     if (!state.users.length) {
@@ -589,9 +611,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         resetButton.disabled = false;
       });
 
+      const renameInput = document.createElement('input');
+      renameInput.className = 'field__input admin-page__table-input';
+      renameInput.type = 'text';
+      renameInput.placeholder = t('adminRenameUserPlaceholder');
+      renameInput.value = user.username || '';
+
+      const renameButton = document.createElement('button');
+      renameButton.type = 'button';
+      renameButton.className = 'admin-page__mini-btn admin-page__mini-btn--ghost';
+      renameButton.textContent = t('adminRenameUser');
+      renameButton.addEventListener('click', async () => {
+        const newUsername = renameInput.value.trim();
+        if (!newUsername || newUsername === user.username) return;
+        renameButton.disabled = true;
+        await renameUser(user, newUsername);
+        renameButton.disabled = false;
+      });
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'admin-page__mini-btn admin-page__mini-btn--danger';
+      deleteButton.textContent = t('adminDeleteUser');
+      deleteButton.addEventListener('click', async () => {
+        deleteButton.disabled = true;
+        await deleteUser(user);
+        deleteButton.disabled = false;
+      });
+
       actions.appendChild(toggleButton);
+      actions.appendChild(renameInput);
+      actions.appendChild(renameButton);
       actions.appendChild(tempPasswordInput);
       actions.appendChild(resetButton);
+      actions.appendChild(deleteButton);
       actionsCell.appendChild(actions);
 
       [

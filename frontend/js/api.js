@@ -192,6 +192,14 @@ class APIClient {
     });
   }
 
+  updateAdminUser(userId, data) {
+    return this.put(`/api/admin/users/${userId}`, data);
+  }
+
+  deleteAdminUser(userId) {
+    return this.delete(`/api/admin/users/${userId}`);
+  }
+
   getSwitchableAccounts() {
     return this.get('/api/auth/accounts');
   }

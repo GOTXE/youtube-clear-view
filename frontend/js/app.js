@@ -3502,14 +3502,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function bootstrapAuthenticatedDevice() {
-    if (typeof window.initDevice === 'function') {
+    if (typeof window.initDevice !== 'function') return;
+    try {
       state.currentDevice = await window.initDevice();
-      if (typeof window.waitForDeviceConfirmation === 'function') {
-        state.currentDevice = await window.waitForDeviceConfirmation();
-      }
-      if (window.ytcvAccountPanel && typeof window.getDeviceIdentifier === 'function') {
-        window.ytcvAccountPanel.setCurrentDeviceIdentifier(window.getDeviceIdentifier());
-      }
+    } catch (_) {
+      // Retry once — session cookie may not be ready yet after account creation.
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        state.currentDevice = await window.initDevice();
+      } catch (_2) { /* give up silently — next login will succeed */ }
+    }
+    if (typeof window.waitForDeviceConfirmation === 'function') {
+      state.currentDevice = await window.waitForDeviceConfirmation();
+    }
+    if (window.ytcvAccountPanel && typeof window.getDeviceIdentifier === 'function') {
+      window.ytcvAccountPanel.setCurrentDeviceIdentifier(window.getDeviceIdentifier());
     }
   }
 

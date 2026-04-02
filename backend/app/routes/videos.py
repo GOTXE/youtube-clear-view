@@ -694,6 +694,21 @@ def search_videos():
         else:
             return jsonify({"videos": [], "has_more": False, "next_offset": None})
 
+    content_type = request.args.get("content_type")
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+
+    if _parse_bool(request.args.get("unclassified")):
+        classified_ids = {
+            row.channel_id
+            for row in ChannelCategory.query.with_entities(ChannelCategory.channel_id)
+            .filter(ChannelCategory.channel_id.in_(subscribed_ids))
+            .all()
+        }
+        query = query.filter(~Video.channel_id.in_(classified_ids))
+
     query = query.filter(
         or_(
             Video.title.ilike(f"%{query_text}%"),

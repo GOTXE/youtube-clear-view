@@ -2635,33 +2635,56 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.videosCount.hidden = true;
     }
 
+    // Show all sections — search results span videos, shorts, and older
     if (ui.shortsSection) {
-      ui.shortsSection.hidden = true;
+      ui.shortsSection.hidden = false;
     }
     if (ui.olderSection) {
-      ui.olderSection.hidden = true;
+      ui.olderSection.hidden = false;
     }
 
     clearCarousels();
 
-    const carousel = new window.Carousel('latest-carousel', async (offset, limit) => {
-      const filters = { limit, offset };
-      if (state.selectedChannelId !== null) {
-        filters.channel_id = state.selectedChannelId;
-      }
-      if (state.selectedChannelYtId) {
-        filters.yt_channel_id = state.selectedChannelYtId;
-      }
+    const baseFilters = {};
+    if (state.selectedChannelId !== null) {
+      baseFilters.channel_id = state.selectedChannelId;
+    }
+    if (state.selectedChannelYtId) {
+      baseFilters.yt_channel_id = state.selectedChannelYtId;
+    }
+    if (state.filters.unclassified) {
+      baseFilters.unclassified = true;
+    }
 
-      const response = await api.searchVideos(trimmed, filters);
+    // Videos carousel
+    const videosCarousel = new window.Carousel('latest-carousel', async (offset, limit) => {
+      const response = await api.searchVideos(trimmed, { ...baseFilters, limit, offset, content_type: 'video' });
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
       }
       return applyFilters(response.data);
-    }, { hideTextForShorts: true });
+    }, { preserveContentOnInit: true });
 
-    await carousel.init();
-    state.carousels.push(carousel);
+    // Shorts carousel
+    const shortsCarousel = new window.Carousel('shorts-carousel', async (offset, limit) => {
+      const response = await api.searchVideos(trimmed, { ...baseFilters, limit, offset, content_type: 'short' });
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      return applyFilters(response.data);
+    }, { showTitle: false, showDescription: false, preserveContentOnInit: true });
+
+    // Older carousel (no date restriction for search)
+    const olderCarousel = new window.Carousel('older-carousel', async (offset, limit) => {
+      const response = await api.searchVideos(trimmed, { ...baseFilters, limit, offset });
+      if (!response.ok) {
+        return { videos: [], has_more: false, next_offset: null };
+      }
+      return applyFilters(response.data, { respectMonthFilter: false });
+    }, { hideTextForShorts: true, preserveContentOnInit: true });
+
+    await Promise.all([videosCarousel.init(), shortsCarousel.init(), olderCarousel.init()]);
+    state.carousels.push(videosCarousel, shortsCarousel, olderCarousel);
   }
 
   function setupSearch() {

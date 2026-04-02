@@ -169,7 +169,7 @@
         </div>
 
         <footer class="account-panel__footer">
-          <button id="ap-cancel" class="button button--ghost" type="button" data-i18n="cancel">${t('cancel')}</button>
+          <button id="ap-cancel" class="button button--ghost" type="button" data-i18n="close">${t('close')}</button>
         </footer>
       </div>
     `;

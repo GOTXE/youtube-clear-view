@@ -1440,6 +1440,7 @@ Query params:
 - `older_than_days` (optional: integer)
 - `only_unwatched` (optional: boolean)
 - `randomize` (optional: boolean; stable per-day shuffle)
+- `unclassified` (optional: boolean; only videos from channels without a category)
 
 Response: see Pagination format.
 
@@ -1550,7 +1551,10 @@ Query params:
 - `limit`
 - `offset`
 - `channel_id` (optional)
+- `yt_channel_id` (optional)
 - `theme_id` (optional)
+- `content_type` (optional: `video` or `short`)
+- `unclassified` (optional: boolean; only videos from channels without a category)
 
 Response: same shape as `GET /api/videos/latest`.
 

@@ -707,6 +707,10 @@
   "accountDeviceRevoked": "Device removed.",
   "accountDeviceRevokeFailed": "Could not remove device.",
 
+  "accountDeleteAccount": "Delete my account",
+  "accountDeleteTitle": "Delete account",
+  "accountDeleteConfirm": "Account {user} and all its data will be permanently deleted. This cannot be undone.",
+
   "accountYoutubeLinked": "YouTube account linked.",
   "accountYoutubeNotLinked": "No YouTube account linked.",
   "accountYoutubeLink": "Link YouTube account",

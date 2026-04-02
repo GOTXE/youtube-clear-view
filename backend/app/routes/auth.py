@@ -13,7 +13,7 @@ from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import ADMIN_COOKIE_NAME, COOKIE_NAME, require_auth
 from app.middleware.error_handler import handle_route_errors
 from app.middleware.rate_limiter import check_rate_limit, reset_rate_limit
-from app.models import LoginPairing, User, UserPasskey, UserSettings
+from app.models import LoginPairing, QuotaEvent, RefreshJob, User, UserPasskey, UserSettings, VideoProgress
 from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
 from app.services.google_oauth import (
     apply_token_response,
@@ -1723,6 +1723,33 @@ def update_profile():
             "is_admin": is_admin_user(user),
         }
     )
+
+
+@auth_bp.delete("/api/auth/profile")
+@handle_route_errors
+@require_auth
+def delete_own_account():
+    """Permanently delete the authenticated user's account and all data."""
+    user = g.current_user
+    if user.is_admin:
+        return (
+            jsonify({"error": "Admin accounts cannot self-delete.", "status": 403}),
+            403,
+        )
+
+    QuotaEvent.query.filter_by(user_id=user.id).update({"user_id": None})
+    RefreshJob.query.filter_by(user_id=user.id).delete()
+    VideoProgress.query.filter_by(user_id=user.id).delete()
+
+    db.session.delete(user)
+    db.session.commit()
+
+    response = jsonify({"ok": True})
+    response.delete_cookie(
+        current_app.config.get("SESSION_COOKIE_NAME", "session"),
+        path="/",
+    )
+    return response
 
 
 @auth_bp.post("/api/auth/profile/password")

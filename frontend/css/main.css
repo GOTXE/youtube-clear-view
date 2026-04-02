@@ -4536,6 +4536,23 @@ body.login-page-open #app .app-footer {
   pointer-events: none;
 }
 
+.button--danger {
+  background: var(--error);
+  color: #fff;
+  border: none;
+}
+
+.button--danger:hover,
+.button--danger:focus-visible {
+  background: color-mix(in srgb, var(--error) 85%, black);
+}
+
+.account-panel__divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-4) 0;
+}
+
 /* Pairing code display (login page) */
 .login-page__pairing-code {
   text-align: center;

@@ -708,6 +708,10 @@
   "accountDeviceRevoked": "Dispositivo eliminado.",
   "accountDeviceRevokeFailed": "No se pudo eliminar el dispositivo.",
 
+  "accountDeleteAccount": "Eliminar mi cuenta",
+  "accountDeleteTitle": "Eliminar cuenta",
+  "accountDeleteConfirm": "Se eliminara permanentemente la cuenta {user} y todos sus datos. Esta accion no se puede deshacer.",
+
   "accountYoutubeLinked": "Cuenta YouTube vinculada.",
   "accountYoutubeNotLinked": "No hay cuenta YouTube vinculada.",
   "accountYoutubeLink": "Vincular cuenta YouTube",

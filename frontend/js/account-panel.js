@@ -256,6 +256,45 @@
     renderProfile(resp.data, container);
   }
 
+  async function confirmDeleteAccount(username) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    modal.innerHTML = `
+      <div class="modal__content account-panel__confirm-card account-panel__confirm-card--danger">
+        <h3 class="heading-3">${t('accountDeleteTitle')}</h3>
+        <p class="body">${t('accountDeleteConfirm', { user: username || '—' })}</p>
+        <div class="account-panel__actions">
+          <button type="button" class="button button--ghost" data-action="cancel">${t('close')}</button>
+          <button type="button" class="button button--danger" data-action="confirm">${t('accountDeleteAccount')}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const confirmed = await new Promise(resolve => {
+      const finish = v => { modal.remove(); resolve(v); };
+      modal.addEventListener('click', e => { if (e.target === modal) finish(false); });
+      modal.querySelector('[data-action="cancel"]').addEventListener('click', () => finish(false));
+      const confirmBtn = modal.querySelector('[data-action="confirm"]');
+      confirmBtn.addEventListener('click', () => finish(true));
+      confirmBtn.focus();
+    });
+
+    if (!confirmed) return;
+
+    const api = getApi();
+    if (!api) return;
+    const r = await api.deleteOwnAccount();
+    if (r.ok) {
+      close();
+      window.location.reload();
+    }
+  }
+
   function renderProfile(data, container) {
     container.innerHTML = '';
     const isLocal = data.auth_provider === 'local';
@@ -282,7 +321,14 @@
         <p id="ap-profile-msg" class="account-panel__msg" hidden></p>
         <button id="ap-profile-save" class="button" type="submit">${t('accountProfileSave')}</button>
       </form>
+      <hr class="account-panel__divider">
+      <button id="ap-delete-account" class="button button--danger" type="button">${t('accountDeleteAccount')}</button>
     `;
+
+    const deleteBtn = document.getElementById('ap-delete-account');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => confirmDeleteAccount(data.username));
+    }
 
     const form = document.getElementById('ap-profile-form');
     if (form) {

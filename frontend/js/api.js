@@ -389,6 +389,10 @@ class APIClient {
     return this.put('/api/auth/profile', data);
   }
 
+  deleteOwnAccount() {
+    return this.delete('/api/auth/profile');
+  }
+
   getVideoSummary(days = 7, channelId = null, channelYtId = null) {
     const params = { days };
     if (channelId !== null && channelId !== undefined) {

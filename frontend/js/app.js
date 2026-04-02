@@ -107,7 +107,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     prefetchedThumbnails: new Set(),
     filters: {
       unwatched: false,
-      month: false
+      month: false,
+      unclassified: false
     },
     carousels: [],
     searchActive: false,
@@ -228,6 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchInput: document.getElementById('search-input'),
     filterUnwatched: document.getElementById('filter-unwatched'),
     filterMonth: document.getElementById('filter-month'),
+    filterUnclassified: document.getElementById('filter-unclassified'),
     githubLabel: document.getElementById('github-label'),
     sessionInfo: document.querySelector('.session-info'),
     currentUserName: document.getElementById('current-user-name'),
@@ -463,6 +465,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (ui.filterMonth) {
       ui.filterMonth.textContent = t('lastMonth');
+    }
+    if (ui.filterUnclassified) {
+      ui.filterUnclassified.textContent = t('unclassified');
     }
     if (ui.filterPanelClear) {
       ui.filterPanelClear.textContent = t('clear');
@@ -1678,6 +1683,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (state.selectedChannelYtId) {
         params.yt_channel_id = state.selectedChannelYtId;
       }
+      if (state.filters.unclassified) {
+        params.unclassified = true;
+      }
       const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
         return { videos: [], has_more: false, next_offset: null };
@@ -1705,6 +1713,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (state.selectedChannelYtId) {
         params.yt_channel_id = state.selectedChannelYtId;
+      }
+      if (state.filters.unclassified) {
+        params.unclassified = true;
       }
       const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
@@ -1738,6 +1749,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (state.selectedChannelYtId) {
         params.yt_channel_id = state.selectedChannelYtId;
+      }
+      if (state.filters.unclassified) {
+        params.unclassified = true;
       }
       const response = await api.getLatestVideos(limit, offset, params);
       if (!response.ok) {
@@ -2518,6 +2532,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ui.filterMonth.classList.toggle('is-active', state.filters.month);
         ui.filterMonth.setAttribute('aria-pressed', state.filters.month ? 'true' : 'false');
       }
+      if (ui.filterUnclassified) {
+        ui.filterUnclassified.classList.toggle('is-active', state.filters.unclassified);
+        ui.filterUnclassified.setAttribute('aria-pressed', state.filters.unclassified ? 'true' : 'false');
+      }
     };
 
     const applyFiltersNow = () => {
@@ -2548,6 +2566,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (next) {
           state.filters.unwatched = false;
         }
+        updateButtons();
+        applyFiltersNow();
+      });
+    }
+
+    if (ui.filterUnclassified) {
+      ui.filterUnclassified.addEventListener('click', () => {
+        state.filters.unclassified = !state.filters.unclassified;
         updateButtons();
         applyFiltersNow();
       });
@@ -2894,6 +2920,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ui.filterPanelClear.addEventListener('click', () => {
         state.filters.unwatched = false;
         state.filters.month = false;
+        state.filters.unclassified = false;
         if (ui.filterUnwatched) {
           ui.filterUnwatched.classList.remove('is-active');
           ui.filterUnwatched.setAttribute('aria-pressed', 'false');
@@ -2901,6 +2928,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ui.filterMonth) {
           ui.filterMonth.classList.remove('is-active');
           ui.filterMonth.setAttribute('aria-pressed', 'false');
+        }
+        if (ui.filterUnclassified) {
+          ui.filterUnclassified.classList.remove('is-active');
+          ui.filterUnclassified.setAttribute('aria-pressed', 'false');
         }
         clearSearch();
       });

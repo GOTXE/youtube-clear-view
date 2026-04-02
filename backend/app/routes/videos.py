@@ -11,7 +11,7 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, VideoProgress, WatchedVideo
+from app.models import Channel, ChannelCategory, Theme, ThemeChannel, UserChannel, Video, VideoProgress, WatchedVideo
 from app.utils.time import utc_now
 
 videos_bp = Blueprint("videos", __name__)
@@ -216,12 +216,24 @@ def latest_videos():
 
     only_unwatched = _parse_bool(request.args.get("only_unwatched"))
     randomize = _parse_bool(request.args.get("randomize"))
+    unclassified = _parse_bool(request.args.get("unclassified"))
 
     channel_ids = [
         sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
     ]
     if not channel_ids:
         return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    if unclassified:
+        classified_ids = {
+            row.channel_id
+            for row in ChannelCategory.query.with_entities(ChannelCategory.channel_id)
+            .filter(ChannelCategory.channel_id.in_(channel_ids))
+            .all()
+        }
+        channel_ids = [cid for cid in channel_ids if cid not in classified_ids]
+        if not channel_ids:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
 
     if channel_id is not None and channel_id not in channel_ids:
         return jsonify({"videos": [], "has_more": False, "next_offset": None})

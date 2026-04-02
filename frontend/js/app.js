@@ -1659,6 +1659,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ui.inProgressCount.textContent = '0';
       }
     }
+
+    if (ui.tvActionInProgress) {
+      ui.tvActionInProgress.classList.toggle('has-pending', totalCount > 0);
+    }
   }
 
   async function renderMainCarousel() {

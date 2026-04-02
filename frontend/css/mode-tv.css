@@ -414,6 +414,15 @@ html[data-mode="tv"] .tv-action-bar__button[aria-pressed="false"] {
   color: var(--muted);
 }
 
+html[data-mode="tv"] .tv-action-bar__button.has-pending {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 0 22px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
 /* ── Main layout: sidebar + content ──────────────────────────────── */
 
 html[data-mode="tv"] .app-layout {

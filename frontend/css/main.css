@@ -993,6 +993,11 @@ select {
   position: relative;
 }
 
+.tv-action-bar__button.has-pending {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .tv-refresh-progress {
   position: absolute;
   top: 50%;

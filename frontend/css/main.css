@@ -2965,7 +2965,11 @@ body.player-overlay-open {
 
 .admin-page__metric-card {
   padding: 0.75rem 0.9rem;
-  min-height: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .admin-page__metric-meta {
@@ -2973,6 +2977,7 @@ body.player-overlay-open {
   grid-template-columns: 1fr auto;
   gap: 0.2rem 0.55rem;
   margin: 0.45rem 0 0;
+  width: 100%;
 }
 
 .admin-page__metric-meta dt,
@@ -3126,10 +3131,12 @@ body.player-overlay-open {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 0.55rem 0.75rem;
-  min-width: 76px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 0.1rem;
 }
 
@@ -3268,14 +3275,16 @@ body.player-overlay-open {
 }
 
 .admin-page__meta-cell {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: 12px;
   padding: 0.55rem 0.75rem;
-  min-width: 76px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 0.1rem;
 }
 

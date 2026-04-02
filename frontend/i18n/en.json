@@ -735,5 +735,7 @@
   "classifyError": "Classification failed.",
   "reclassifyNothingToDo": "There were no channels to reclassify.",
   "reclassifyComplete": "{count} channels reclassified.",
-  "classifyProgress": "Classifying channels basic: {cursor}/{total} ({classified} classified)"
+  "classifyProgress": "Classifying channels basic: {cursor}/{total} ({classified} classified)",
+  "mobileComingSoon": "Mobile version coming soon",
+  "mobileComingSoonSub": "Use a tablet, desktop, or TV to access the app."
 }

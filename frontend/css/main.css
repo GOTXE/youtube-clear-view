@@ -215,6 +215,65 @@ html.auth-pending .startup-scrim {
   color: #0f172a;
 }
 
+/* ── Mobile coming soon ─────────────────────────────────────────── */
+
+.mobile-coming-soon {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-coming-soon {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background:
+      radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 50%),
+      var(--bg-primary);
+  }
+
+  .mobile-coming-soon ~ * {
+    display: none !important;
+  }
+}
+
+.mobile-coming-soon__card {
+  text-align: center;
+  padding: 2.5rem 2rem;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--primary) 28%);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.12),
+    0 28px 72px rgba(15, 23, 42, 0.26);
+  max-width: 22rem;
+}
+
+.mobile-coming-soon__brand {
+  margin: 0 0 1.5rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--primary);
+}
+
+.mobile-coming-soon__message {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mobile-coming-soon__sub {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .app {
   height: 100vh;
   min-height: 100vh;

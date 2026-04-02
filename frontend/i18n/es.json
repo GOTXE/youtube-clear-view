@@ -736,5 +736,7 @@
   "classifyError": "Fallo la clasificacion.",
   "reclassifyNothingToDo": "No habia canales para reclasificar.",
   "reclassifyComplete": "{count} canales reclasificados.",
-  "classifyProgress": "Clasificando canales basica: {cursor}/{total} ({classified} clasificados)"
+  "classifyProgress": "Clasificando canales basica: {cursor}/{total} ({classified} clasificados)",
+  "mobileComingSoon": "Version movil proximamente",
+  "mobileComingSoonSub": "Usa una tablet, ordenador o TV para acceder a la app."
 }

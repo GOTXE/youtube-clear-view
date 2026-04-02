@@ -844,6 +844,34 @@
       return;
     }
 
+    // Forward playback shortcuts to YouTube IFrame Player API so they
+    // work without clicking inside the iframe first.
+    if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
+      const SKIP_SECONDS = 5;
+      if (event.key === ' ' || event.key === 'k') {
+        event.preventDefault();
+        const state = ytPlayer.getPlayerState();
+        // YT.PlayerState.PLAYING === 1
+        if (state === 1) { ytPlayer.pauseVideo(); } else { ytPlayer.playVideo(); }
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        ytPlayer.seekTo(Math.max(0, (ytPlayer.getCurrentTime() || 0) - SKIP_SECONDS), true);
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        ytPlayer.seekTo((ytPlayer.getCurrentTime() || 0) + SKIP_SECONDS, true);
+        return;
+      }
+      if (event.key === 'm') {
+        event.preventDefault();
+        if (ytPlayer.isMuted()) { ytPlayer.unMute(); } else { ytPlayer.mute(); }
+        return;
+      }
+    }
+
     if (event.key !== 'Tab') {
       return;
     }

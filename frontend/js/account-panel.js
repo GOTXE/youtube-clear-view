@@ -160,7 +160,6 @@
           <div id="ap-tab-devices" class="account-panel__panel" role="tabpanel" style="display:none">
             <div id="ap-devices-list" class="account-panel__list"></div>
             <p id="ap-devices-msg" class="account-panel__msg"></p>
-            <div id="ap-devices-approve" class="account-panel__pairing-section"></div>
           </div>
 
           <div id="ap-tab-youtube" class="account-panel__panel" role="tabpanel" style="display:none">
@@ -727,7 +726,6 @@
     if (!resp.ok) { container.textContent = ''; return; }
 
     renderDevices(resp.data || []);
-    renderPairingApproveSection();
   }
 
   function renderDevices(devices) {
@@ -902,70 +900,6 @@
       btn.disabled = false;
       btn.textContent = orig;
       showMsg('ap-devices-msg', t('accountDeviceRevokeFailed'), 'error');
-    }
-  }
-
-  function renderPairingApproveSection() {
-    const container = document.getElementById('ap-devices-approve');
-    if (!container) return;
-    container.innerHTML = `
-      <p class="body account-panel__section-title">${t('pairingApproveTitle')}</p>
-      <p class="caption account-panel__section-desc">${t('pairingApproveDescription')}</p>
-      <div class="account-panel__pairing-form">
-        <input id="ap-pairing-code-input" class="field__input account-panel__pairing-input"
-          type="text" maxlength="9" autocomplete="off" spellcheck="false"
-          placeholder="XXXX-XXXX">
-        <button id="ap-pairing-approve-btn" class="button" type="button">${t('approveDeviceCode')}</button>
-      </div>
-      <p id="ap-pairing-msg" class="account-panel__msg" hidden></p>
-    `;
-
-    const input = document.getElementById('ap-pairing-code-input');
-    if (input) {
-      // Auto-format: uppercase + insert hyphen after 4th char
-      input.addEventListener('input', () => {
-        const raw = input.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8);
-        input.value = raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw;
-      });
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') handleApprovePairing();
-        // Allow backspace to remove hyphen cleanly
-        if (e.key === 'Backspace' && input.value.endsWith('-')) {
-          e.preventDefault();
-          input.value = input.value.slice(0, -1);
-        }
-      });
-    }
-
-    const btn = document.getElementById('ap-pairing-approve-btn');
-    if (btn) btn.addEventListener('click', () => handleApprovePairing());
-  }
-
-  async function handleApprovePairing() {
-    const input = document.getElementById('ap-pairing-code-input');
-    const btn = document.getElementById('ap-pairing-approve-btn');
-    const code = (input ? input.value.trim().toUpperCase() : '');
-    if (!code) return;
-
-    if (btn) { btn.disabled = true; btn.textContent = t('approvingDeviceCode'); }
-    clearMsg('ap-pairing-msg');
-
-    const api = getApi();
-    const resp = await api.approvePairing(code);
-
-    if (btn) { btn.disabled = false; btn.textContent = t('approveDeviceCode'); }
-
-    if (resp.ok) {
-      if (input) input.value = '';
-      showMsg('ap-pairing-msg', t('deviceCodeApprovedSuccess'), 'success');
-      return;
-    }
-    if (resp.status === 404 || resp.status === 410) {
-      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
-    } else if (resp.status === 409) {
-      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
-    } else {
-      showMsg('ap-pairing-msg', t('unableApproveDeviceCode'), 'error');
     }
   }
 

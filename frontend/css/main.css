@@ -4235,13 +4235,19 @@ body.login-page-open #app .app-footer {
 }
 
 .account-panel__close {
-  background: none;
+  background: var(--error);
   border: none;
+  border-radius: var(--radius-1);
   cursor: pointer;
-  color: var(--muted);
+  color: #fff;
   font-size: 1.25rem;
   padding: var(--space-1);
   line-height: 1;
+}
+
+.account-panel__close:hover,
+.account-panel__close:focus-visible {
+  background: color-mix(in srgb, var(--error) 85%, black);
 }
 
 .account-panel__tabs {

@@ -900,6 +900,11 @@
 
     if (ui.close) {
       ui.close.addEventListener('click', () => closeVideoOverlay({ immediate: true }));
+      // Prevent Space from activating the close button so it doesn't
+      // accidentally dismiss the player overlay.
+      ui.close.addEventListener('keydown', e => {
+        if (e.key === ' ') e.preventDefault();
+      });
     }
 
     if (ui.backdrop) {
@@ -1069,7 +1074,9 @@
 
     focusables = getFocusableElements();
     window.setTimeout(() => {
-      const target = ui.close || focusables[0];
+      // Focus the iframe so Space controls playback instead of
+      // accidentally triggering the close button.
+      const target = ui.frame || ui.close || focusables[0];
       if (target && typeof target.focus === 'function') {
         target.focus();
       }

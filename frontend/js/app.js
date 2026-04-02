@@ -2030,13 +2030,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
           node.setAttribute('aria-pressed', node.classList.contains('is-active') ? 'true' : 'false');
         });
+        // Clear text search when selecting a channel — the two filters
+        // combined as AND is confusing for users.
+        if (state.searchActive) {
+          state.searchActive = false;
+          state.searchQuery = '';
+          if (ui.searchInput) ui.searchInput.value = '';
+          if (ui.videosLabel) ui.videosLabel.textContent = t('videosRecent30Days');
+          if (ui.videosCount) ui.videosCount.hidden = false;
+          if (ui.shortsSection) ui.shortsSection.hidden = false;
+          if (ui.olderSection) ui.olderSection.hidden = false;
+        }
         updateHeaderContext();
         updateVideoCounts();
-        if (state.searchActive) {
-          runSearch(state.searchQuery);
-        } else {
-          reloadCarousels();
-        }
+        reloadCarousels();
       });
       item.addEventListener('keydown', event => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -2598,6 +2605,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    // Clear channel selection when searching — the two filters combined
+    // as AND is confusing for users.
+    state.selectedChannelId = null;
+    state.selectedChannelYtId = null;
     state.searchActive = true;
     state.searchQuery = trimmed;
     renderChannelList(state.channels);

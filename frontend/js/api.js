@@ -133,6 +133,10 @@ class APIClient {
     return this.post('/api/auth/logout');
   }
 
+  logoutAll() {
+    return this.post('/api/auth/logout/all');
+  }
+
   adminLogout() {
     return this.post('/api/admin/auth/logout');
   }

@@ -217,6 +217,16 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - `logout` invalidates only the current session token presented by the cookie.
 - Legacy single-token users are migrated lazily when they authenticate.
 
+### Persistent Sessions (Remember Device)
+
+- Session cookies are persistent and configurable via `SESSION_MAX_AGE_DAYS`
+  (default: `90` days).
+- `/api/auth/current` and `/api/admin/auth/current` refresh cookie max-age on
+  each successful auth check (sliding persistence at cookie level).
+- New endpoint: `POST /api/auth/logout/all` to invalidate all active sessions
+  for the current user across devices.
+- Private/incognito windows do not preserve cookies across close by design.
+
 ## MFA Enrollment Foundation
 
 - Auth v2 now has a backend foundation for TOTP and recovery codes.

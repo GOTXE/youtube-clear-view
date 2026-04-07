@@ -139,6 +139,39 @@ def test_login_keeps_existing_session_active_on_other_client(app):
         assert persisted >= 2
 
 
+def test_logout_all_invalidates_sessions_on_all_clients(app):
+    client_one = app.test_client()
+    client_two = app.test_client()
+
+    with app.app_context():
+        user = User(username="logout-all", display_name="Logout All")
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+
+    first_login = client_one.post(
+        "/api/auth/login",
+        json={"username": "logout-all", "password": "password123"},
+    )
+    assert first_login.status_code == 200
+
+    second_login = client_two.post(
+        "/api/auth/login",
+        json={"username": "logout-all", "password": "password123"},
+    )
+    assert second_login.status_code == 200
+
+    response = client_one.post("/api/auth/logout/all")
+    assert response.status_code == 200
+
+    first_current = client_one.get("/api/auth/current")
+    second_current = client_two.get("/api/auth/current")
+    assert first_current.status_code == 200
+    assert second_current.status_code == 200
+    assert first_current.get_json()["authenticated"] is False
+    assert second_current.get_json()["authenticated"] is False
+
+
 def test_login_requires_username_tracking_id(client):
     response = client.post("/api/auth/login", json={"username": ""})
     assert response.status_code == 400

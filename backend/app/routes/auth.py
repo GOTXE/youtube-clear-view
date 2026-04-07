@@ -64,7 +64,6 @@ from app.utils.time import utc_now
 
 auth_bp = Blueprint("auth", __name__)
 
-COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 STATE_COOKIE_NAME = "ytcv_oauth_state"
 STATE_COOKIE_MAX_AGE = 10 * 60
 KNOWN_GOOGLE_USERS_KEY = "known_google_user_ids"
@@ -122,13 +121,23 @@ def _set_cookie(response, cookie_name, token, path, max_age):
     )
 
 
-def _set_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
+def _session_cookie_max_age():
+    """Return configured session cookie max-age in seconds."""
+    days = int(current_app.config.get("SESSION_MAX_AGE_DAYS", 90))
+    return days * 24 * 60 * 60
+
+
+def _set_session_cookie(response, token, max_age=None):
     """Attach the main user session cookie."""
+    if max_age is None:
+        max_age = _session_cookie_max_age()
     _set_cookie(response, COOKIE_NAME, token, "/api", max_age)
 
 
-def _set_admin_session_cookie(response, token, max_age=COOKIE_MAX_AGE):
+def _set_admin_session_cookie(response, token, max_age=None):
     """Attach the dedicated admin session cookie."""
+    if max_age is None:
+        max_age = _session_cookie_max_age()
     _set_cookie(response, ADMIN_COOKIE_NAME, token, "/api/admin", max_age)
 
 
@@ -196,7 +205,7 @@ def _is_admin_surface_request():
     return (request.headers.get("X-YTCV-Surface") or "").strip().lower() == "gestor"
 
 
-def _set_scoped_session_cookie(response, token, user, max_age=COOKIE_MAX_AGE):
+def _set_scoped_session_cookie(response, token, user, max_age=None):
     """Attach the proper auth cookie for the current request surface."""
     if _is_admin_surface_request():
         if not is_admin_user(user):
@@ -805,6 +814,20 @@ def logout():
     _clear_mfa_challenge()
 
     response = jsonify({"message": "Logged out"})
+    _clear_scoped_session_cookie(response)
+    return response
+
+
+@auth_bp.post("/api/auth/logout/all")
+@handle_route_errors
+@require_auth
+def logout_all():
+    """Clear all persisted sessions for the current user."""
+    clear_session_token(g.current_user)
+    db.session.commit()
+    _clear_mfa_challenge()
+
+    response = jsonify({"message": "Logged out from all devices"})
     _clear_scoped_session_cookie(response)
     return response
 
@@ -1514,9 +1537,9 @@ def current_user():
         _clear_session_cookie(response)
         return response
 
-    return jsonify(
-        _serialize_authenticated_user(user)
-    )
+    response = jsonify(_serialize_authenticated_user(user))
+    _set_session_cookie(response, token)
+    return response
 
 
 @auth_bp.get("/api/admin/auth/current")
@@ -1556,7 +1579,9 @@ def current_admin_user():
         _clear_admin_session_cookie(response)
         return response
 
-    return jsonify(_serialize_authenticated_user(user))
+    response = jsonify(_serialize_authenticated_user(user))
+    _set_admin_session_cookie(response, token)
+    return response
 
 
 @auth_bp.post("/api/admin/auth/logout")

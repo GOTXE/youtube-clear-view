@@ -24,6 +24,7 @@ class Config:
         COOKIE_SECURE = not FLASK_DEBUG
     else:
         COOKIE_SECURE = COOKIE_SECURE.lower() == "true"
+    SESSION_MAX_AGE_DAYS = int(os.getenv("SESSION_MAX_AGE_DAYS", "90"))
 
     _env_log_level = os.getenv("LOG_LEVEL")
     if _env_log_level:
@@ -143,6 +144,9 @@ class Config:
                 missing.append("FRONTEND_URL")
             if missing:
                 raise ValueError(f"Missing Google OAuth config: {', '.join(missing)}")
+
+        if Config.SESSION_MAX_AGE_DAYS <= 0:
+            raise ValueError("SESSION_MAX_AGE_DAYS must be positive.")
 
         if Config.YT_DAILY_QUOTA <= 0:
             raise ValueError("YT_DAILY_QUOTA must be positive.")

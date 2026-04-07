@@ -207,6 +207,16 @@ When `AUTH_MODE=google`, the app can switch between Google users already authent
 - If not set, the app derives a stable Fernet key from `FLASK_SECRET_KEY`.
 - This ensures sensitive OAuth credentials are not stored in plaintext in the SQLite database.
 
+### Concurrent Sessions (Multi-Device)
+
+- Backend auth now supports concurrent sessions for the same user across
+  multiple devices/browsers.
+- Session tokens are persisted per token hash in `user_sessions` instead of
+  relying on a single `users.session_token_hash` slot.
+- Logging in from device B no longer invalidates device A by default.
+- `logout` invalidates only the current session token presented by the cookie.
+- Legacy single-token users are migrated lazily when they authenticate.
+
 ## MFA Enrollment Foundation
 
 - Auth v2 now has a backend foundation for TOTP and recovery codes.

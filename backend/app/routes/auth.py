@@ -14,7 +14,12 @@ from app.middleware.auth_middleware import ADMIN_COOKIE_NAME, COOKIE_NAME, requi
 from app.middleware.error_handler import handle_route_errors
 from app.middleware.rate_limiter import check_rate_limit, reset_rate_limit
 from app.models import LoginPairing, User, UserPasskey, UserSettings
-from app.services.auth_security import bind_session_token, clear_session_token, find_user_by_session_token
+from app.services.auth_security import (
+    bind_session_token,
+    clear_session_by_raw_token,
+    clear_session_token,
+    find_user_by_session_token,
+)
 from app.services.google_oauth import (
     apply_token_response,
     build_auth_url,
@@ -549,9 +554,7 @@ def _clear_existing_session_from_cookie():
     if not token:
         return
 
-    current_user = find_user_by_session_token(token)
-    if current_user:
-        clear_session_token(current_user)
+    clear_session_by_raw_token(token)
 
 
 def _handle_password_change_required(user):
@@ -797,10 +800,8 @@ def logout():
     """Clear the session cookie and invalidate the server token."""
     token = _get_scoped_session_token()
     if token:
-        user = find_user_by_session_token(token)
-        if user:
-            clear_session_token(user)
-            db.session.commit()
+        clear_session_by_raw_token(token)
+        db.session.commit()
     _clear_mfa_challenge()
 
     response = jsonify({"message": "Logged out"})
@@ -1507,7 +1508,7 @@ def current_user():
         return response
 
     if not user.is_active:
-        clear_session_token(user)
+        clear_session_by_raw_token(token)
         db.session.commit()
         response = jsonify({"authenticated": False})
         _clear_session_cookie(response)
@@ -1549,7 +1550,7 @@ def current_admin_user():
         return response
 
     if not user.is_active:
-        clear_session_token(user)
+        clear_session_by_raw_token(token)
         db.session.commit()
         response = jsonify({"authenticated": False})
         _clear_admin_session_cookie(response)
@@ -1564,10 +1565,8 @@ def logout_admin():
     """Clear the dedicated admin session cookie and invalidate the server token."""
     token = request.cookies.get(ADMIN_COOKIE_NAME)
     if token:
-        user = find_user_by_session_token(token)
-        if user:
-            clear_session_token(user)
-            db.session.commit()
+        clear_session_by_raw_token(token)
+        db.session.commit()
     _clear_mfa_challenge()
 
     response = jsonify({"message": "Logged out"})

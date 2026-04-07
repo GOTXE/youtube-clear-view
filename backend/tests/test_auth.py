@@ -9,7 +9,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.migrations import ensure_user_schema
-from app.models import User, UserPasskey, UserSettings
+from app.models import User, UserPasskey, UserSession, UserSettings
 from app.services.totp_auth import generate_totp_code, hash_recovery_codes
 
 
@@ -103,6 +103,40 @@ def test_login_persists_hashed_session_only(client, app):
         user = User.query.filter_by(username="alice").first()
         assert user.session_token is None
         assert user.session_token_hash
+
+
+def test_login_keeps_existing_session_active_on_other_client(app):
+    client_one = app.test_client()
+    client_two = app.test_client()
+
+    with app.app_context():
+        user = User(username="multi-session", display_name="Multi Session")
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+
+    first_login = client_one.post(
+        "/api/auth/login",
+        json={"username": "multi-session", "password": "password123"},
+    )
+    assert first_login.status_code == 200
+
+    second_login = client_two.post(
+        "/api/auth/login",
+        json={"username": "multi-session", "password": "password123"},
+    )
+    assert second_login.status_code == 200
+
+    first_current = client_one.get("/api/auth/current")
+    second_current = client_two.get("/api/auth/current")
+    assert first_current.status_code == 200
+    assert second_current.status_code == 200
+    assert first_current.get_json()["authenticated"] is True
+    assert second_current.get_json()["authenticated"] is True
+
+    with app.app_context():
+        persisted = UserSession.query.join(User).filter(User.username == "multi-session").count()
+        assert persisted >= 2
 
 
 def test_login_requires_username_tracking_id(client):

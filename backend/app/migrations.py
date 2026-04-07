@@ -296,6 +296,47 @@ def ensure_user_settings_schema():
         )
 
 
+def ensure_user_session_schema():
+    """Ensure user_sessions table exists for concurrent login support."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS user_sessions ("
+                    "id INTEGER NOT NULL PRIMARY KEY, "
+                    "user_id INTEGER NOT NULL, "
+                    "token_hash VARCHAR(64) NOT NULL UNIQUE, "
+                    "created_at DATETIME NOT NULL, "
+                    "last_used_at DATETIME, "
+                    "FOREIGN KEY(user_id) REFERENCES users (id)"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id "
+                    "ON user_sessions (user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_sessions_token_hash "
+                    "ON user_sessions (token_hash)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User session schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_refresh_job_schema():
     """Ensure refresh_jobs table exists for backend-owned refresh execution."""
     engine = db.engine

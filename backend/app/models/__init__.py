@@ -7,6 +7,7 @@ from .pairing import LoginPairing
 from .refresh_job import RefreshJob
 from .passkey import UserPasskey
 from .quota_event import QuotaEvent
+from .session import UserSession
 from .site_setting import SiteSetting
 from .theme import Theme, ThemeChannel
 from .user import User
@@ -31,5 +32,6 @@ __all__ = [
     "RefreshJob",
     "UserPasskey",
     "QuotaEvent",
+    "UserSession",
     "SiteSetting",
 ]

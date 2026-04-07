@@ -215,65 +215,6 @@ html.auth-pending .startup-scrim {
   color: #0f172a;
 }
 
-/* ── Mobile coming soon ─────────────────────────────────────────── */
-
-.mobile-coming-soon {
-  display: none;
-}
-
-@media (max-width: 767px) {
-  .mobile-coming-soon {
-    display: flex;
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-    background:
-      radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 50%),
-      var(--bg-primary);
-  }
-
-  .mobile-coming-soon ~ * {
-    display: none !important;
-  }
-}
-
-.mobile-coming-soon__card {
-  text-align: center;
-  padding: 2.5rem 2rem;
-  border-radius: 24px;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--primary) 28%);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow:
-    0 0 0 3px rgba(96, 165, 250, 0.12),
-    0 28px 72px rgba(15, 23, 42, 0.26);
-  max-width: 22rem;
-}
-
-.mobile-coming-soon__brand {
-  margin: 0 0 1.5rem;
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--primary);
-}
-
-.mobile-coming-soon__message {
-  margin: 0 0 0.75rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.mobile-coming-soon__sub {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
 .app {
   height: 100vh;
   min-height: 100vh;
@@ -1147,6 +1088,20 @@ select {
   line-height: 1.3;
 }
 
+.channel-item__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.channel-item__recency {
+  font-size: var(--font-caption);
+  color: var(--muted);
+  line-height: 1.3;
+}
+
 .channel-item__status {
   width: 8px;
   height: 8px;
@@ -1161,6 +1116,12 @@ select {
   background: var(--channel-dot);
   border-color: transparent;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--channel-dot) 35%, transparent);
+}
+
+.channel-item__chevron {
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
 }
 
 .count-pill {
@@ -1811,6 +1772,13 @@ select {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.category-carousel-wrapper.is-active {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+  box-shadow:
+    0 16px 30px rgba(15, 23, 42, 0.14),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .category-header {
@@ -2467,6 +2435,47 @@ html[data-theme="light"] .account-panel__card::before {
   white-space: normal;
 }
 
+.player-overlay__description-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.player-overlay__description.is-expanded {
+  overflow: visible;
+  text-overflow: initial;
+  display: block;
+  -webkit-line-clamp: initial;
+}
+
+.player-overlay__description-toggle {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: var(--font-body-small);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.player-overlay__description-toggle:hover,
+.player-overlay__description-toggle:focus-visible {
+  color: color-mix(in srgb, var(--primary) 82%, white);
+  text-decoration: underline;
+}
+
+.player-overlay__actions-title {
+  margin: 0;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .player-overlay__actions {
   display: flex;
   flex-direction: column;
@@ -2475,6 +2484,7 @@ html[data-theme="light"] .account-panel__card::before {
 
 .player-overlay__actions .button,
 .player-overlay__actions .button--ghost {
+  position: relative;
   justify-content: center;
   min-height: 44px;
   border-radius: calc(var(--radius-2) + 2px);
@@ -2484,6 +2494,23 @@ html[data-theme="light"] .account-panel__card::before {
     0 10px 24px rgba(15, 23, 42, 0.12),
     inset 0 0 0 1px color-mix(in srgb, var(--border) 74%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.player-overlay__actions .button[data-icon],
+.player-overlay__actions .button--ghost[data-icon] {
+  justify-content: flex-start;
+  padding-left: calc(var(--space-4) + 1.25rem);
+}
+
+.player-overlay__actions .button[data-icon]::before,
+.player-overlay__actions .button--ghost[data-icon]::before {
+  content: attr(data-icon);
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.95rem;
+  opacity: 0.9;
 }
 
 .player-overlay__actions .button:hover,
@@ -3892,6 +3919,9 @@ body.login-page-open #app .app-footer {
   background: color-mix(in srgb, var(--bg-primary) 78%, rgba(15, 23, 42, 0.52));
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login-page-overlay[hidden] {

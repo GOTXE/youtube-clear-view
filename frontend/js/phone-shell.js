@@ -4,27 +4,54 @@
   let initialized = false;
   let ui = null;
   let callbacks = null;
-  let channelsActiveTimer = null;
+  let activeView = 'home';
+  const VALID_VIEWS = new Set(['home', 'channels', 'categories', 'settings']);
 
   function isPhoneMode() {
     return document.documentElement.dataset.mode === 'phone';
   }
 
-  function setNavActive(activeId = null) {
+  function normalizeView(view) {
+    return VALID_VIEWS.has(view) ? view : 'home';
+  }
+
+  function setNavActive(view = 'home') {
     if (!ui) {
       return;
     }
 
-    [ui.channelsButton, ui.filtersButton, ui.menuButton].forEach(button => {
+    [ui.homeButton, ui.channelsButton, ui.categoriesButton, ui.settingsButton].forEach(button => {
       if (!button) {
         return;
       }
-      button.classList.toggle('is-active', Boolean(activeId) && button.id === activeId);
+      const isActive = button.dataset.phoneView === view;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-current', isActive ? 'page' : 'false');
     });
   }
 
   function closeChannelSheet() {
-    document.body.classList.remove('phone-sidebar-open');
+    setActiveView('home');
+  }
+
+  function notifyViewChange(view, source = 'programmatic') {
+    if (callbacks && typeof callbacks.onViewChange === 'function') {
+      callbacks.onViewChange(view, { source });
+    }
+  }
+
+  function setActiveView(view, options = {}) {
+    const normalizedView = normalizeView(view);
+    const { pushHistory = false, source = 'programmatic' } = options;
+
+    activeView = normalizedView;
+    setNavActive(normalizedView);
+    notifyViewChange(normalizedView, source);
+
+    if (pushHistory && isPhoneMode() && window.history && typeof window.history.pushState === 'function') {
+      window.history.pushState({ ytcvPhoneView: normalizedView }, '', window.location.href);
+    }
+
     if (ui && ui.backdrop) {
       ui.backdrop.hidden = true;
     }
@@ -34,34 +61,11 @@
     if (!isPhoneMode()) {
       return;
     }
-    document.body.classList.add('phone-sidebar-open');
-    if (ui && ui.backdrop) {
-      ui.backdrop.hidden = false;
-    }
-    setNavActive(ui && ui.channelsButton ? ui.channelsButton.id : null);
-    if (ui && ui.channelsButton) {
-      ui.channelsButton.classList.add('is-temporary-active');
-    }
-    if (channelsActiveTimer) {
-      window.clearTimeout(channelsActiveTimer);
-    }
-    channelsActiveTimer = window.setTimeout(() => {
-      if (document.body.classList.contains('phone-sidebar-open')) {
-        setNavActive(null);
-      }
-      if (ui && ui.channelsButton) {
-        ui.channelsButton.classList.remove('is-temporary-active');
-      }
-      channelsActiveTimer = null;
-    }, 2000);
+    setActiveView('channels');
   }
 
   function toggleChannelSheet() {
-    if (document.body.classList.contains('phone-sidebar-open')) {
-      closeChannelSheet();
-    } else {
-      openChannelSheet();
-    }
+    setActiveView(activeView === 'channels' ? 'home' : 'channels');
   }
 
   function showPhoneNav() {
@@ -70,7 +74,9 @@
     }
     ui.nav.hidden = !isPhoneMode();
     if (!isPhoneMode()) {
-      closeChannelSheet();
+      activeView = 'home';
+      setNavActive('home');
+      notifyViewChange('home', 'layout');
     }
   }
 
@@ -78,17 +84,31 @@
     callbacks = options || {};
     ui = {
       nav: document.getElementById('phone-nav'),
+      homeButton: document.getElementById('phone-nav-home'),
       channelsButton: document.getElementById('phone-nav-channels'),
-      filtersButton: document.getElementById('phone-nav-filters'),
-      menuButton: document.getElementById('phone-nav-menu'),
+      categoriesButton: document.getElementById('phone-nav-categories'),
+      settingsButton: document.getElementById('phone-nav-settings'),
       backdrop: document.getElementById('channel-sidebar-backdrop'),
       closeButton: document.getElementById('channel-sidebar-close')
     };
+
+    [
+      ui.homeButton,
+      ui.channelsButton,
+      ui.categoriesButton,
+      ui.settingsButton
+    ].forEach(button => {
+      if (button) {
+        button.dataset.phoneView = button.id.replace('phone-nav-', '');
+      }
+    });
 
     showPhoneNav();
 
     if (initialized) {
       return {
+        setActiveView,
+        getActiveView: () => activeView,
         openChannelSheet,
         closeChannelSheet,
         toggleChannelSheet,
@@ -96,39 +116,27 @@
       };
     }
 
+    if (ui.homeButton) {
+      ui.homeButton.addEventListener('click', () => {
+        setActiveView('home', { pushHistory: true, source: 'user' });
+      });
+    }
+
     if (ui.channelsButton) {
       ui.channelsButton.addEventListener('click', () => {
-        toggleChannelSheet();
+        setActiveView('channels', { pushHistory: true, source: 'user' });
       });
     }
 
-    if (ui.filtersButton) {
-      ui.filtersButton.addEventListener('click', () => {
-        closeChannelSheet();
-        setNavActive(ui.filtersButton.id);
-        if (callbacks && typeof callbacks.openFilters === 'function') {
-          callbacks.openFilters();
-        }
-        window.setTimeout(() => {
-          if (!document.body.classList.contains('phone-sidebar-open')) {
-            setNavActive(null);
-          }
-        }, 150);
+    if (ui.categoriesButton) {
+      ui.categoriesButton.addEventListener('click', () => {
+        setActiveView('categories', { pushHistory: true, source: 'user' });
       });
     }
 
-    if (ui.menuButton) {
-      ui.menuButton.addEventListener('click', () => {
-        closeChannelSheet();
-        setNavActive(ui.menuButton.id);
-        if (callbacks && typeof callbacks.openMenu === 'function') {
-          callbacks.openMenu();
-        }
-        window.setTimeout(() => {
-          if (!document.body.classList.contains('phone-sidebar-open')) {
-            setNavActive(null);
-          }
-        }, 150);
+    if (ui.settingsButton) {
+      ui.settingsButton.addEventListener('click', () => {
+        setActiveView('settings', { pushHistory: true, source: 'user' });
       });
     }
 
@@ -144,12 +152,33 @@
       });
     }
 
+    window.addEventListener('popstate', event => {
+      const nextView = event.state && event.state.ytcvPhoneView
+        ? normalizeView(event.state.ytcvPhoneView)
+        : 'home';
+
+      if (!isPhoneMode()) {
+        return;
+      }
+
+      setActiveView(nextView, { pushHistory: false, source: 'history' });
+    });
+
     window.addEventListener('layout-mode:changed', () => {
       showPhoneNav();
     });
 
+    setActiveView(
+      window.history && window.history.state && window.history.state.ytcvPhoneView
+        ? window.history.state.ytcvPhoneView
+        : 'home',
+      { pushHistory: false, source: 'init' }
+    );
+
     initialized = true;
     return {
+      setActiveView,
+      getActiveView: () => activeView,
       openChannelSheet,
       closeChannelSheet,
       toggleChannelSheet,

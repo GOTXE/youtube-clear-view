@@ -104,6 +104,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     channels: [],
     selectedChannelId: null,
     selectedChannelYtId: null,
+    selectedCategoryId: null,
+    selectedCategoryName: '',
     prefetchedThumbnails: new Set(),
     filters: {
       unwatched: false,
@@ -136,11 +138,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     quotaPoller: null,
     refreshStatusSource: null,
     lastUpdatedTicker: null,
-    showInProgressCarousel: false,
-    showWatchedCarousel: false
+    showInProgressCarousel: true,
+    showWatchedCarousel: false,
+    mobileView: 'home'
   };
 
   const ui = {
+    appLayout: document.getElementById('library-view'),
+    appContent: document.getElementById('home-mobile-view'),
+    channelsMobileView: document.getElementById('channels-mobile-view'),
+    mobileSettingsView: document.getElementById('mobile-settings-view'),
     appSubtitle: document.getElementById('app-subtitle'),
     appSubtitleSecondary: document.getElementById('app-subtitle-secondary'),
     headerContext: document.getElementById('header-context'),
@@ -156,6 +163,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     channelSidebar: document.querySelector('.channel-sidebar'),
     channelSidebarBackdrop: document.getElementById('channel-sidebar-backdrop'),
     phoneNav: document.getElementById('phone-nav'),
+    phoneNavHome: document.getElementById('phone-nav-home'),
+    phoneNavChannels: document.getElementById('phone-nav-channels'),
+    phoneNavCategories: document.getElementById('phone-nav-categories'),
+    phoneNavSettings: document.getElementById('phone-nav-settings'),
     tvActionBar: document.getElementById('tv-action-bar'),
     tvActionInProgress: document.getElementById('tv-action-in-progress'),
     tvActionWatched: document.getElementById('tv-action-watched'),
@@ -175,6 +186,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     myAccountButton: document.getElementById('my-account-button'),
     logoutButton: document.getElementById('logout-button'),
     languageButtons: document.querySelectorAll('.menu-language__button'),
+    mobileCategoryGuideButton: document.getElementById('mobile-category-guide-button'),
+    mobileSettingsCategoryGuideButton: document.getElementById('mobile-settings-category-guide-button'),
+    mobileGoogleLoginButton: document.getElementById('mobile-google-login-button'),
+    mobileMyAccountButton: document.getElementById('mobile-my-account-button'),
+    mobileLogoutButton: document.getElementById('mobile-logout-button'),
+    mobileImportButton: document.getElementById('mobile-import-subscriptions-button'),
+    mobileRefreshButton: document.getElementById('mobile-refresh-videos'),
+    mobileClassifyButton: document.getElementById('mobile-classify-channels-button'),
+    mobileFiltersButton: document.getElementById('mobile-filters-button'),
+    mobileDisplayModeButton: document.getElementById('mobile-display-mode-button'),
+    mobileThemeToggle: document.getElementById('mobile-theme-toggle'),
+    mobileGestorButton: document.getElementById('mobile-gestor-button'),
+    mobileSettingsTitle: document.getElementById('mobile-settings-title'),
+    mobileSettingsIdentityEyebrow: document.getElementById('mobile-settings-identity-eyebrow'),
+    mobileSettingsIdentityTitle: document.getElementById('mobile-settings-identity-title'),
+    mobileSettingsIdentitySummary: document.getElementById('mobile-settings-identity-summary'),
+    mobileSettingsStatusLabel: document.getElementById('mobile-settings-status-label'),
+    mobileSettingsStatusValue: document.getElementById('mobile-settings-status-value'),
+    mobileSettingsVersionLabel: document.getElementById('mobile-settings-version-label'),
+    mobileSettingsVersionValue: document.getElementById('mobile-settings-version-value'),
+    mobileSettingsAccountTitle: document.getElementById('mobile-settings-account-title'),
+    mobileSettingsAccountCopy: document.getElementById('mobile-settings-account-copy'),
+    mobileSettingsChannelsTitle: document.getElementById('mobile-settings-channels-title'),
+    mobileSettingsChannelsCopy: document.getElementById('mobile-settings-channels-copy'),
+    mobileSettingsViewingTitle: document.getElementById('mobile-settings-viewing-title'),
+    mobileSettingsViewingCopy: document.getElementById('mobile-settings-viewing-copy'),
+    mobileSettingsSystemTitle: document.getElementById('mobile-settings-system-title'),
+    mobileSettingsSystemCopy: document.getElementById('mobile-settings-system-copy'),
     filterPanel: document.getElementById('filter-panel'),
     filterPanelClose: document.getElementById('filters-close'),
     filterPanelClear: document.getElementById('filters-clear'),
@@ -237,6 +276,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoriesDescription: document.getElementById('categories-description'),
     classifyButton: document.getElementById('classify-channels-button')
   };
+
+  function isPhoneMode() {
+    return document.documentElement.dataset.mode === 'phone';
+  }
+
+  function getSelectedCategoryChannels() {
+    if (state.selectedCategoryId === null) {
+      return [];
+    }
+
+    return state.channels.filter(channel => {
+      const categoryId = channel
+        && channel.category
+        && channel.category.category
+        && channel.category.category.id != null
+        ? Number(channel.category.category.id)
+        : null;
+      return categoryId !== null && categoryId === Number(state.selectedCategoryId);
+    });
+  }
+
+  function matchesSelectedCategory(channel) {
+    if (state.selectedCategoryId === null) {
+      return true;
+    }
+
+    const categoryId = channel
+      && channel.category
+      && channel.category.category
+      && channel.category.category.id != null
+      ? Number(channel.category.category.id)
+      : null;
+    return categoryId !== null && categoryId === Number(state.selectedCategoryId);
+  }
+
+  function getSelectedCategoryLabel() {
+    if (state.selectedCategoryName) {
+      return state.selectedCategoryName;
+    }
+
+    const firstChannel = getSelectedCategoryChannels()[0];
+    if (firstChannel && firstChannel.category && firstChannel.category.category) {
+      const category = firstChannel.category.category;
+      return category.display_name_es || category.display_name_en || category.name || '';
+    }
+
+    return '';
+  }
+
+  function setMobileView(nextView) {
+    const normalizedView = ['home', 'channels', 'categories', 'settings'].includes(nextView)
+      ? nextView
+      : 'home';
+    state.mobileView = normalizedView;
+
+    if (!ui.appLayout) {
+      return;
+    }
+
+    const effectiveView = isPhoneMode() ? normalizedView : 'desktop';
+    ui.appLayout.dataset.mobileView = effectiveView;
+    document.body.dataset.mobileView = effectiveView;
+
+    document.querySelectorAll('.mobile-home-section').forEach(section => {
+      section.classList.toggle('phone-view-off', isPhoneMode() && normalizedView !== 'home');
+    });
+
+    if (ui.categoriesSection) {
+      ui.categoriesSection.hidden = isPhoneMode() ? normalizedView !== 'categories' : false;
+    }
+
+    if (ui.mobileSettingsView) {
+      ui.mobileSettingsView.hidden = !(isPhoneMode() && normalizedView === 'settings');
+    }
+
+    if (ui.channelsMobileView) {
+      ui.channelsMobileView.hidden = isPhoneMode() ? normalizedView !== 'channels' : false;
+    }
+
+    if (ui.appContent) {
+      ui.appContent.hidden = isPhoneMode() ? normalizedView === 'channels' : false;
+    }
+
+    if (isPhoneMode()) {
+      window.requestAnimationFrame(() => {
+        const target = normalizedView === 'channels'
+          ? ui.channelsMobileView
+          : normalizedView === 'categories'
+            ? ui.categoriesSection
+            : normalizedView === 'settings'
+              ? ui.mobileSettingsView
+              : ui.appContent;
+
+        if (target && !target.hidden && typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ block: 'start', inline: 'nearest' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+      });
+    }
+  }
 
   const swUpdateState = {
     registration: null,
@@ -541,18 +681,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ui.phoneNav) {
       ui.phoneNav.setAttribute('aria-label', t('mobileNavigationLabel'));
     }
-    const phoneChannels = document.getElementById('phone-nav-channels');
-    if (phoneChannels) {
-      phoneChannels.setAttribute('aria-label', t('subscriptions'));
-      phoneChannels.setAttribute('title', t('subscriptions'));
+    if (ui.phoneNavHome) {
+      ui.phoneNavHome.textContent = t('mobileTabHome');
     }
-    const phoneFilters = document.getElementById('phone-nav-filters');
-    if (phoneFilters) {
-      phoneFilters.textContent = t('filters');
+    if (ui.phoneNavChannels) {
+      ui.phoneNavChannels.textContent = t('mobileTabChannels');
     }
-    const phoneMenu = document.getElementById('phone-nav-menu');
-    if (phoneMenu) {
-      phoneMenu.textContent = t('menu');
+    if (ui.phoneNavCategories) {
+      ui.phoneNavCategories.textContent = t('mobileTabCategories');
+    }
+    if (ui.phoneNavSettings) {
+      ui.phoneNavSettings.textContent = t('mobileTabSettings');
     }
     const tvActionBar = ui.tvActionBar;
     if (tvActionBar) {
@@ -610,6 +749,87 @@ document.addEventListener('DOMContentLoaded', async () => {
         t('categoryGuideStep4')
       ];
       guideSteps.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+    }
+    if (ui.mobileCategoryGuideButton) {
+      ui.mobileCategoryGuideButton.textContent = t('categoryGuideLabel');
+    }
+    if (ui.mobileSettingsCategoryGuideButton) {
+      ui.mobileSettingsCategoryGuideButton.textContent = t('categoryGuideLabel');
+    }
+    if (ui.mobileSettingsTitle) {
+      ui.mobileSettingsTitle.textContent = t('mobileSettingsTitle');
+    }
+    if (ui.mobileSettingsIdentityEyebrow) {
+      ui.mobileSettingsIdentityEyebrow.textContent = t('deviceTypeMenuLabel');
+    }
+    if (ui.mobileSettingsIdentityTitle) {
+      ui.mobileSettingsIdentityTitle.textContent = t('mobileSettingsHeroTitle');
+    }
+    if (ui.mobileSettingsIdentitySummary) {
+      ui.mobileSettingsIdentitySummary.textContent = t('mobileSettingsHeroGuest');
+    }
+    if (ui.mobileSettingsStatusLabel) {
+      ui.mobileSettingsStatusLabel.textContent = t('mobileSettingsStatusLabel');
+    }
+    if (ui.mobileSettingsVersionLabel) {
+      ui.mobileSettingsVersionLabel.textContent = t('mobileSettingsVersionLabel');
+    }
+    if (ui.mobileSettingsAccountTitle) {
+      ui.mobileSettingsAccountTitle.textContent = t('menuSectionAccount');
+    }
+    if (ui.mobileSettingsAccountCopy) {
+      ui.mobileSettingsAccountCopy.textContent = t('mobileSettingsAccountCopy');
+    }
+    if (ui.mobileSettingsChannelsTitle) {
+      ui.mobileSettingsChannelsTitle.textContent = t('subscriptions');
+    }
+    if (ui.mobileSettingsChannelsCopy) {
+      ui.mobileSettingsChannelsCopy.textContent = t('mobileSettingsChannelsCopy');
+    }
+    if (ui.mobileSettingsViewingTitle) {
+      ui.mobileSettingsViewingTitle.textContent = t('menuSectionViewing');
+    }
+    if (ui.mobileSettingsViewingCopy) {
+      ui.mobileSettingsViewingCopy.textContent = t('mobileSettingsViewingCopy');
+    }
+    if (ui.mobileSettingsSystemTitle) {
+      ui.mobileSettingsSystemTitle.textContent = t('menuSectionSystem');
+    }
+    if (ui.mobileSettingsSystemCopy) {
+      ui.mobileSettingsSystemCopy.textContent = t('mobileSettingsSystemCopy');
+    }
+    if (ui.mobileGoogleLoginButton) {
+      ui.mobileGoogleLoginButton.textContent = t('signInWithGoogle');
+    }
+    if (ui.mobileMyAccountButton) {
+      ui.mobileMyAccountButton.textContent = t('myAccount');
+    }
+    if (ui.mobileLogoutButton) {
+      ui.mobileLogoutButton.textContent = t('signOut');
+    }
+    if (ui.mobileImportButton) {
+      ui.mobileImportButton.textContent = t('importSubscriptions');
+    }
+    if (ui.mobileRefreshButton) {
+      ui.mobileRefreshButton.textContent = t('refresh');
+    }
+    if (ui.mobileClassifyButton) {
+      ui.mobileClassifyButton.textContent = t('classifyChannels');
+    }
+    if (ui.mobileFiltersButton) {
+      ui.mobileFiltersButton.textContent = t('filters');
+    }
+    if (ui.mobileDisplayModeButton) {
+      ui.mobileDisplayModeButton.textContent = t('displayModeMenuLabel');
+    }
+    if (ui.mobileThemeToggle) {
+      ui.mobileThemeToggle.textContent = t('themeLabel', {
+        mode: document.documentElement.getAttribute('data-theme') === 'light' ? t('themeLight') : t('themeDark'),
+        icon: document.documentElement.getAttribute('data-theme') === 'light' ? '☀️' : '🌙'
+      });
+    }
+    if (ui.mobileGestorButton) {
+      ui.mobileGestorButton.textContent = t('menuGestorLabel');
     }
 
     renderQuotaSnapshot();
@@ -669,6 +889,113 @@ document.addEventListener('DOMContentLoaded', async () => {
         onClose();
       }
     });
+  }
+
+  function setupMobileSettingsView() {
+    const clickProxy = (sourceButton, targetButton) => {
+      if (!sourceButton || !targetButton) {
+        return;
+      }
+      sourceButton.addEventListener('click', () => {
+        targetButton.click();
+      });
+    };
+
+    clickProxy(ui.mobileGoogleLoginButton, document.getElementById('google-login-button'));
+    clickProxy(ui.mobileMyAccountButton, ui.myAccountButton);
+    clickProxy(ui.mobileLogoutButton, ui.logoutButton);
+    clickProxy(ui.mobileImportButton, ui.importButton);
+    clickProxy(ui.mobileRefreshButton, ui.refreshButton);
+    clickProxy(ui.mobileClassifyButton, ui.classifyButton);
+    clickProxy(ui.mobileDisplayModeButton, ui.menuDisplayMode);
+    clickProxy(ui.mobileThemeToggle, ui.themeToggle);
+
+    if (ui.mobileFiltersButton) {
+      ui.mobileFiltersButton.addEventListener('click', () => {
+        openFilterPanel();
+      });
+    }
+
+    if (ui.mobileCategoryGuideButton) {
+      ui.mobileCategoryGuideButton.addEventListener('click', () => {
+        openGuide();
+      });
+    }
+
+    if (ui.mobileSettingsCategoryGuideButton) {
+      ui.mobileSettingsCategoryGuideButton.addEventListener('click', () => {
+        openGuide();
+      });
+    }
+
+    if (ui.mobileGestorButton) {
+      ui.mobileGestorButton.addEventListener('click', () => {
+        window.open('/gestor/', '_blank', 'noopener');
+      });
+    }
+
+    const syncMobileAuthActions = user => {
+      if (ui.mobileMyAccountButton) {
+        ui.mobileMyAccountButton.hidden = !user;
+      }
+      if (ui.mobileLogoutButton) {
+        ui.mobileLogoutButton.hidden = !user;
+      }
+      if (ui.mobileGoogleLoginButton) {
+        ui.mobileGoogleLoginButton.hidden = Boolean(user);
+      }
+      if (ui.mobileImportButton) {
+        ui.mobileImportButton.hidden = !user || user.auth_provider !== 'google';
+      }
+      if (ui.mobileRefreshButton) {
+        ui.mobileRefreshButton.hidden = !user;
+      }
+      if (ui.mobileClassifyButton) {
+        ui.mobileClassifyButton.hidden = !user;
+      }
+      if (ui.mobileDisplayModeButton) {
+        ui.mobileDisplayModeButton.hidden = !user || !ui.menuDisplayMode || ui.menuDisplayMode.hidden;
+      }
+      refreshMobileSettingsSummary(user);
+    };
+
+    syncMobileAuthActions(state.currentUser);
+    window.addEventListener('auth:changed', event => {
+      syncMobileAuthActions(event.detail ? event.detail.user : null);
+    });
+  }
+
+  async function refreshMobileSettingsSummary(user = state.currentUser) {
+    if (ui.mobileSettingsIdentitySummary) {
+      ui.mobileSettingsIdentitySummary.textContent = user
+        ? t('mobileSettingsHeroSignedIn', {
+            name: user.display_name || user.username || t('myAccount')
+          })
+        : t('mobileSettingsHeroGuest');
+    }
+    if (ui.mobileSettingsStatusValue) {
+      ui.mobileSettingsStatusValue.textContent = user
+        ? (user.auth_provider === 'google' ? 'Google' : t('menuSectionAccount'))
+        : t('notSignedIn');
+    }
+
+    if (!ui.mobileSettingsVersionValue) {
+      return;
+    }
+
+    if (swUpdateState.backendBuildId) {
+      ui.mobileSettingsVersionValue.textContent = String(swUpdateState.backendBuildId);
+      return;
+    }
+
+    const response = await api.getVersion();
+    if (!response.ok || !response.data || !response.data.backend_build_id) {
+      ui.mobileSettingsVersionValue.textContent = '-';
+      return;
+    }
+
+    swUpdateState.backendBuildId = String(response.data.backend_build_id);
+    ui.mobileSettingsVersionValue.textContent = swUpdateState.backendBuildId;
   }
 
   function getTimezone() {
@@ -1171,6 +1498,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    if (state.selectedCategoryId !== null) {
+      const channelsInCategory = getSelectedCategoryChannels();
+      const latest = channelsInCategory
+        .map(channel => channel.last_checked_at || channel.last_refreshed_at || channel.latest_video_published_at)
+        .filter(Boolean)
+        .map(value => new Date(value))
+        .filter(date => !Number.isNaN(date.getTime()))
+        .sort((left, right) => right.getTime() - left.getTime())[0] || null;
+
+      if (ui.headerContextEyebrow) {
+        ui.headerContextEyebrow.textContent = t('mobileTabCategories');
+      }
+      if (ui.headerContextTitle) {
+        ui.headerContextTitle.textContent = getSelectedCategoryLabel() || t('mobileTabCategories');
+      }
+      if (ui.headerContextDescription) {
+        ui.headerContextDescription.textContent = t('mobileChannelsCount', { count: channelsInCategory.length });
+      }
+      if (ui.headerContextMetrics) {
+        ui.headerContextMetrics.innerHTML = '';
+        [
+          { label: t('headerMetricSubscriptions'), value: String(channelsInCategory.length) },
+          {
+            label: t('headerMetricUnwatched'),
+            value: String(channelsInCategory.reduce((sum, channel) => sum + Number(channel.unwatched_total || 0), 0))
+          },
+          {
+            label: t('headerMetricRecent'),
+            value: String(channelsInCategory.reduce((sum, channel) => sum + Number(channel.recent_total_30 || 0), 0))
+          },
+          {
+            label: t('headerMetricUpdated'),
+            value: latest && typeof window.timeAgo === 'function'
+              ? window.timeAgo(latest.toISOString())
+              : latest
+                ? latest.toLocaleString()
+                : t('headerMetricNone')
+          }
+        ].forEach(metric => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'header-context__metric';
+          const title = document.createElement('dt');
+          title.textContent = metric.label || '';
+          const value = document.createElement('dd');
+          value.textContent = metric.value || '';
+          wrapper.appendChild(title);
+          wrapper.appendChild(value);
+          ui.headerContextMetrics.appendChild(wrapper);
+        });
+      }
+      if (ui.headerContextMedia && ui.headerContextImage) {
+        ui.headerContextMedia.hidden = true;
+        ui.headerContextImage.removeAttribute('src');
+        ui.headerContextImage.alt = '';
+      }
+      return;
+    }
+
     const context = window.buildHeaderContext(
       state.channels,
       state.selectedChannelId,
@@ -1577,6 +1962,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
 
+      if (state.selectedCategoryId !== null) {
+        const itemChannel = item.channel || state.channels.find(channel => (
+          String(channel.id) === String(item.video && item.video.channel_id)
+        )) || null;
+        if (!matchesSelectedCategory(itemChannel)) {
+          return false;
+        }
+      }
+
       if (state.filters.unwatched && item.watched) {
         return false;
       }
@@ -1950,6 +2344,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       return thumb;
     };
 
+    const getChannelRecencyLabel = channel => {
+      const timestamp = channel.last_video_published_at
+        || channel.latest_video_published_at
+        || channel.last_checked_at
+        || channel.last_refreshed_at
+        || null;
+
+      if (!timestamp) {
+        return t('mobileChannelNoRecentVideo');
+      }
+
+      if (typeof window.timeAgo === 'function') {
+        return window.timeAgo(timestamp);
+      }
+
+      const parsed = new Date(timestamp);
+      if (Number.isNaN(parsed.getTime())) {
+        return t('mobileChannelNoRecentVideo');
+      }
+
+      return parsed.toLocaleDateString();
+    };
+
     filtered.forEach(channel => {
       const item = document.createElement('div');
       item.className = 'channel-item';
@@ -1959,10 +2376,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       item.appendChild(buildThumbnail(channel));
 
+      const content = document.createElement('div');
+      content.className = 'channel-item__content';
+
       const name = document.createElement('span');
       name.className = 'channel-item__name';
       name.textContent = channel.title || channel.yt_channel_id || t('unknownChannel');
-      item.appendChild(name);
+      content.appendChild(name);
+
+      const recency = document.createElement('span');
+      recency.className = 'channel-item__recency';
+      recency.textContent = getChannelRecencyLabel(channel);
+      content.appendChild(recency);
+
+      item.appendChild(content);
 
       const meta = document.createElement('div');
       meta.className = 'channel-item__meta';
@@ -1993,6 +2420,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       status.setAttribute('aria-hidden', 'true');
       meta.appendChild(status);
 
+      const chevron = document.createElement('span');
+      chevron.className = 'channel-item__chevron';
+      chevron.setAttribute('aria-hidden', 'true');
+      chevron.textContent = '›';
+      meta.appendChild(chevron);
+
       item.appendChild(meta);
 
       ui.channelList.appendChild(item);
@@ -2017,6 +2450,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const nextYtId = item.dataset.ytChannelId || null;
         state.selectedChannelId = nextId;
         state.selectedChannelYtId = nextYtId || null;
+        state.selectedCategoryId = null;
+        state.selectedCategoryName = '';
         ui.channelList.querySelectorAll('.channel-item').forEach(node => {
           const nodeId = node.dataset.channelId || null;
           const nodeYtId = node.dataset.ytChannelId || null;
@@ -2032,6 +2467,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         updateHeaderContext();
         updateVideoCounts();
+        if (isPhoneMode()) {
+          setMobileView('home');
+        }
         if (state.searchActive) {
           runSearch(state.searchQuery);
         } else {
@@ -2100,11 +2538,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const count = Array.isArray(channels) ? channels.length : 0;
-    ui.channelCount.textContent = String(count);
+    ui.channelCount.textContent = t('mobileChannelsCount', { count });
   }
 
   async function updateVideoCounts() {
     if (!ui.videosCount && !ui.shortsCount) {
+      return;
+    }
+
+    if (state.selectedCategoryId !== null) {
+      const [videosResponse, shortsResponse] = await Promise.all([
+        api.getLatestVideos(200, 0, { content_type: 'video', since_days: 7, only_unwatched: true }),
+        api.getLatestVideos(200, 0, { content_type: 'short', since_days: 7, only_unwatched: true })
+      ]);
+
+      const videos = videosResponse.ok && videosResponse.data
+        ? applyFilters(videosResponse.data).videos.length
+        : 0;
+      const shorts = shortsResponse.ok && shortsResponse.data
+        ? applyFilters(shortsResponse.data).videos.length
+        : 0;
+
+      if (ui.videosCount) {
+        ui.videosCount.textContent = String(videos);
+      }
+      if (ui.shortsCount) {
+        ui.shortsCount.textContent = String(shorts);
+      }
       return;
     }
 
@@ -2366,7 +2826,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       await renderWatchedCarousel();
 
       if (typeof window.CategoryManager === 'function' && ui.categoryCarousels) {
-        state.categoryManager = new window.CategoryManager(api, 'category-carousels');
+        state.categoryManager = new window.CategoryManager(api, 'category-carousels', {
+          getSelectedCategoryId: () => state.selectedCategoryId,
+          onCategorySelect: category => {
+            const nextCategoryId = category && category.id != null ? Number(category.id) : null;
+            const isSameCategory = nextCategoryId !== null && nextCategoryId === state.selectedCategoryId;
+            state.selectedCategoryId = isSameCategory ? null : nextCategoryId;
+            state.selectedCategoryName = isSameCategory
+              ? ''
+              : (category.display_name_es || category.display_name_en || category.name || '');
+            state.selectedChannelId = null;
+            state.selectedChannelYtId = null;
+            renderChannelList(state.channels);
+            updateHeaderContext();
+            updateVideoCounts();
+            if (isPhoneMode()) {
+              setMobileView('home');
+            }
+            if (state.searchActive) {
+              runSearch(state.searchQuery);
+            } else {
+              reloadCarousels();
+            }
+          }
+        });
         await state.categoryManager.init();
         if (ui.categoriesSection) {
           ui.categoriesSection.hidden = false;
@@ -2393,7 +2876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Ocultar categorías automáticas cuando hay un canal seleccionado.
     // Solo se muestran cuando no hay canal activo (vista "All").
     if (ui.categoriesSection) {
-      ui.categoriesSection.hidden = state.selectedChannelId !== null;
+      ui.categoriesSection.hidden = state.selectedChannelId !== null || state.selectedCategoryId !== null;
     }
   }
 
@@ -3676,6 +4159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupChannelSidebarSearch();
     setupSearch();
     setupMenu();
+    setupMobileSettingsView();
     setupFilterPanel();
     if (window.ytcvDesktopShell && typeof window.ytcvDesktopShell.initDesktopShell === 'function') {
       window.ytcvDesktopShell.initDesktopShell();
@@ -3685,11 +4169,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (window.ytcvPhoneShell && typeof window.ytcvPhoneShell.initPhoneShell === 'function') {
       window.ytcvPhoneShell.initPhoneShell({
-        openFilters: openFilterPanel,
-        openMenu: () => {
-          if (typeof state.setMenuOpen === 'function') {
-            state.setMenuOpen(true);
-          }
+        onViewChange: view => {
+          setMobileView(view);
         }
       });
     }
@@ -3724,11 +4205,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupSettingsModal();
     setupConfirmModal();
     setupLanguageMenu();
+    setMobileView(state.mobileView);
     setupRefresh();
     setupImportButton();
     setupClassifyButton();
     setupKeyboardNavigation();
     setupDebug();
+    window.addEventListener('layout-mode:changed', () => {
+      setMobileView(state.mobileView);
+    });
     startLastUpdatedTicker();
 
     window.addEventListener('ytcv:update-available', event => {
@@ -3781,6 +4266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.channels = [];
       state.selectedChannelId = null;
       state.selectedChannelYtId = null;
+      state.selectedCategoryId = null;
+      state.selectedCategoryName = '';
       state.authenticatedDataBootstrapPromise = null;
       clearRefreshStatusPoller();
       state.refreshStatusSource = null;

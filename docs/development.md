@@ -22,6 +22,17 @@ This starts:
 - frontend on `http://localhost:8080`
 - backend on `http://localhost:5550`
 
+## Frontend Mobile Scroll + Cache Notes
+
+- Phone mode (`<= 767px`) uses document-level scrolling (`html/body`) to avoid
+  nested scroll traps in mobile emulation and touch devices.
+- Avoid reintroducing internal vertical scroll containers for primary mobile
+  app content unless strictly required.
+- Every frontend change requires rebuilding proxy image:
+  - `./scripts/dev_docker.sh up --build proxy`
+- Keep `frontend/sw.js` `CACHE_VERSION` updated so service worker clients fetch
+  the latest CSS/JS bundle.
+
 ## Container Baseline (v0.2.0)
 
 The v0.2.0 architecture baseline introduces repo-level infrastructure files in

@@ -272,8 +272,9 @@ class Carousel {
     const channel = item.channel || {};
     const watched = Boolean(item.watched);
     const isShort = typeof video.duration === 'number' && video.duration <= 60;
+    const isPhoneMode = document.documentElement.dataset.mode === 'phone';
     const showTitle = this.options.showTitle && !(this.options.hideTextForShorts && isShort);
-    const showDescription = this.options.showDescription && !(this.options.hideTextForShorts && isShort);
+    const showDescription = this.options.showDescription && !(this.options.hideTextForShorts && isShort) && !isPhoneMode;
 
     const card = document.createElement('article');
     card.className = 'video-card';
@@ -340,11 +341,24 @@ class Carousel {
 
     const details = document.createElement('p');
     details.className = 'video-card__meta video-card__details';
+    if (video.published_at) {
+      if (typeof window.timeAgo === 'function') {
+        details.textContent = window.timeAgo(video.published_at);
+      } else {
+        const publishedDate = new Date(video.published_at);
+        if (!Number.isNaN(publishedDate.getTime())) {
+          details.textContent = publishedDate.toLocaleDateString();
+        }
+      }
+    }
 
     const durationText = this.formatDuration(video.duration);
-    const durationEl = document.createElement('p');
-    durationEl.className = 'video-card__duration-line';
-    durationEl.textContent = durationText;
+    if (durationText) {
+      const durationBadge = document.createElement('span');
+      durationBadge.className = 'video-card__duration';
+      durationBadge.textContent = durationText;
+      thumb.appendChild(durationBadge);
+    }
 
     if (watched) {
       this.applyWatchedState(card, details, false);
@@ -362,9 +376,6 @@ class Carousel {
     }
     if (details.textContent) {
       body.appendChild(details);
-    }
-    if (durationText) {
-      body.appendChild(durationEl);
     }
 
     card.appendChild(thumb);

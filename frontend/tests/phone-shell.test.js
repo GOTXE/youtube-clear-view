@@ -8,9 +8,10 @@ describe('phone shell', () => {
       <div id="channel-sidebar-backdrop" hidden></div>
       <button id="channel-sidebar-close" type="button"></button>
       <nav id="phone-nav" hidden>
+        <button id="phone-nav-home" type="button"></button>
         <button id="phone-nav-channels" type="button"></button>
-        <button id="phone-nav-filters" type="button"></button>
-        <button id="phone-nav-menu" type="button"></button>
+        <button id="phone-nav-categories" type="button"></button>
+        <button id="phone-nav-settings" type="button"></button>
       </nav>
     `;
   });
@@ -18,44 +19,45 @@ describe('phone shell', () => {
   afterEach(() => {
     delete window.ytcvPhoneShell;
     delete document.documentElement.dataset.mode;
-    document.body.classList.remove('phone-sidebar-open');
   });
 
-  it('shows the mobile nav and toggles the subscriptions sheet', async () => {
+  it('shows the mobile nav and switches between tab views', async () => {
     await import('../js/phone-shell.js');
 
     const shell = window.ytcvPhoneShell.initPhoneShell({});
     expect(document.getElementById('phone-nav').hidden).toBe(false);
+    expect(shell.getActiveView()).toBe('home');
 
     document.getElementById('phone-nav-channels').click();
-    expect(document.body.classList.contains('phone-sidebar-open')).toBe(true);
-    expect(document.getElementById('channel-sidebar-backdrop').hidden).toBe(false);
+    expect(shell.getActiveView()).toBe('channels');
+    expect(document.getElementById('phone-nav-channels').classList.contains('is-active')).toBe(true);
 
     shell.closeChannelSheet();
-    expect(document.body.classList.contains('phone-sidebar-open')).toBe(false);
-    expect(document.getElementById('channel-sidebar-backdrop').hidden).toBe(true);
+    expect(shell.getActiveView()).toBe('home');
+    expect(document.getElementById('phone-nav-home').classList.contains('is-active')).toBe(true);
   });
 
-  it('routes filters and menu actions through callbacks', async () => {
-    const openFilters = vi.fn();
-    const openMenu = vi.fn();
+  it('notifies the app when the active mobile view changes', async () => {
+    const onViewChange = vi.fn();
 
     await import('../js/phone-shell.js');
-    window.ytcvPhoneShell.initPhoneShell({ openFilters, openMenu });
+    window.ytcvPhoneShell.initPhoneShell({ onViewChange });
 
-    document.getElementById('phone-nav-filters').click();
-    document.getElementById('phone-nav-menu').click();
+    document.getElementById('phone-nav-categories').click();
+    document.getElementById('phone-nav-settings').click();
 
-    expect(openFilters).toHaveBeenCalledTimes(1);
-    expect(openMenu).toHaveBeenCalledTimes(1);
+    expect(onViewChange).toHaveBeenCalledWith('categories', expect.objectContaining({ source: 'user' }));
+    expect(onViewChange).toHaveBeenCalledWith('settings', expect.objectContaining({ source: 'user' }));
   });
 
-  it('hides mobile nav and closes the sheet when leaving phone mode', async () => {
-    await import('../js/phone-shell.js');
-    const shell = window.ytcvPhoneShell.initPhoneShell({});
+  it('hides mobile nav and resets to home when leaving phone mode', async () => {
+    const onViewChange = vi.fn();
 
-    shell.openChannelSheet();
-    expect(document.body.classList.contains('phone-sidebar-open')).toBe(true);
+    await import('../js/phone-shell.js');
+    const shell = window.ytcvPhoneShell.initPhoneShell({ onViewChange });
+
+    shell.setActiveView('settings');
+    expect(shell.getActiveView()).toBe('settings');
 
     document.documentElement.dataset.mode = 'desktop_tablet';
     window.dispatchEvent(new CustomEvent('layout-mode:changed', {
@@ -63,6 +65,6 @@ describe('phone shell', () => {
     }));
 
     expect(document.getElementById('phone-nav').hidden).toBe(true);
-    expect(document.body.classList.contains('phone-sidebar-open')).toBe(false);
+    expect(onViewChange).toHaveBeenCalledWith('home', expect.objectContaining({ source: 'layout' }));
   });
 });

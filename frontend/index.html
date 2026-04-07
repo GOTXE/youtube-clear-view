@@ -36,13 +36,6 @@
         <p class="startup-scrim__brand">YT Clear View</p>
       </div>
     </div>
-    <div id="mobile-coming-soon" class="mobile-coming-soon">
-      <div class="mobile-coming-soon__card">
-        <h1 class="mobile-coming-soon__brand">YT Clear View</h1>
-        <p class="mobile-coming-soon__message" data-i18n="mobileComingSoon">Mobile version coming soon</p>
-        <p class="mobile-coming-soon__sub" data-i18n="mobileComingSoonSub">Use a tablet, desktop, or TV to access the app.</p>
-      </div>
-    </div>
     <div id="app" class="app" data-theme="dark">
       <header class="app-header" role="banner">
         <div class="header-row">
@@ -137,8 +130,8 @@
       </header>
 
       <main class="app-main" role="main">
-        <div id="library-view" class="app-layout">
-          <aside class="channel-sidebar" aria-label="Subscribed channels">
+        <div id="library-view" class="app-layout" data-mobile-view="home">
+          <aside id="channels-mobile-view" class="channel-sidebar" aria-label="Subscribed channels">
             <div class="channel-sidebar__mobile-header">
               <h2 class="heading-2">Subscriptions</h2>
               <button id="channel-sidebar-close" class="channel-sidebar__mobile-close" type="button" aria-label="Close">
@@ -174,9 +167,9 @@
             <div id="channel-list" class="channel-list" role="list"></div>
           </aside>
 
-          <div class="app-content">
+          <div id="home-mobile-view" class="app-content">
 
-            <section id="in-progress-section" class="carousel-section" aria-labelledby="in-progress-title" hidden>
+            <section id="in-progress-section" class="carousel-section mobile-home-section" aria-labelledby="in-progress-title" hidden>
               <div class="carousel-shell carousel-shell--with-header">
                 <div class="section-header">
                   <h2 id="in-progress-title" class="heading-2">
@@ -188,7 +181,7 @@
               </div>
             </section>
 
-            <section id="watched-section" class="carousel-section" aria-labelledby="watched-title" hidden>
+            <section id="watched-section" class="carousel-section mobile-home-section" aria-labelledby="watched-title" hidden>
               <div class="section-header">
                 <h2 id="watched-title" class="heading-2">
                   <span id="watched-label">Videos vistos</span>
@@ -198,7 +191,7 @@
               <div id="watched-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
-            <section class="carousel-section" aria-labelledby="latest-title">
+            <section class="carousel-section mobile-home-section" aria-labelledby="latest-title">
               <div class="carousel-shell carousel-shell--with-header">
                 <div class="carousel-shell__header">
                   <div class="section-header">
@@ -213,7 +206,7 @@
               </div>
             </section>
 
-            <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
+            <section id="shorts-section" class="carousel-section mobile-home-section" aria-labelledby="shorts-title">
               <div class="section-header">
                 <h2 id="shorts-title" class="heading-2">
                   <span id="shorts-label">Shorts (&lt; 7 days)</span>
@@ -223,21 +216,95 @@
               <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
-            <section id="older-section" class="carousel-section" aria-labelledby="older-title">
+            <section id="older-section" class="carousel-section mobile-home-section" aria-labelledby="older-title">
               <div class="section-header">
                 <h2 id="older-title" class="heading-2">Videos &amp; Shorts (&gt; 7 days)</h2>
               </div>
               <div id="older-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
-            <section id="categories-section" class="categories-section" aria-labelledby="categories-title">
-              <div class="section-header">
+            <section id="categories-section" class="categories-section mobile-categories-view" aria-labelledby="categories-title">
+              <div class="section-header mobile-categories-view__header">
                 <h2 id="categories-title" class="heading-2">
                   <span id="categories-label">Categorias Automaticas</span>
                 </h2>
+                <button id="mobile-category-guide-button" class="button button--ghost" type="button">Category guide</button>
               </div>
               <p id="categories-description" class="body">Canales organizados automaticamente por contenido</p>
               <div id="category-carousels" class="category-carousels" aria-live="polite"></div>
+            </section>
+
+            <section id="mobile-settings-view" class="mobile-settings-view" aria-labelledby="mobile-settings-title" hidden>
+              <div class="section-header">
+                <h2 id="mobile-settings-title" class="heading-2">Settings</h2>
+              </div>
+
+              <section class="mobile-settings-hero" aria-labelledby="mobile-settings-identity-title">
+                <p id="mobile-settings-identity-eyebrow" class="caption mobile-settings-hero__eyebrow">Device</p>
+                <h3 id="mobile-settings-identity-title" class="heading-2 mobile-settings-hero__title">Ready on this screen</h3>
+                <p id="mobile-settings-identity-summary" class="body mobile-settings-hero__summary">Sign in to sync channels, progress, and preferences.</p>
+                <dl class="mobile-settings-hero__meta">
+                  <div>
+                    <dt id="mobile-settings-status-label">Status</dt>
+                    <dd id="mobile-settings-status-value">Guest</dd>
+                  </div>
+                  <div>
+                    <dt id="mobile-settings-version-label">Version</dt>
+                    <dd id="mobile-settings-version-value">-</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-account-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-account-title" class="heading-3">Account</h3>
+                  <p id="mobile-settings-account-copy" class="caption mobile-settings-section__copy">Profile and session</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-google-login-button" class="button" type="button" hidden>Sign in with Google</button>
+                  <button id="mobile-my-account-button" class="button button--ghost" type="button" hidden>My account</button>
+                  <button id="mobile-logout-button" class="button button--ghost" type="button" hidden>Logout</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-channels-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-channels-title" class="heading-3">Channels</h3>
+                  <p id="mobile-settings-channels-copy" class="caption mobile-settings-section__copy">Import and refresh</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-import-subscriptions-button" class="button button--ghost" type="button" hidden>Import channels</button>
+                  <button id="mobile-refresh-videos" class="button button--ghost" type="button">Refresh videos</button>
+                  <button id="mobile-classify-channels-button" class="button button--ghost" type="button" hidden>Classify channels</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-viewing-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-viewing-title" class="heading-3">Viewing</h3>
+                  <p id="mobile-settings-viewing-copy" class="caption mobile-settings-section__copy">Filters and appearance</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-filters-button" class="button button--ghost" type="button">Filters</button>
+                  <button id="mobile-settings-category-guide-button" class="button button--ghost" type="button">Category guide</button>
+                  <button id="mobile-display-mode-button" class="button button--ghost" type="button" hidden>Display setup</button>
+                  <button id="mobile-theme-toggle" class="button button--ghost" type="button">Toggle theme</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-system-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-system-title" class="heading-3">System</h3>
+                  <p id="mobile-settings-system-copy" class="caption mobile-settings-section__copy">Language and tools</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-gestor-button" class="button button--ghost" type="button">Gestor</button>
+                </div>
+                <div class="menu-language mobile-settings-language" aria-label="Language selector">
+                  <button class="menu-language__button mobile-language-button" type="button" data-lang="es">🇪🇸 ES</button>
+                  <button class="menu-language__button mobile-language-button" type="button" data-lang="en">🇺🇸 EN</button>
+                </div>
+              </section>
             </section>
 
           </div>
@@ -248,14 +315,10 @@
       <div id="channel-sidebar-backdrop" class="channel-sidebar-backdrop" hidden></div>
 
       <nav id="phone-nav" class="phone-nav" aria-label="Mobile navigation" hidden>
-        <button id="phone-nav-channels" class="phone-nav__button phone-nav__button--icon" type="button" aria-label="Subscriptions">
-          <span class="phone-nav__sidebar-icon" aria-hidden="true">
-            <span class="phone-nav__sidebar-bar"></span>
-            <span class="phone-nav__sidebar-chevron">‹›</span>
-          </span>
-        </button>
-        <button id="phone-nav-filters" class="phone-nav__button" type="button">Filters</button>
-        <button id="phone-nav-menu" class="phone-nav__button" type="button">Menu</button>
+        <button id="phone-nav-home" class="phone-nav__button" type="button">Home</button>
+        <button id="phone-nav-channels" class="phone-nav__button" type="button">Channels</button>
+        <button id="phone-nav-categories" class="phone-nav__button" type="button">Categories</button>
+        <button id="phone-nav-settings" class="phone-nav__button" type="button">Settings</button>
       </nav>
 
       <section id="filter-panel" class="filter-panel" hidden>
@@ -385,8 +448,14 @@
                 <img id="player-overlay-channel-logo" class="player-overlay__channel-logo" alt="">
                 <span id="player-overlay-channel-name" class="player-overlay__channel-name"></span>
               </div>
-              <p id="player-overlay-description" class="body player-overlay__description"></p>
+              <div class="player-overlay__description-block">
+                <p id="player-overlay-description" class="body player-overlay__description"></p>
+                <button id="player-overlay-description-toggle" class="player-overlay__description-toggle" type="button" hidden>
+                  Show more
+                </button>
+              </div>
               <p id="player-overlay-confirm-message" class="body player-overlay__confirm-message" hidden></p>
+              <p id="player-overlay-actions-title" class="caption player-overlay__actions-title">Actions</p>
               <div class="player-overlay__actions">
                 <button id="player-overlay-mark-watched" class="button" type="button">Mark watched</button>
                 <button id="player-overlay-save-for-later" class="button button--ghost" type="button">Watch later</button>

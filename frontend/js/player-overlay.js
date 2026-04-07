@@ -32,11 +32,13 @@
   let resumeSeconds = 0;
   let playerInitTimer = null;
   let frameInstanceCounter = 0;
+  let descriptionExpanded = false;
 
   const PROGRESS_POLL_MS = 5000;
   const AUTO_MARK_RATIO = 0.95;
   const CONTINUE_WATCHING_PROMPT_RATIO = 1 / 3;
   const YT_API_TIMEOUT_MS = 4000;
+  const DESCRIPTION_TOGGLE_THRESHOLD = 220;
 
   const t = (key, vars) => (
     window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
@@ -77,6 +79,36 @@
       }
     }
     return parts.join(' \u2022 ');
+  }
+
+  function applyDescriptionState() {
+    if (!ui || !ui.description) {
+      return;
+    }
+    ui.description.classList.toggle('is-expanded', descriptionExpanded);
+    if (ui.descriptionToggle) {
+      ui.descriptionToggle.textContent = descriptionExpanded ? t('showLess') : t('showMore');
+      ui.descriptionToggle.setAttribute('aria-expanded', descriptionExpanded ? 'true' : 'false');
+    }
+  }
+
+  function setDescription(rawDescription) {
+    if (!ui || !ui.description) {
+      return;
+    }
+
+    const text = (rawDescription || '').trim();
+    descriptionExpanded = false;
+    ui.description.textContent = text;
+    ui.description.hidden = !text;
+
+    if (ui.descriptionToggle) {
+      const canExpand = text.length > DESCRIPTION_TOGGLE_THRESHOLD;
+      ui.descriptionToggle.hidden = !canExpand;
+      ui.descriptionToggle.disabled = !canExpand;
+    }
+
+    applyDescriptionState();
   }
 
   function getEmbedUrl(videoId, startSeconds, frameNonce = 0) {
@@ -434,6 +466,7 @@
     }
     ui.markWatched.disabled = currentWatched;
     ui.markWatched.textContent = currentWatched ? t('watchedBadge') : t('markWatched');
+    ui.markWatched.dataset.icon = currentWatched ? '✓' : '◉';
   }
 
   function syncProgressButtons() {
@@ -447,21 +480,26 @@
       ui.saveForLater.hidden = currentInContinueWatching || currentWatched || confirmVisible;
       ui.saveForLater.disabled = confirmBusy;
       ui.saveForLater.textContent = t('saveForLater');
+      ui.saveForLater.dataset.icon = '◷';
     }
     if (ui.removeProgress) {
       ui.removeProgress.hidden = !currentInContinueWatching || currentWatched || confirmVisible;
       ui.removeProgress.disabled = confirmBusy;
       ui.removeProgress.textContent = t('removeFromContinueWatching');
+      ui.removeProgress.dataset.icon = '−';
     }
     if (ui.confirmLater) {
       ui.confirmLater.hidden = !confirmVisible;
       ui.confirmLater.disabled = confirmBusy;
+      ui.confirmLater.dataset.icon = '→';
     }
     if (ui.copyUrl) {
       ui.copyUrl.hidden = confirmVisible;
+      ui.copyUrl.dataset.icon = '⧉';
     }
     if (ui.openYoutube) {
       ui.openYoutube.hidden = confirmVisible;
+      ui.openYoutube.dataset.icon = '↗';
     }
   }
 
@@ -549,9 +587,11 @@
 
     if (ui.markWatched) {
       ui.markWatched.textContent = t('addToContinueWatching');
+      ui.markWatched.dataset.icon = '+';
     }
     if (ui.confirmLater) {
       ui.confirmLater.textContent = t('skipContinueWatching');
+      ui.confirmLater.dataset.icon = '→';
     }
     syncProgressButtons();
 
@@ -580,6 +620,7 @@
             ? t('savingContinueWatching')
             : t('addToContinueWatching'))
         : (currentWatched ? t('watchedBadge') : t('markWatched'));
+      ui.markWatched.dataset.icon = confirmMode === 'continue-watching' ? '+' : (currentWatched ? '✓' : '◉');
     }
     if (ui.confirmLater && confirmMode === 'continue-watching') {
       ui.confirmLater.textContent = confirmBusy && action === 'skip'
@@ -644,6 +685,7 @@
     lastKnownPosition = 0;
     lastKnownDuration = 0;
     resumeSeconds = 0;
+    descriptionExpanded = false;
     sessionWatchStartedAt = 0;
     focusables = [];
 
@@ -875,10 +917,12 @@
       eyebrow: document.getElementById('player-overlay-eyebrow'),
       title: document.getElementById('player-overlay-title'),
       meta: document.getElementById('player-overlay-meta'),
+      actionsTitle: document.getElementById('player-overlay-actions-title'),
       channelBadge: document.getElementById('player-overlay-channel'),
       channelLogo: document.getElementById('player-overlay-channel-logo'),
       channelName: document.getElementById('player-overlay-channel-name'),
       description: document.getElementById('player-overlay-description'),
+      descriptionToggle: document.getElementById('player-overlay-description-toggle'),
       frame: document.getElementById('player-overlay-frame'),
       close: document.getElementById('player-overlay-close'),
       markWatched: document.getElementById('player-overlay-mark-watched'),
@@ -949,6 +993,13 @@
     if (ui.copyUrl) {
       ui.copyUrl.addEventListener('click', () => {
         handleCopyUrl();
+      });
+    }
+
+    if (ui.descriptionToggle) {
+      ui.descriptionToggle.addEventListener('click', () => {
+        descriptionExpanded = !descriptionExpanded;
+        applyDescriptionState();
       });
     }
 
@@ -1028,11 +1079,11 @@
     if (ui.channelName) {
       ui.channelName.textContent = channel && channel.title ? channel.title : '';
     }
-    const rawDescription = (video.description || '').trim();
-    ui.description.textContent = typeof window.truncateText === 'function'
-      ? window.truncateText(rawDescription, 420)
-      : rawDescription;
+    setDescription(video.description || '');
     ui.openYoutube.textContent = t('openOnYouTube');
+    if (ui.actionsTitle) {
+      ui.actionsTitle.textContent = t('playerActionsLabel');
+    }
     if (ui.copyUrl) {
       ui.copyUrl.textContent = t('copyVideoUrl');
     }

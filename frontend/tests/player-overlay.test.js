@@ -12,6 +12,7 @@ describe('player overlay', () => {
           <h2 id="player-overlay-title"></h2>
           <p id="player-overlay-meta"></p>
           <p id="player-overlay-description"></p>
+          <button id="player-overlay-description-toggle" type="button" hidden>Show more</button>
           <iframe id="player-overlay-frame" src="about:blank"></iframe>
           <button id="player-overlay-close" type="button">Close</button>
           <button id="player-overlay-mark-watched" type="button">Mark watched</button>
@@ -31,7 +32,9 @@ describe('player overlay', () => {
           markWatched: 'Mark watched',
           watchedBadge: 'Watched',
           untitledVideo: 'Untitled video',
-          nowPlaying: 'Now playing'
+          nowPlaying: 'Now playing',
+          showMore: 'Show more',
+          showLess: 'Show less'
         };
         return translations[key] || key;
       }
@@ -75,7 +78,8 @@ describe('player overlay', () => {
     expect(document.getElementById('player-overlay').hidden).toBe(false);
     expect(document.getElementById('player-overlay-title').textContent).toBe('Overlay video');
     expect(document.getElementById('player-overlay-meta').textContent).toContain('Overlay channel');
-    expect(document.getElementById('player-overlay-frame').src).toContain('/embed/abc123');
+    await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
+    expect(document.querySelector('.player-overlay__frame').src).toContain('/embed/abc123');
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
@@ -124,5 +128,37 @@ describe('player overlay', () => {
 
     document.getElementById('player-overlay-open-youtube').click();
     expect(window.open).toHaveBeenCalledWith('https://www.youtube.com/watch?v=abc123', '_blank', 'noopener');
+  });
+
+  it('can expand and collapse long descriptions', async () => {
+    await import('../js/player-overlay.js');
+
+    window.ytcvPlayerOverlay.openVideoOverlay({
+      video: {
+        yt_video_id: 'abc123',
+        title: 'Overlay video',
+        description: 'Long description. '.repeat(30),
+        published_at: '2026-03-17T10:00:00Z',
+        duration: 600
+      },
+      channel: {
+        title: 'Overlay channel'
+      }
+    });
+
+    const description = document.getElementById('player-overlay-description');
+    const toggle = document.getElementById('player-overlay-description-toggle');
+
+    expect(toggle.hidden).toBe(false);
+    expect(description.classList.contains('is-expanded')).toBe(false);
+    expect(toggle.textContent).toBe('Show more');
+
+    toggle.click();
+    expect(description.classList.contains('is-expanded')).toBe(true);
+    expect(toggle.textContent).toBe('Show less');
+
+    toggle.click();
+    expect(description.classList.contains('is-expanded')).toBe(false);
+    expect(toggle.textContent).toBe('Show more');
   });
 });

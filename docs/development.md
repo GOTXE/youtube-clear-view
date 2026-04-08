@@ -5,7 +5,7 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r backend/requirements.txt
+pip install -r backend/requirements-dev.txt
 cd frontend && npm install
 ```
 

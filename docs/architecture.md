@@ -126,7 +126,7 @@ Frontend and API live on different hostnames. This requires strict CORS and cook
 Channels can be automatically classified using two strategies:
 
 - **YouTube Topics** (`youtube_topics`): maps YouTube topic IDs from channel metadata to categories.
-- **TF-IDF** (`tfidf`): analyses channel descriptions and video titles to assign categories based on text similarity.
+- **TF-IDF** (`tfidf`): analyses channel descriptions and video titles to assign categories based on text similarity. Implemented in pure Python (stdlib only — no external dependencies).
 
 Manual overrides via `PUT /api/channels/<id>/category` always take precedence over automatic classification.
 

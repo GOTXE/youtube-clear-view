@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import requests
 from flask import Blueprint, Response, current_app, g, jsonify, redirect, request, send_file, stream_with_context
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from app.extensions import db
 from app.logging.logger import get_logger
@@ -19,6 +19,16 @@ from app.services import ClassificationService
 from app.services.google_oauth import ensure_access_token
 from app.models import UserSettings
 from app.services.presets import DEFAULT_PRESET
+from app.services.enrichment_task import enrich_status_dict, start_enrich_task
+from app.services.refresh_governance import acquire_manual_refresh, evaluate_manual_refresh
+from app.services.refresh_jobs import (
+    get_active_global_refresh_job,
+    get_active_refresh_job,
+    get_latest_refresh_job,
+    is_global_refresh_running,
+    start_refresh_job,
+)
+from app.services.quota import get_global_quota_snapshot
 from app.services.video_ingest import (
     iter_refresh_user_channels,
     refresh_user_channels,
@@ -26,6 +36,7 @@ from app.services.video_ingest import (
 )
 from app.services.yt_api import YTService
 from app.services.yt_oauth import fetch_subscriptions_page
+from app.utils.time import utc_now
 
 channels_bp = Blueprint("channels", __name__)
 logger = get_logger(__name__)
@@ -67,7 +78,7 @@ def _thumbnail_is_stale(channel):
     cached_path = os.path.join(cache_dir, channel.thumbnail_cache_path)
     if not os.path.exists(cached_path):
         return True
-    cutoff = datetime.utcnow() - timedelta(days=THUMBNAIL_TTL_DAYS)
+    cutoff = utc_now() - timedelta(days=THUMBNAIL_TTL_DAYS)
     return channel.thumbnail_cached_at < cutoff
 
 
@@ -104,7 +115,7 @@ def _cache_channel_thumbnail(channel):
         file_handle.write(response.content)
 
     channel.thumbnail_cache_path = filename
-    channel.thumbnail_cached_at = datetime.utcnow()
+    channel.thumbnail_cached_at = utc_now()
     db.session.commit()
 
     return cached_path
@@ -154,6 +165,48 @@ def _forbidden(message):
     return jsonify({"error": "Forbidden.", "tracking_id": tracking_id, "status": 403}), 403
 
 
+def _manual_refresh_block_response(decision):
+    """Build a structured JSON response for a blocked manual refresh."""
+    reason = decision.get("reason")
+    if reason == "refresh_in_progress":
+        error_message = "Refresh already in progress."
+    else:
+        error_message = "Refresh cooldown active."
+
+    payload = {
+        "error": error_message,
+        "status": decision.get("status_code", 409),
+        "blocked": True,
+        "reason": reason,
+        "scope": decision.get("scope"),
+        "active_scope": decision.get("active_scope"),
+        "active_started_at": decision.get("active_started_at"),
+        "cooldown_seconds": decision.get("cooldown_seconds"),
+        "last_activity_at": decision.get("last_activity_at"),
+        "next_allowed_at": decision.get("next_allowed_at"),
+        "retry_after_seconds": decision.get("retry_after_seconds", 0),
+    }
+    return jsonify(payload), decision.get("status_code", 409)
+
+
+def _manual_refresh_block_event(decision, refreshed_at):
+    """Build an SSE payload for a blocked manual refresh."""
+    event = {
+        "type": "blocked",
+        "blocked": True,
+        "reason": decision.get("reason"),
+        "scope": decision.get("scope"),
+        "active_scope": decision.get("active_scope"),
+        "active_started_at": decision.get("active_started_at"),
+        "cooldown_seconds": decision.get("cooldown_seconds"),
+        "last_activity_at": decision.get("last_activity_at"),
+        "next_allowed_at": decision.get("next_allowed_at"),
+        "retry_after_seconds": decision.get("retry_after_seconds", 0),
+        "refreshed_at": refreshed_at.isoformat(),
+    }
+    return "event: refresh\ndata: " + json.dumps(event) + "\n\n"
+
+
 def _extract_thumbnail(thumbnails):
     """Pick the best thumbnail URL from YT thumbnail data."""
     if not thumbnails:
@@ -181,8 +234,8 @@ def list_channels():
     latest_video_map = {}
 
     if channel_ids:
-        cutoff_7 = datetime.utcnow() - timedelta(days=7)
-        cutoff_30 = datetime.utcnow() - timedelta(days=30)
+        cutoff_7 = utc_now() - timedelta(days=7)
+        cutoff_30 = utc_now() - timedelta(days=30)
 
         latest_rows = (
             db.session.query(Video.channel_id, func.max(Video.published_at))
@@ -220,11 +273,7 @@ def list_channels():
             )
         }
 
-        watched_subquery = (
-            db.session.query(WatchedVideo.video_id)
-            .filter_by(user_id=user.id)
-            .subquery()
-        )
+        watched_subquery = select(WatchedVideo.video_id).filter_by(user_id=user.id)
 
         recent_unwatched_7 = {
             row[0]: row[1]
@@ -393,7 +442,7 @@ def unsubscribe_channel(channel_id):
 @handle_route_errors
 @require_auth
 def refresh_channels():
-    """Refresh videos for one or all subscribed channels."""
+    """Create a backend-owned manual refresh job."""
     user = g.current_user
     payload = request.get_json(silent=True) or {}
     channel_id = payload.get("channel_id")
@@ -413,17 +462,78 @@ def refresh_channels():
         db.session.commit()
 
     service = _get_service()
-    refreshed_at = datetime.utcnow()
-    result = refresh_user_channels(
-        user,
-        settings,
-        service,
+    refreshed_at = utc_now()
+    cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
+    if not cooldown_decision.get("allowed"):
+        return _manual_refresh_block_response(cooldown_decision)
+
+    quota_snapshot = get_global_quota_snapshot(settings.timezone)
+    if quota_snapshot.get("quota_exhausted"):
+        logger.info("Manual refresh rejected because upstream quota is exhausted (user_id=%s)", user.id)
+        return jsonify(
+            {
+                "error": "Manual refresh blocked.",
+                "reason": "quota_exhausted",
+                "message": "La cuota de YouTube esta agotada. Los updates quedan en pausa hasta el siguiente reinicio oficial.",
+                "quota": quota_snapshot,
+                "status": 429,
+            }
+        ), 429
+
+    if is_global_refresh_running():
+        logger.info("Manual refresh rejected because a global refresh is running (user_id=%s)", user.id)
+        return jsonify(
+            {
+                "error": "Manual refresh blocked.",
+                "reason": "global_refresh_running",
+                "message": "Ahora mismo hay una actualizacion general en curso. Cuando termine, tus videos estarán actualizados.",
+                "status": 409,
+            }
+        ), 409
+
+    job = start_refresh_job(
+        user.id,
+        kind="manual",
         channel_id=channel_id,
         ignore_last_refreshed=backfill,
-        now=refreshed_at,
+    )
+    logger.info(
+        "Manual refresh request accepted (user_id=%s, job_id=%s, channel_id=%s, backfill=%s)",
+        user.id,
+        job.id,
+        channel_id,
+        backfill,
     )
 
-    return jsonify({"new_videos": result.get("new_videos", 0), "refreshed_at": refreshed_at.isoformat()})
+    return jsonify(
+        {
+            "status": "accepted",
+            "job": job.to_dict(),
+            "scope": cooldown_decision.get("scope"),
+            "refreshed_at": refreshed_at.isoformat(),
+        }
+    ), 202
+
+
+@channels_bp.get("/api/channels/refresh/status")
+@handle_route_errors
+@require_auth
+def refresh_channels_status():
+    """Return current manual and global refresh status for the current user."""
+    denied_channel_id = request.args.get("channel_id", type=int)
+    job = get_active_refresh_job(g.current_user.id, kind="manual")
+    if not job:
+        job = get_latest_refresh_job(g.current_user.id, kind="manual")
+    if denied_channel_id and job and job.scope_channel_id != denied_channel_id:
+        job = None
+
+    global_job = get_active_global_refresh_job()
+    return jsonify(
+        {
+            "job": job.to_dict() if job else None,
+            "global_job": global_job.to_dict() if global_job else None,
+        }
+    )
 
 
 @channels_bp.get("/api/channels/refresh/stream")
@@ -447,7 +557,16 @@ def refresh_channels_stream():
         db.session.add(settings)
         db.session.commit()
 
-    refreshed_at = datetime.utcnow()
+    refreshed_at = utc_now()
+    cooldown_decision = evaluate_manual_refresh(user.id, channel_id=channel_id, now=refreshed_at)
+    if not cooldown_decision.get("allowed"):
+        def blocked_generate():
+            yield _manual_refresh_block_event(cooldown_decision, refreshed_at)
+
+        response = Response(stream_with_context(blocked_generate()), mimetype="text/event-stream")
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Accel-Buffering"] = "no"
+        return response
 
     def generate():
         stream_user = db.session.get(type(user), user_id)
@@ -458,19 +577,24 @@ def refresh_channels_stream():
             db.session.commit()
 
         service = _get_service()
-        yield "event: refresh\ndata: " + json.dumps(
-            {"type": "stream_opened", "refreshed_at": refreshed_at.isoformat()}
-        ) + "\n\n"
-        for event in iter_refresh_user_channels(
-            stream_user,
-            stream_settings,
-            service,
-            channel_id=channel_id,
-            ignore_last_refreshed=backfill,
-            now=refreshed_at,
-        ):
-            event.setdefault("refreshed_at", refreshed_at.isoformat())
-            yield "event: refresh\ndata: " + json.dumps(event) + "\n\n"
+        with acquire_manual_refresh(user_id, channel_id=channel_id, now=refreshed_at) as lease:
+            if not lease.get("acquired"):
+                yield _manual_refresh_block_event(lease, refreshed_at)
+                return
+
+            yield "event: refresh\ndata: " + json.dumps(
+                {"type": "stream_opened", "refreshed_at": refreshed_at.isoformat()}
+            ) + "\n\n"
+            for event in iter_refresh_user_channels(
+                stream_user,
+                stream_settings,
+                service,
+                channel_id=channel_id,
+                ignore_last_refreshed=backfill,
+                now=refreshed_at,
+            ):
+                event.setdefault("refreshed_at", refreshed_at.isoformat())
+                yield "event: refresh\ndata: " + json.dumps(event) + "\n\n"
 
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
     response.headers["Cache-Control"] = "no-cache"
@@ -508,6 +632,7 @@ def import_subscriptions():
         access_token,
         page_token=page_token,
         max_results=max_results,
+        user_id=user.id,
     )
     if items is None:
         if error_status in (401, 403):
@@ -562,7 +687,7 @@ def import_subscriptions():
             subscription = UserChannel(
                 user_id=user.id,
                 channel_id=channel.id,
-                subscribed_at=subscribed_at or datetime.utcnow(),
+                subscribed_at=subscribed_at or utc_now(),
             )
             db.session.add(subscription)
             new_subscriptions += 1
@@ -741,7 +866,7 @@ def rate_channel(channel_id):
         return _bad_request("Rating must be between 1 and 5.")
 
     subscription.rating = rating
-    subscription.rated_at = datetime.utcnow()
+    subscription.rated_at = utc_now()
     db.session.commit()
 
     return jsonify({
@@ -959,3 +1084,48 @@ def enrich_channel_video_evidence():
         "remaining_unclassified": remaining,
         "message": f"Processed {channels_processed} channels with recent video evidence.",
     })
+
+
+@channels_bp.post("/api/channels/classify")
+@handle_route_errors
+@require_auth
+def start_classify_task():
+    """Start a background enrichment + classification task."""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    mode = str(payload.get("mode") or "basic").strip().lower()
+    if mode not in {"basic", "full"}:
+        return _bad_request("Invalid classify mode.")
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=user.id, preset=DEFAULT_PRESET)
+        db.session.add(settings)
+        db.session.commit()
+
+    try:
+        status = start_enrich_task(current_app._get_current_object(), user, settings, mode=mode)
+    except ValueError:
+        return jsonify(enrich_status_dict(settings)), 409
+
+    if status is None:
+        return jsonify({
+            "active": False,
+            "mode": mode,
+            "message": "No channels need classification work.",
+        })
+
+    return jsonify(status), 202
+
+
+@channels_bp.get("/api/channels/classify/status")
+@handle_route_errors
+@require_auth
+def classify_status():
+    """Return the current enrichment task status."""
+    user = g.current_user
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        return jsonify({"active": False, "phase": None, "cursor": 0, "total": 0,
+                        "classified": 0, "errors": 0, "started_at": None})
+
+    return jsonify(enrich_status_dict(settings))

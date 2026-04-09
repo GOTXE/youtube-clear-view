@@ -59,8 +59,9 @@
     }
 
     if (ui.toggleButton) {
-      const icon = safeTheme === 'dark' ? '🌙' : '☀️';
-      const modeKey = safeTheme === 'dark' ? 'themeDark' : 'themeLight';
+      const nextTheme = safeTheme === 'dark' ? 'light' : 'dark';
+      const icon = nextTheme === 'dark' ? '🌙' : '☀️';
+      const modeKey = nextTheme === 'dark' ? 'themeDark' : 'themeLight';
       const label = t(modeKey);
       ui.toggleButton.setAttribute('aria-pressed', safeTheme === 'dark');
       const labelSpan = ui.toggleButton.querySelector('.button__label');
@@ -99,21 +100,7 @@
   }
 
   function initTheme() {
-    let theme = null;
-
-    if (typeof window.getCurrentUser === 'function') {
-      const user = window.getCurrentUser();
-      if (user && user.theme_preference) {
-        theme = user.theme_preference;
-      }
-    }
-
-    if (!THEMES.includes(theme)) {
-      const stored = readStoredTheme();
-      theme = THEMES.includes(stored) ? stored : DEFAULT_THEME;
-    }
-
-    applyTheme(theme);
+    applyTheme(DEFAULT_THEME);
 
     if (ui.toggleButton) {
       ui.toggleButton.addEventListener('click', () => {
@@ -123,8 +110,8 @@
 
     window.addEventListener('auth:changed', event => {
       const user = event.detail ? event.detail.user : null;
-      if (user && user.theme_preference) {
-        applyTheme(user.theme_preference);
+      if (!user) {
+        applyTheme(DEFAULT_THEME);
       }
     });
   }

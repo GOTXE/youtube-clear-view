@@ -1,8 +1,7 @@
 """Category domain models for automatic channel classification."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class Category(db.Model):
@@ -16,7 +15,7 @@ class Category(db.Model):
     color = db.Column(db.String(7), nullable=False)
     icon = db.Column(db.String(10))
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     channel_categories = db.relationship(
         "ChannelCategory", back_populates="category", cascade="all, delete-orphan"
@@ -49,8 +48,8 @@ class ChannelCategory(db.Model):
     is_auto_classified = db.Column(db.Boolean, nullable=False, default=True)
     classification_method = db.Column(db.String(20))
     confidence_score = db.Column(db.Float)
-    classified_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    last_updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    classified_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    last_updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
     channel = db.relationship("Channel", back_populates="channel_category")
     category = db.relationship("Category", back_populates="channel_categories")

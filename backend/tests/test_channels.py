@@ -1,13 +1,13 @@
 """Channel route tests with mocked YT service."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
 from app import create_app
 from app.extensions import db
 from app.migrations import ensure_category_schema
-from app.models import User, Video, WatchedVideo
+from app.models import User, UserChannel, Video, WatchedVideo
 
 
 class TestConfig:
@@ -23,10 +23,14 @@ class TestConfig:
     LOG_FILE = "logs/test.log"
     LOG_MAX_SIZE = 1024 * 1024
     LOG_BACKUP_COUNT = 1
-    LOG_VIEWER_USER = "test"
-    LOG_VIEWER_PASSWORD = "test"
-    LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    MANUAL_REFRESH_FULL_COOLDOWN_SECONDS = 0
+    MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS = 0
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
+
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
 
     @staticmethod
     def validate():
@@ -48,7 +52,7 @@ class FakeYTService:
         }
 
     def get_channel_videos(self, channel_id, max_results=50, page_token=None):
-        published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return {
             "videos": [
                 {
@@ -69,6 +73,8 @@ class FakeYTService:
 @pytest.fixture()
 def app(monkeypatch):
     monkeypatch.setattr("app.routes.channels.YTService", FakeYTService)
+    monkeypatch.setattr("app.config.Config.MANUAL_REFRESH_FULL_COOLDOWN_SECONDS", 0, raising=False)
+    monkeypatch.setattr("app.config.Config.MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS", 0, raising=False)
     app = create_app(TestConfig)
     with app.app_context():
         db.drop_all()
@@ -86,7 +92,12 @@ def client(app):
 
 
 def _login(client, username):
-    return client.post("/api/auth/login", json={"username": username})
+    # Try to register (creates + logs in for fresh users).
+    # Fall back to legacy login for users pre-created without a password.
+    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if reg.status_code == 201:
+        return reg
+    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
 
 
 def test_list_channels_empty(client):
@@ -171,6 +182,47 @@ def test_refresh_stream_emits_incremental_events(client):
     assert '"channel_new_videos": 1' in body
 
 
+def test_refresh_blocked_by_cooldown(client, app):
+    _login(client, "frank")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    with app.app_context():
+        user = User.query.filter_by(username="frank").first()
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        subscription.last_checked_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=5)
+        ).replace(tzinfo=None)
+        db.session.commit()
+
+    response = client.post("/api/channels/refresh", json={"channel_id": channel_id})
+    assert response.status_code == 429
+    data = response.get_json()
+    assert data["blocked"] is True
+    assert data["reason"] == "cooldown_active"
+    assert data["scope"]["type"] == "channel"
+
+
+def test_refresh_stream_emits_blocked_event_when_cooldown_active(client, app):
+    _login(client, "george")
+    response = client.post("/api/channels/subscribe", json={"yt_channel_id": "chan"})
+    channel_id = response.get_json()["id"]
+
+    with app.app_context():
+        user = User.query.filter_by(username="george").first()
+        subscription = UserChannel.query.filter_by(user_id=user.id, channel_id=channel_id).first()
+        subscription.last_checked_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=5)
+        ).replace(tzinfo=None)
+        db.session.commit()
+
+    response = client.get(f"/api/channels/refresh/stream?channel_id={channel_id}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert '"type": "blocked"' in body
+    assert '"reason": "cooldown_active"' in body
+
+
 def test_refresh_updates_existing_video_evidence(client, app, monkeypatch):
     """Refreshing should update evidence on already stored videos."""
     class StatefulYTService(FakeYTService):
@@ -180,7 +232,7 @@ def test_refresh_updates_existing_video_evidence(client, app, monkeypatch):
 
         def get_channel_videos(self, channel_id, max_results=50, page_token=None):
             self.call_count += 1
-            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             if self.call_count == 1:
                 return {
                     "videos": [
@@ -244,7 +296,7 @@ def test_enrich_video_evidence_classifies_unclassified_channel(client, app, monk
     """Manual video-evidence enrichment should classify channels without topic metadata."""
     class EvidenceService(FakeYTService):
         def get_channel_videos(self, channel_id, max_results=50, page_token=None):
-            published_at = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            published_at = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             return {
                 "videos": [
                     {

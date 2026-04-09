@@ -48,9 +48,16 @@
   const language = resolveLanguage();
   document.documentElement.setAttribute('lang', language);
 
+  const resolveAssetPath = path => {
+    if (!path) {
+      return path;
+    }
+    return path.startsWith('/') ? path : `/${path.replace(/^\/+/, '')}`;
+  };
+
   const loadJson = async path => {
     try {
-      const response = await fetch(path, { cache: 'no-store' });
+      const response = await fetch(resolveAssetPath(path));
       if (!response.ok) {
         return {};
       }

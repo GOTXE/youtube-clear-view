@@ -1,6 +1,6 @@
 """Google OAuth helpers for login and token refresh."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import requests
@@ -8,10 +8,13 @@ from flask import current_app
 
 from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
+from app.utils.time import utc_now
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
 logger = get_logger(__name__)
 
@@ -106,11 +109,12 @@ def apply_token_response(user, token_data):
     scope = token_data.get("scope") or current_app.config.get("GOOGLE_OAUTH_SCOPES")
     if scope:
         user.google_scopes = scope
+    user.google_auth_status = "active"
 
     expires_in = token_data.get("expires_in")
     if expires_in:
         try:
-            user.google_token_expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
+            user.google_token_expires_at = utc_now() + timedelta(seconds=int(expires_in))
         except (TypeError, ValueError):
             user.google_token_expires_at = None
 
@@ -124,7 +128,7 @@ def ensure_access_token(user, leeway_seconds=60):
 
     if user.google_access_token and user.google_token_expires_at:
         refresh_at = user.google_token_expires_at - timedelta(seconds=leeway_seconds)
-        if datetime.utcnow() < refresh_at:
+        if utc_now() < refresh_at:
             return user.google_access_token
 
     if user.google_access_token and not user.google_token_expires_at:
@@ -136,9 +140,130 @@ def ensure_access_token(user, leeway_seconds=60):
     token_data = refresh_access_token(user.google_refresh_token)
     if not token_data:
         return None
+    if token_data.get("error") == "invalid_grant":
+        user.google_auth_status = "needs_reauth"
+        return None
+    if not token_data.get("access_token"):
+        return None
 
     apply_token_response(user, token_data)
     return user.google_access_token
+
+
+def revoke_google_tokens(refresh_token):
+    """Revoke a stored Google refresh token."""
+    if not refresh_token:
+        return False
+
+    try:
+        response = requests.post(
+            GOOGLE_REVOKE_URL,
+            data={"token": refresh_token},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+    except requests.RequestException as error:
+        logger.warning(
+            "Google OAuth revoke request failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return False
+
+    return response.ok
+
+
+def request_device_code():
+    """Request a device code from Google for the OAuth device flow.
+
+    Returns a dict with keys: device_code, user_code, verification_url,
+    expires_in, interval — or None on failure.
+    """
+    config = current_app.config
+    client_id = config.get("GOOGLE_DEVICE_CLIENT_ID")
+    scopes = config.get("GOOGLE_OAUTH_SCOPES")
+    if not client_id:
+        logger.warning(
+            "Cannot request device code: GOOGLE_DEVICE_CLIENT_ID not configured.",
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    try:
+        response = requests.post(
+            GOOGLE_DEVICE_CODE_URL,
+            data={"client_id": client_id, "scope": scopes},
+            timeout=10,
+        )
+    except requests.RequestException as error:
+        logger.warning(
+            "Google device code request failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    if not response.ok:
+        logger.warning(
+            "Google device code request returned %s: %s",
+            response.status_code,
+            response.text[:200],
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    return response.json()
+
+
+def poll_device_token(device_code):
+    """Poll Google for a token using the device code.
+
+    Returns a dict with one of:
+    - Token data (access_token, refresh_token, etc.) on success.
+    - {"pending": True} if the user hasn't authorized yet.
+    - {"error": "<code>"} on terminal errors (expired, access_denied, etc.).
+    - None on network/request failure.
+    """
+    config = current_app.config
+    payload = {
+        "client_id": config.get("GOOGLE_DEVICE_CLIENT_ID"),
+        "client_secret": config.get("GOOGLE_DEVICE_CLIENT_SECRET"),
+        "device_code": device_code,
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+    }
+
+    try:
+        response = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=10)
+    except requests.RequestException as error:
+        logger.warning(
+            "Google device token poll failed: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+        return None
+
+    data = {}
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+
+    if response.ok:
+        return data
+
+    error_code = data.get("error", "")
+    if error_code == "authorization_pending":
+        return {"pending": True}
+    if error_code == "slow_down":
+        return {"pending": True, "slow_down": True}
+
+    # Terminal errors: expired_token, access_denied, etc.
+    logger.info(
+        "Device flow token poll terminal error: %s",
+        error_code,
+        extra={"tracking_id": generate_tracking_id()},
+    )
+    return {"error": error_code}
 
 
 def _post_token(payload, action):
@@ -161,6 +286,9 @@ def _post_token(payload, action):
             response.status_code,
             extra={"tracking_id": generate_tracking_id()},
         )
-        return None
+        try:
+            return response.json()
+        except ValueError:
+            return None
 
     return response.json()

@@ -5,23 +5,31 @@ class APIClient {
     this.baseURL = baseURL || '';
     this.timeout = timeout || 30000;
     this.maxRetries = 3;
+    this._csrfToken = null;
+  }
+
+  setCsrfToken(token) {
+    this._csrfToken = token || null;
   }
 
   async request(endpoint, method = 'GET', body = null, headers = {}, attempt = 0) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
     const url = `${this.baseURL}${endpoint}`;
+    const mergedHeaders = { ...headers };
+    // Attach CSRF token to state-changing requests
+    if (this._csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      mergedHeaders['X-CSRF-Token'] = this._csrfToken;
+    }
     const options = {
       method,
       credentials: 'include',
       signal: controller.signal,
-      headers: {
-        ...headers
-      }
+      headers: mergedHeaders
     };
 
     if (body !== null) {
-      options.headers['Content-Type'] = 'application/json';
+      mergedHeaders['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
     }
 
@@ -49,6 +57,7 @@ class APIClient {
         return {
           ok: false,
           status: response.status,
+          data,
           error: data && data.error ? data.error : 'Request failed',
           tracking_id: data && data.tracking_id ? data.tracking_id : null
         };
@@ -85,17 +94,51 @@ class APIClient {
     return this.request(endpoint, 'PUT', body);
   }
 
-  async delete(endpoint) {
-    return this.request(endpoint, 'DELETE');
+  async delete(endpoint, body = null) {
+    return this.request(endpoint, 'DELETE', body);
   }
 
   // Auth endpoints
-  login(username) {
-    return this.post('/api/auth/login', { username });
+  login(username, password) {
+    const body = password ? { username, password } : { username };
+    return this.post('/api/auth/login', body);
+  }
+
+  adminLogin(username, password) {
+    const body = password ? { username, password } : { username };
+    return this.request('/api/auth/login', 'POST', body, { 'X-YTCV-Surface': 'gestor' });
+  }
+
+  register(username, password) {
+    return this.post('/api/auth/register', { username, password });
+  }
+
+  completeSetup(username, password) {
+    return this.post('/api/auth/google/complete-setup', { username, password });
+  }
+
+  changePassword(currentPassword, newPassword) {
+    return this.post('/api/auth/profile/password', { current_password: currentPassword, new_password: newPassword });
+  }
+
+  googleLinkUrl() {
+    return this.get('/api/auth/google/link');
+  }
+
+  fallbackLogin(identifier, code, method) {
+    return this.post('/api/auth/fallback-login', { identifier, code, method });
   }
 
   logout() {
     return this.post('/api/auth/logout');
+  }
+
+  logoutAll() {
+    return this.post('/api/auth/logout/all');
+  }
+
+  adminLogout() {
+    return this.post('/api/admin/auth/logout');
   }
 
   getAuthProvider() {
@@ -106,8 +149,59 @@ class APIClient {
     return this.get('/api/auth/users');
   }
 
+  getVersion() {
+    return this.get('/api/version');
+  }
+
   getCurrentUser() {
     return this.get('/api/auth/current');
+  }
+
+  getAdminCurrentUser() {
+    return this.get('/api/admin/auth/current');
+  }
+
+  acknowledgeSecurityReminder() {
+    return this.post('/api/auth/security-reminder/ack');
+  }
+
+  bootstrapAdmin(username, displayName, password, confirmPassword) {
+    return this.post('/api/bootstrap/admin', {
+      username,
+      display_name: displayName,
+      password,
+      confirm_password: confirmPassword
+    });
+  }
+
+  getAdminUsers(query = '') {
+    return this.get('/api/admin/users', query ? { q: query } : {});
+  }
+
+  getAdminSummary() {
+    return this.get('/api/admin/summary');
+  }
+
+  disableAdminUser(userId) {
+    return this.post(`/api/admin/users/${userId}/disable`);
+  }
+
+  enableAdminUser(userId) {
+    return this.post(`/api/admin/users/${userId}/enable`);
+  }
+
+  resetAdminUserPassword(userId, temporaryPassword) {
+    return this.post(`/api/admin/users/${userId}/reset-password`, {
+      temporary_password: temporaryPassword
+    });
+  }
+
+  updateAdminUser(userId, data) {
+    return this.put(`/api/admin/users/${userId}`, data);
+  }
+
+  deleteAdminUser(userId) {
+    return this.delete(`/api/admin/users/${userId}`);
   }
 
   getSwitchableAccounts() {
@@ -116,6 +210,183 @@ class APIClient {
 
   switchAccount(userId) {
     return this.post('/api/auth/switch', { user_id: userId });
+  }
+
+  startDeviceFlow(intent = 'login') {
+    return this.post('/api/auth/google/device/start', { intent });
+  }
+
+  pollDeviceFlowStatus() {
+    return this.get('/api/auth/google/device/status');
+  }
+
+  confirmDeviceFlowLink() {
+    return this.post('/api/auth/google/device/confirm-link', {});
+  }
+
+  createDeviceFlowAccount(username, password, confirmPassword) {
+    return this.post('/api/auth/google/device/create-account', {
+      username,
+      password,
+      confirm_password: confirmPassword,
+    });
+  }
+
+  relinkDeviceFlow() {
+    return this.post('/api/auth/google/device/relink', {});
+  }
+
+  startPairing(deviceIdentifier = null) {
+    const payload = {};
+    if (deviceIdentifier) {
+      payload.device_identifier = deviceIdentifier;
+    }
+    return this.post('/api/auth/pairing/start', payload);
+  }
+
+  approvePairing(code) {
+    return this.post('/api/auth/pairing/approve', { code });
+  }
+
+  claimPairing(publicId) {
+    return this.post('/api/auth/pairing/claim', { public_id: publicId });
+  }
+
+  getPasskeys() {
+    return this.get('/api/auth/passkeys');
+  }
+
+  getPasskeyRegistrationOptions(label = '') {
+    return this.post('/api/auth/passkeys/register/options', { label });
+  }
+
+  verifyPasskeyRegistration(payload) {
+    return this.post('/api/auth/passkeys/register/verify', payload);
+  }
+
+  deletePasskey(passkeyId) {
+    return this.delete(`/api/auth/passkeys/${passkeyId}`);
+  }
+
+  getPasskeyAuthenticationOptions() {
+    return this.post('/api/auth/passkeys/authenticate/options');
+  }
+
+  getAdminPasskeyAuthenticationOptions() {
+    return this.request('/api/auth/passkeys/authenticate/options', 'POST', {}, { 'X-YTCV-Surface': 'gestor' });
+  }
+
+  verifyPasskeyAuthentication(payload) {
+    return this.post('/api/auth/passkeys/authenticate/verify', payload);
+  }
+
+  verifyAdminPasskeyAuthentication(payload) {
+    return this.request('/api/auth/passkeys/authenticate/verify', 'POST', payload, { 'X-YTCV-Surface': 'gestor' });
+  }
+
+  getMfaStatus() {
+    return this.get('/api/auth/mfa/status');
+  }
+
+  disableTotp(code, password) {
+    const body = code ? { code } : { password };
+    return this.delete('/api/auth/totp', body);
+  }
+
+  unlinkGoogle() {
+    return this.post('/api/auth/google/unlink');
+  }
+
+  setupTotp() {
+    return this.post('/api/auth/totp/setup');
+  }
+
+  confirmTotp(code) {
+    return this.post('/api/auth/totp/confirm', { code });
+  }
+
+  regenerateRecoveryCodes(code) {
+    return this.post('/api/auth/recovery-codes/regenerate', { code });
+  }
+
+  verifyMfaChallenge(code, method) {
+    return this.post('/api/auth/mfa/verify', { code, method });
+  }
+
+  verifyAdminMfaChallenge(code, method) {
+    return this.request('/api/auth/mfa/verify', 'POST', { code, method }, { 'X-YTCV-Surface': 'gestor' });
+  }
+
+  adminChangePassword(currentPassword, newPassword) {
+    return this.request(
+      '/api/auth/profile/password',
+      'POST',
+      { current_password: currentPassword, new_password: newPassword },
+      { 'X-YTCV-Surface': 'gestor' }
+    );
+  }
+
+  getAdminSqliteObservability() {
+    return this.get('/api/admin/observability/sqlite');
+  }
+
+  updateAdminSqliteObservability(enabled) {
+    return this.put('/api/admin/observability/sqlite', { enabled });
+  }
+
+  getAdminRuntimeState() {
+    return this.get('/api/admin/runtime-state');
+  }
+
+  getAdminPasswordPolicy() {
+    return this.get('/api/admin/security/password-policy');
+  }
+
+  updateAdminPasswordPolicy(passwordPolicy) {
+    return this.put('/api/admin/security/password-policy', { password_policy: passwordPolicy });
+  }
+
+  getAdminRefreshSchedule() {
+    return this.get('/api/admin/refresh-schedule');
+  }
+
+  getAdminVideoRefreshMode() {
+    return this.get('/api/admin/video-refresh-mode');
+  }
+
+  updateAdminVideoRefreshMode(mode) {
+    return this.put('/api/admin/video-refresh-mode', { video_refresh_mode: mode });
+  }
+
+  updateAdminRefreshSchedule(scheduleHours, timezone) {
+    return this.put('/api/admin/refresh-schedule', {
+      schedule_hours: scheduleHours,
+      timezone
+    });
+  }
+
+  getAdminTimezone() {
+    return this.get('/api/admin/timezone');
+  }
+
+  updateAdminTimezone(timezone) {
+    return this.put('/api/admin/timezone', { timezone });
+  }
+
+  getAdminLogEntries(params = {}) {
+    return this.get('/api/admin/logs/entries', params);
+  }
+
+  getAdminLogStats() {
+    return this.get('/api/admin/logs/stats');
+  }
+
+  getAdminLogsMeta() {
+    return this.get('/api/admin/logs/meta');
+  }
+
+  updateAdminLogLevel(level) {
+    return this.put('/api/admin/logs/level', { level });
   }
 
   updateProfile(data) {
@@ -146,8 +417,16 @@ class APIClient {
     return this.delete(`/api/channels/${channelId}/unsubscribe`);
   }
 
-  refreshChannels(channelId) {
-    return this.post('/api/channels/refresh', channelId ? { channel_id: channelId } : {});
+  refreshChannels(channelId, options = {}) {
+    const payload = { ...options };
+    if (channelId) {
+      payload.channel_id = channelId;
+    }
+    return this.post('/api/channels/refresh', payload);
+  }
+
+  getRefreshStatus(channelId = null) {
+    return this.get('/api/channels/refresh/status', channelId ? { channel_id: channelId } : {});
   }
 
   importSubscriptions(options = {}) {
@@ -175,6 +454,27 @@ class APIClient {
 
   markAsUnwatched(videoId) {
     return this.delete(`/api/videos/${videoId}/unwatch`);
+  }
+
+  saveProgress(videoId, positionSeconds, durationSeconds, options = {}) {
+    return this.put(`/api/videos/${videoId}/progress`, {
+      position_seconds: positionSeconds,
+      duration_seconds: durationSeconds,
+      ...options
+    });
+  }
+
+  clearProgress(videoId) {
+    return this.delete(`/api/videos/${videoId}/progress`);
+  }
+
+  getInProgressVideos(limit = 20, offset = 0) {
+    return this.get('/api/videos/in-progress', { limit, offset });
+  }
+
+  getWatchedVideos(limit = 20, offset = 0, options = {}) {
+    const params = { limit, offset, ...options };
+    return this.get('/api/videos/watched', params);
   }
 
   searchVideos(query, filters = {}) {
@@ -228,8 +528,16 @@ class APIClient {
     return this.put(`/api/devices/${deviceId}/type`, { device_type: deviceType });
   }
 
+  updateDevicePreferences(deviceId, preferences) {
+    return this.put(`/api/devices/${deviceId}/preferences`, preferences);
+  }
+
   deleteDevice(deviceId) {
     return this.delete(`/api/devices/${deviceId}`);
+  }
+
+  updateDeviceName(deviceId, displayName) {
+    return this.put(`/api/devices/${deviceId}/name`, { display_name: displayName });
   }
 
   detectDevice(userAgent, screenWidth, screenHeight) {
@@ -303,9 +611,22 @@ class APIClient {
     return this.post('/api/channels/enrich-video-evidence', payload);
   }
 
+  // Background classification task
+  startClassifyTask(mode = 'basic') {
+    return this.post('/api/channels/classify', { mode });
+  }
+
+  getClassifyStatus() {
+    return this.get('/api/channels/classify/status');
+  }
+
   // Settings endpoints
   getSettings() {
     return this.get('/api/settings');
+  }
+
+  getQuotaStatus() {
+    return this.get('/api/quota/status');
   }
 
   updateSettings(data) {

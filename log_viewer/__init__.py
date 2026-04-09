@@ -1,1 +1,0 @@
-"""Log viewer package marker."""

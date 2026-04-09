@@ -1,8 +1,7 @@
 """Channel domain models."""
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.time import utc_now
 
 
 class Channel(db.Model):
@@ -17,7 +16,7 @@ class Channel(db.Model):
     thumbnail_cache_path = db.Column(db.String(500))
     thumbnail_cached_at = db.Column(db.DateTime)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     # Classification metadata
     topic_ids = db.Column(db.Text)
@@ -57,9 +56,14 @@ class UserChannel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     channel_id = db.Column(db.Integer, db.ForeignKey("channels.id"), nullable=False, index=True)
-    subscribed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    subscribed_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     last_refreshed_at = db.Column(db.DateTime)
     last_checked_at = db.Column(db.DateTime)
+    last_feed_checked_at = db.Column(db.DateTime)
+    last_feed_success_at = db.Column(db.DateTime)
+    last_feed_error_at = db.Column(db.DateTime)
+    feed_error_count = db.Column(db.Integer, nullable=False, default=0)
+    refresh_mode_override = db.Column(db.String(20))
 
     # Rating system (1-5 stars)
     rating = db.Column(db.Integer, index=True)
@@ -82,6 +86,11 @@ class UserChannel(db.Model):
             "subscribed_at": self.subscribed_at.isoformat() if self.subscribed_at else None,
             "last_refreshed_at": self.last_refreshed_at.isoformat() if self.last_refreshed_at else None,
             "last_checked_at": self.last_checked_at.isoformat() if self.last_checked_at else None,
+            "last_feed_checked_at": self.last_feed_checked_at.isoformat() if self.last_feed_checked_at else None,
+            "last_feed_success_at": self.last_feed_success_at.isoformat() if self.last_feed_success_at else None,
+            "last_feed_error_at": self.last_feed_error_at.isoformat() if self.last_feed_error_at else None,
+            "feed_error_count": self.feed_error_count,
+            "refresh_mode_override": self.refresh_mode_override,
             "rating": self.rating,
             "rated_at": self.rated_at.isoformat() if self.rated_at else None,
         }

@@ -19,10 +19,12 @@ class TestConfig:
     LOG_FILE = "logs/test.log"
     LOG_MAX_SIZE = 1024 * 1024
     LOG_BACKUP_COUNT = 1
-    LOG_VIEWER_USER = "test"
-    LOG_VIEWER_PASSWORD = "test"
-    LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
+
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
 
     @staticmethod
     def validate():
@@ -47,7 +49,12 @@ def client(app):
 
 
 def _login(client, username):
-    return client.post("/api/auth/login", json={"username": username})
+    # Try to register (creates + logs in for fresh users).
+    # Fall back to legacy login for users pre-created without a password.
+    reg = client.post("/api/auth/register", json={"username": username, "password": "testpassword123"})
+    if reg.status_code == 201:
+        return reg
+    return client.post("/api/auth/login", json={"username": username, "password": "testpassword123"})
 
 
 def test_register_and_list_devices(client):
@@ -60,6 +67,7 @@ def test_register_and_list_devices(client):
     data = response.get_json()
     assert data["device_type"] in ("desktop", "tv", "tablet", "mobile")
     assert data["device_type_confirmed"] is False
+    assert data["display_name"] == "🖥️ Pantalla PC"
 
     response = client.get("/api/devices")
     assert response.status_code == 200
@@ -82,6 +90,46 @@ def test_update_device_type(client):
     assert response.status_code == 200
     assert response.get_json()["device_type"] == "tv"
     assert response.get_json()["device_type_confirmed"] is True
+    assert response.get_json()["display_name"] == "📺 TV"
+
+
+def test_register_existing_device_backfills_display_name(client):
+    _login(client, "bea")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "same-dev", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    with client.application.app_context():
+        from app.models import UserDevice
+
+        device = db.session.get(UserDevice, device_id)
+        device.display_name = None
+        db.session.commit()
+
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "same-dev", "user_agent": "ua"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["display_name"] == "🖥️ Pantalla PC"
+
+
+def test_update_device_name(client):
+    _login(client, "cora")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "rename-dev", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/name",
+        json={"display_name": "📺 TV salón"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["display_name"] == "📺 TV salón"
 
 
 def test_register_device_returns_confirmation_state_for_existing_device(client):
@@ -129,6 +177,75 @@ def test_detect_device_invalid_tracking_id(client):
     assert data.get("tracking_id")
 
 
+def test_update_device_preferences(client):
+    _login(client, "gina")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={
+            "frontend_mode": "tv",
+            "tv_scale": "XL",
+            "screen_size_inches": 55,
+            "viewing_distance_m": 2.8,
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["frontend_mode"] == "tv"
+    assert data["tv_scale"] == "XL"
+    assert data["tv_scale_confirmed_at"] is not None
+    assert data["screen_size_inches"] == 55
+    assert data["viewing_distance_m"] == 2.8
+
+
+def test_non_tv_preferences_clear_tv_scale_confirmation(client):
+    _login(client, "helen")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs3", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={
+            "frontend_mode": "tv",
+            "tv_scale": "L",
+            "screen_size_inches": 55,
+            "viewing_distance_m": 2.2,
+        },
+    )
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={"frontend_mode": "desktop_tablet", "tv_scale": None},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["frontend_mode"] == "desktop_tablet"
+    assert data["tv_scale_confirmed_at"] is None
+
+
+def test_update_device_preferences_invalid_mode(client):
+    _login(client, "hugo")
+    response = client.post(
+        "/api/devices/register",
+        json={"device_identifier": "prefs2", "user_agent": "ua"},
+    )
+    device_id = response.get_json()["id"]
+
+    response = client.put(
+        f"/api/devices/{device_id}/preferences",
+        json={"frontend_mode": "cinema"},
+    )
+    assert response.status_code == 400
+
+
 def test_delete_device(client):
     _login(client, "dave")
     response = client.post(
@@ -149,7 +266,7 @@ def test_device_user_isolation(client):
     )
     device_id = response.get_json()["id"]
 
-    client.post("/api/auth/login", json={"username": "frank"})
+    _login(client, "frank")
     response = client.put(
         f"/api/devices/{device_id}/type",
         json={"device_type": "mobile"},

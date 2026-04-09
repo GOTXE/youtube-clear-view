@@ -1,6 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -33,10 +33,12 @@ class TestConfig:
     LOG_FILE = "logs/test.log"
     LOG_MAX_SIZE = 1024 * 1024
     LOG_BACKUP_COUNT = 1
-    LOG_VIEWER_USER = "test"
-    LOG_VIEWER_PASSWORD = "test"
-    LOG_VIEWER_PORT = 5551
     GUNICORN_WORKERS = 1
+    LOCAL_SIGNUP_ENABLED = True
+    PASSWORD_POLICY = "simple"
+
+    CSRF_ENABLED = False
+    RATE_LIMIT_ENABLED = False
 
     @staticmethod
     def validate():
@@ -63,7 +65,9 @@ def client(app):
 
 @pytest.fixture()
 def auth_client(client):
-    client.post("/api/auth/login", json={"username": "tester"})
+    reg = client.post("/api/auth/register", json={"username": "tester", "password": "testpassword123"})
+    if reg.status_code != 201:
+        client.post("/api/auth/login", json={"username": "tester"})
     return client
 
 
@@ -93,7 +97,7 @@ def sample_video(app, sample_channel):
             channel_id=sample_channel["id"],
             title="Sample Video",
             description="Sample description",
-            published_at=datetime.utcnow() - timedelta(days=1),
+            published_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1),
             duration=62,
         )
         db.session.add(video)

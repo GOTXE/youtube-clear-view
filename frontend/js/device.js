@@ -18,12 +18,15 @@
   let currentDeviceId = null;
   let currentDeviceType = null;
   let currentDeviceConfirmed = false;
+  let currentDevice = null;
   let deviceIdentifier = null;
   let modal = null;
+  let lastDeviceTypeError = '';
+  let pendingConfirmationPromise = null;
+  let resolvePendingConfirmation = null;
 
   const ui = {
-    deviceLabel: document.getElementById('device-type'),
-    menuDeviceType: document.getElementById('menu-device-type')
+    deviceLabel: document.getElementById('device-type')
   };
 
   const t = (key, vars) => (
@@ -167,24 +170,40 @@
   async function confirmDeviceType(type) {
     const api = getApiClient();
     if (!api || !currentDeviceId) {
+      lastDeviceTypeError = t('unableConfirmDeviceType');
       return false;
     }
 
     const response = await api.setDeviceType(currentDeviceId, type);
     if (!response.ok) {
+      lastDeviceTypeError = response.error || t('unableConfirmDeviceType');
       return false;
     }
 
+    lastDeviceTypeError = '';
+    currentDevice = response.data || {
+      ...(currentDevice || {}),
+      id: currentDeviceId,
+      device_type: type,
+      device_type_confirmed: true
+    };
     currentDeviceConfirmed = true;
     setCurrentDevice(type);
-    return true;
+    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.applyDeviceTypeDefaults === 'function') {
+      const applied = await window.ytcvLayoutMode.applyDeviceTypeDefaults(type);
+      if (!applied && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+        window.ytcvLayoutMode.syncFromDevice(currentDevice);
+      }
+    } else if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+      window.ytcvLayoutMode.syncFromDevice(currentDevice);
+    }
+    window.dispatchEvent(new CustomEvent('device:changed', {
+      detail: { device: currentDevice }
+    }));
+    return currentDevice;
   }
 
   function buildDeviceModal(suggestedType) {
-    if (modal) {
-      return modal;
-    }
-
     const overlay = document.createElement('div');
     overlay.className = 'modal';
     overlay.id = 'device-type-modal';
@@ -201,6 +220,10 @@
     const message = document.createElement('p');
     message.className = 'body';
     message.textContent = t('confirmDeviceMessage', { device: getDeviceLabel(suggestedType) });
+
+    const error = document.createElement('p');
+    error.className = 'login-page__error body';
+    error.hidden = true;
 
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'field';
@@ -250,13 +273,14 @@
 
     content.appendChild(title);
     content.appendChild(message);
+    content.appendChild(error);
     content.appendChild(fieldset);
     content.appendChild(actions);
 
     overlay.appendChild(content);
 
     cancelButton.addEventListener('click', () => {
-      closeDeviceModal();
+      closeDeviceModal(currentDevice || null);
       if (currentDeviceType) {
         setCurrentDevice(currentDeviceType);
       }
@@ -266,16 +290,21 @@
       const selected = overlay.querySelector('input[name="device-type"]:checked');
       const chosenType = selected ? selected.value : suggestedType;
       confirmButton.disabled = true;
+      error.hidden = true;
+      error.textContent = '';
       const ok = await confirmDeviceType(chosenType);
       confirmButton.disabled = false;
       if (ok) {
-        closeDeviceModal();
+        closeDeviceModal(currentDevice);
+      } else {
+        error.textContent = lastDeviceTypeError || t('unableConfirmDeviceType');
+        error.hidden = false;
       }
     });
 
     overlay.addEventListener('click', event => {
       if (event.target === overlay) {
-        closeDeviceModal();
+        closeDeviceModal(currentDevice || null);
       }
     });
 
@@ -284,18 +313,37 @@
   }
 
   function openDeviceModal(suggestedType) {
+    if (modal && pendingConfirmationPromise) {
+      return pendingConfirmationPromise;
+    }
+
     const overlay = buildDeviceModal(suggestedType);
     if (!overlay.parentNode) {
       document.body.appendChild(overlay);
     }
+    pendingConfirmationPromise = new Promise(resolve => {
+      resolvePendingConfirmation = resolve;
+    });
+    return pendingConfirmationPromise;
   }
 
-  function closeDeviceModal() {
+  function closeDeviceModal(result = null) {
     if (!modal || !modal.parentNode) {
+      if (resolvePendingConfirmation) {
+        resolvePendingConfirmation(result);
+        resolvePendingConfirmation = null;
+        pendingConfirmationPromise = null;
+      }
       return;
     }
 
     modal.parentNode.removeChild(modal);
+    modal = null;
+    if (resolvePendingConfirmation) {
+      resolvePendingConfirmation(result);
+      resolvePendingConfirmation = null;
+      pendingConfirmationPromise = null;
+    }
   }
 
   async function openDeviceTypeModal() {
@@ -305,17 +353,15 @@
         ? suggestion.suggested_type
         : DEVICE_TYPES.DESKTOP
     );
-    openDeviceModal(suggestedType);
+    return openDeviceModal(suggestedType);
   }
 
   async function initDevice() {
     deviceIdentifier = buildDeviceIdentifier();
-    const suggestion = await detectDevice();
+    const [suggestion, registration] = await Promise.all([detectDevice(), registerDevice()]);
     const suggestedType = suggestion && suggestion.suggested_type
       ? suggestion.suggested_type
       : DEVICE_TYPES.DESKTOP;
-
-    const registration = await registerDevice();
     if (!registration) {
       setCurrentDevice(DEVICE_TYPES.DESKTOP);
       return null;
@@ -324,7 +370,14 @@
     currentDeviceId = registration.id;
     currentDeviceType = registration.device_type;
     currentDeviceConfirmed = Boolean(registration.device_type_confirmed);
+    currentDevice = registration;
     setDeviceId(currentDeviceId);
+    if (window.ytcvLayoutMode && typeof window.ytcvLayoutMode.syncFromDevice === 'function') {
+      window.ytcvLayoutMode.syncFromDevice(registration);
+    }
+    window.dispatchEvent(new CustomEvent('device:changed', {
+      detail: { device: registration }
+    }));
     const normalizedSuggestedType = suggestedType || DEVICE_TYPES.DESKTOP;
     const shouldConfirm = !currentDeviceConfirmed;
 
@@ -337,30 +390,27 @@
     return registration;
   }
 
-  function setupMenuDeviceType() {
-    if (!ui.menuDeviceType) {
-      return;
-    }
-
-    ui.menuDeviceType.hidden = typeof window.getCurrentUser !== 'function' || !window.getCurrentUser();
-
-    if (ui.menuDeviceType.dataset.listenerAttached === 'true') {
-      return;
-    }
-
-    ui.menuDeviceType.addEventListener('click', async () => {
-      await openDeviceTypeModal();
-    });
-    ui.menuDeviceType.dataset.listenerAttached = 'true';
-
-    window.addEventListener('auth:changed', event => {
-      const user = event.detail ? event.detail.user : null;
-      ui.menuDeviceType.hidden = !user;
-    });
-  }
-
   function getCurrentDeviceType() {
     return currentDeviceType;
+  }
+
+  function getCurrentDevice() {
+    return currentDevice;
+  }
+
+  function getDeviceIdentifier() {
+    return deviceIdentifier;
+  }
+
+  function getLastDeviceTypeError() {
+    return lastDeviceTypeError;
+  }
+
+  async function waitForDeviceConfirmation() {
+    if (!pendingConfirmationPromise) {
+      return currentDevice;
+    }
+    return pendingConfirmationPromise;
   }
 
   window.initDevice = initDevice;
@@ -369,6 +419,9 @@
   window.confirmDeviceType = confirmDeviceType;
   window.getDeviceId = getDeviceId;
   window.getCurrentDeviceType = getCurrentDeviceType;
+  window.getCurrentDevice = getCurrentDevice;
+  window.getDeviceIdentifier = getDeviceIdentifier;
+  window.getLastDeviceTypeError = getLastDeviceTypeError;
   window.openDeviceTypeModal = openDeviceTypeModal;
-  setupMenuDeviceType();
+  window.waitForDeviceConfirmation = waitForDeviceConfirmation;
 })();

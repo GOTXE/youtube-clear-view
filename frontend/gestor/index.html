@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="YT Clear View administration panel.">
+    <meta name="theme-color" content="#f1f5f9">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="manifest" href="/manifest.json">
+    <script>
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.add('auth-pending');
+    </script>
+    <title>YTCV Gestor</title>
+    <link rel="stylesheet" href="/css/main.css">
+  </head>
+  <body class="gestor-body">
+    <div id="startup-scrim" class="startup-scrim startup-scrim--gestor" aria-hidden="true">
+      <div class="startup-scrim__card">
+        <p class="startup-scrim__brand">Gestor YT Clear View</p>
+      </div>
+    </div>
+    <div id="app" class="app" data-theme="light" data-app-view="admin">
+      <div class="admin-auth-bridge" hidden aria-hidden="true">
+        <p class="caption session-info">
+          <a id="current-user" class="session-info__label" href="#">Not signed in</a>
+          <span id="current-user-name" class="session-info__name"></span>
+        </p>
+        <div id="menu-account-actions">
+          <button id="google-login-button" class="menu-item" type="button" hidden>Sign in with Google</button>
+          <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
+        </div>
+        <div id="menu-system-actions"></div>
+        <div class="user-summary" aria-live="polite"></div>
+      </div>
+
+      <main class="app-main" role="main">
+        <section id="gestor-page" class="admin-page" aria-labelledby="gestor-title">
+          <aside class="admin-page__sidebar" aria-label="Admin navigation">
+            <div class="admin-page__brand">
+              <div class="admin-page__brand-icon" aria-hidden="true">🛡</div>
+              <div>
+                <p class="caption admin-page__brand-eyebrow">YTCV</p>
+                <h2 id="gestor-title" class="heading-3 admin-page__brand-title">Gestor</h2>
+              </div>
+            </div>
+
+            <nav class="admin-page__nav">
+              <a class="admin-page__nav-link" href="#summary" data-admin-anchor="summary" data-i18n="adminPageNavSummary">Summary</a>
+              <a class="admin-page__nav-link" href="#timezone" data-admin-anchor="timezone" data-i18n="adminPageNavTimezone">Timezone</a>
+              <a class="admin-page__nav-link" href="#users" data-admin-anchor="users" data-i18n="adminPageNavUsers">Users</a>
+              <a class="admin-page__nav-link" href="#security" data-admin-anchor="security" data-i18n="adminPageNavSecurity">Security</a>
+              <a class="admin-page__nav-link" href="#logs" data-admin-anchor="logs" data-i18n="adminPageNavLogs">Logs</a>
+            </nav>
+
+          </aside>
+
+          <div class="admin-page__main">
+            <header class="admin-page__hero">
+              <div class="admin-page__hero-copy">
+                <h1 class="heading-1 admin-page__hero-title" data-i18n="adminPageTitle">Gestor YT CLEAR VIEW</h1>
+              </div>
+              <div class="admin-page__hero-actions">
+                <button id="gestor-header-logout" class="admin-page__toolbar-btn admin-page__toolbar-btn--danger" type="button" data-i18n="signOut">Sign out</button>
+                <button id="gestor-refresh" class="admin-page__toolbar-btn admin-page__toolbar-btn--primary" type="button" data-i18n="adminPageRefresh">Refresh</button>
+              </div>
+            </header>
+
+            <p id="gestor-status" class="caption admin-page__status" aria-live="polite"></p>
+
+            <section id="summary" class="admin-page__block admin-page__block--summary admin-page__section" data-admin-section="summary" aria-labelledby="gestor-summary-title">
+              <div class="admin-page__block-header">
+                <h3 id="gestor-summary-title" class="heading-3" data-i18n="adminPageSummaryTitle">System summary</h3>
+              </div>
+              <div id="gestor-summary-grid" class="admin-page__metrics"></div>
+            </section>
+
+            <section id="timezone" class="admin-page__block admin-page__section" data-admin-section="timezone" aria-labelledby="gestor-timezone-title" hidden>
+              <div class="admin-page__block-header">
+                <h3 id="gestor-timezone-title" class="heading-3" data-i18n="adminTimezoneTitle">Zona horaria</h3>
+              </div>
+              <div id="gestor-timezone-content" class="admin-page__stack"></div>
+            </section>
+
+            <section id="users" class="admin-page__block admin-page__section" data-admin-section="users" aria-labelledby="gestor-users-title">
+              <div class="admin-page__block-header">
+                <h3 id="gestor-users-title" class="heading-3" data-i18n="adminUserManagement">User management</h3>
+              </div>
+              <div class="admin-page__users-toolbar">
+                <input
+                  id="gestor-user-search"
+                  class="field__input admin-page__search"
+                  type="search"
+                  placeholder="Search by username, email, or display name"
+                  data-i18n-placeholder="adminUserSearchPlaceholder"
+                >
+                <button id="gestor-user-search-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--ghost" type="button" data-i18n="search">Search</button>
+              </div>
+              <div class="admin-page__table-wrap">
+                <table class="admin-page__table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="adminTableUser">User</th>
+                      <th data-i18n="adminTableName">Name</th>
+                      <th data-i18n="adminTableAuth">Auth</th>
+                      <th data-i18n="adminTableAdmin">Admin</th>
+                      <th data-i18n="adminTableTotp">TOTP</th>
+                      <th data-i18n="adminTableActive">Active</th>
+                      <th data-i18n="adminTableLastSession">Last session</th>
+                      <th data-i18n="adminTableDevices">Devices</th>
+                      <th data-i18n="adminTableActions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gestor-users-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="security" class="admin-page__block admin-page__section" data-admin-section="security" aria-labelledby="gestor-security-title">
+              <div class="admin-page__block-header">
+                <h3 id="gestor-security-title" class="heading-3" data-i18n="adminPasswordPolicyTitle">Password policy</h3>
+              </div>
+              <div id="gestor-security-content" class="admin-page__stack"></div>
+            </section>
+
+            <section id="runtime" class="admin-page__block admin-page__section" data-admin-section="runtime" aria-labelledby="gestor-runtime-title">
+              <div class="admin-page__block-header">
+                <h3 id="gestor-runtime-title" class="heading-3" data-i18n="adminRuntimeState">Sessions and devices</h3>
+              </div>
+              <div id="gestor-runtime-content" class="admin-page__stack admin-page__runtime-grid"></div>
+            </section>
+
+            <section id="logs" class="admin-page__block admin-page__section" data-admin-section="logs" aria-labelledby="gestor-logs-title" hidden>
+              <div class="admin-page__block-header">
+                <h3 id="gestor-logs-title" class="heading-3" data-i18n="adminPageLogsTitle">Logs</h3>
+              </div>
+              <div class="admin-page__logs-pills">
+                <div id="gestor-logs-stats" class="admin-page__logs-stats"></div>
+                <dl id="gestor-logs-runtime" class="admin-page__meta-list"></dl>
+              </div>
+              <div class="admin-page__logs-toolbar">
+                <div class="admin-page__logs-toolbar-row">
+                  <div class="field">
+                    <span class="field__label" data-i18n="adminLogsLevelsLabel">Niveles</span>
+                    <div id="gestor-logs-levels" class="admin-page__level-filters" role="group" aria-label="Levels">
+                      <button type="button" class="admin-page__level-chip is-active" data-level="ALL" aria-pressed="true" data-i18n="adminLogsLevelAll">Todos</button>
+                      <button type="button" class="admin-page__level-chip" data-level="CRITICAL" aria-pressed="false" data-i18n="adminLogsLevelCritical">Critico</button>
+                      <button type="button" class="admin-page__level-chip" data-level="ERROR" aria-pressed="false" data-i18n="adminLogsLevelError">Error</button>
+                      <button type="button" class="admin-page__level-chip" data-level="WARNING" aria-pressed="false" data-i18n="adminLogsLevelWarning">Aviso</button>
+                      <button type="button" class="admin-page__level-chip" data-level="INFO" aria-pressed="false" data-i18n="adminLogsLevelInfo">Info</button>
+                      <button type="button" class="admin-page__level-chip" data-level="DEBUG" aria-pressed="false" data-i18n="adminLogsLevelDebug">Debug</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="admin-page__logs-toolbar-row">
+                  <label class="field">
+                    <span class="field__label" data-i18n="adminLogsSearchLabel">Buscar</span>
+                    <input id="gestor-logs-search" class="field__input" type="search" placeholder="Buscar en logs" data-i18n-placeholder="adminLogsSearchPlaceholder">
+                  </label>
+                  <label class="field">
+                    <span class="field__label" data-i18n="adminLogsTrackingLabel">Tracking ID</span>
+                    <input id="gestor-logs-tracking" class="field__input" type="search" placeholder="ERR-YYYYMMDD-XXXXXX">
+                  </label>
+                  <button id="gestor-logs-search-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--ghost" type="button" data-i18n="adminLogsApply">Aplicar</button>
+                  <button id="gestor-logs-live-button" class="admin-page__toolbar-btn admin-page__toolbar-btn--live admin-page__toolbar-btn--live-on" type="button" data-i18n="adminLogsLive">Live</button>
+                </div>
+              </div>
+
+              <div class="admin-page__logs-grid">
+                <article class="admin-page__panel-card">
+                  <div class="admin-page__block-header">
+                    <h4 class="heading-3" data-i18n="adminLogsEntriesTitle">Entradas</h4>
+                    <span id="gestor-logs-count" class="caption">0</span>
+                  </div>
+                  <div id="gestor-logs-entries" class="admin-page__log-entries"></div>
+                  <div class="admin-page__table-actions">
+                    <button id="gestor-logs-more" class="admin-page__mini-btn admin-page__mini-btn--ghost" type="button" data-i18n="adminLogsLoadMore">Cargar mas</button>
+                  </div>
+                </article>
+                <article class="admin-page__panel-card">
+                  <div class="admin-page__block-header">
+                    <h4 class="heading-3" data-i18n="adminLogsRecentErrorsTitle">Errores recientes</h4>
+                  </div>
+                  <div id="gestor-logs-errors" class="admin-page__log-entries"></div>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer gestor-footer" role="contentinfo">
+        <p class="caption">GOTXE + ❤️ + IA 🤖</p>
+        <div class="footer-links">
+          <a class="footer-link" href="https://github.com/GOTXE/youtube-clear-view/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer">
+            <span>Report issue</span>
+          </a>
+          <a class="footer-link" href="https://github.com/GOTXE/youtube-clear-view" target="_blank" rel="noreferrer">
+            <svg class="footer-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38C13.71 14.53 16 11.54 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </a>
+        </div>
+      </footer>
+    </div>
+
+    <script src="/config.js" defer></script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/api.js" defer></script>
+    <script src="/js/passkey-auth.js" defer></script>
+    <script src="/js/auth.js" defer></script>
+    <script src="/js/login-page.js" defer></script>
+    <script src="/js/gestor-app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,123 @@
+USO RAPIDO DE scripts/dev_docker.sh
+
+Ruta correcta:
+
+  ./scripts/dev_docker.sh
+
+
+STACK COMPLETO
+
+Por defecto levanta:
+
+  - backend
+  - proxy
+
+Levantar todo:
+
+  ./scripts/dev_docker.sh up
+
+Levantar todo reconstruyendo imagenes:
+
+  ./scripts/dev_docker.sh up --build
+
+Levantar todo reconstruyendo y borrando la BBDD:
+
+  ./scripts/dev_docker.sh up --build --reset-db
+
+Levantar todo reconstruyendo, con copia previa de la BBDD:
+
+  ./scripts/dev_docker.sh up --build --reset-db --backup-db
+
+
+ESTADO DE CONTENEDORES
+
+Ver como estan los contenedores del stack:
+
+  docker compose -f infra/compose/compose.v020.yaml ps
+
+Ver logs recientes de un servicio:
+
+  docker compose -f infra/compose/compose.v020.yaml logs --tail=200 backend
+  docker compose -f infra/compose/compose.v020.yaml logs --tail=200 proxy
+
+
+BBDD
+
+Borrar la BBDD del volumen Docker:
+
+  ./scripts/dev_docker.sh db-reset
+
+Hacer backup y luego borrar la BBDD:
+
+  ./scripts/dev_docker.sh db-reset --backup
+
+Ver los ficheros de la BBDD dentro de /data:
+
+  ./scripts/dev_docker.sh db-ls
+
+
+SERVICIOS CONCRETOS
+
+Importante:
+
+  Si anades servicios al final del comando, sustituyes el comportamiento por defecto.
+  Es decir, ya no levanta todo el stack, solo los servicios que indiques.
+
+Ejemplo: levantar solo proxy
+
+  ./scripts/dev_docker.sh up proxy
+
+Ejemplo: levantar solo backend
+
+  ./scripts/dev_docker.sh up backend
+
+Ejemplo: levantar backend + proxy de forma explicita
+
+  ./scripts/dev_docker.sh up backend proxy
+
+Ejemplo: reconstruir solo proxy
+
+  ./scripts/dev_docker.sh up --build proxy
+
+Ejemplo: reconstruir solo backend
+
+  ./scripts/dev_docker.sh up --build backend
+
+
+PARAR STACK
+
+  ./scripts/dev_docker.sh down
+
+
+REINICIAR CONTENEDORES
+
+Reiniciar los contenedores ya levantados:
+
+  docker compose -f infra/compose/compose.v020.yaml restart
+
+Reiniciar solo un servicio:
+
+  docker compose -f infra/compose/compose.v020.yaml restart backend
+  docker compose -f infra/compose/compose.v020.yaml restart proxy
+
+Reinicio completo del stack:
+
+  ./scripts/dev_docker.sh down
+  ./scripts/dev_docker.sh up
+
+
+NOTA PRACTICA
+
+La vista administrativa de logs vive ahora en:
+
+  http://localhost:8080/gestor/#logs
+
+Si ejecutas algo como:
+
+  ./scripts/dev_docker.sh up --build --reset-db proxy
+
+solo estas pidiendo proxy, no el stack completo.
+
+Para entorno completo usa:
+
+  ./scripts/dev_docker.sh up --build --reset-db

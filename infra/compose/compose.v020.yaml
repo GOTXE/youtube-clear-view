@@ -1,0 +1,52 @@
+name: ytcv-v020
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend/Dockerfile
+    env_file:
+      - ../../backend/.env
+    environment:
+      DATABASE_URI: sqlite:////data/youtube_clear_view.db
+      LOG_FILE: /logs/app.log
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5550
+      # Admin recovery/bootstrap helpers:
+      # ADMIN_BOOTSTRAP_USERNAME: admin
+      # ADMIN_BOOTSTRAP_PASSWORD: change-me-now
+      # ADMIN_BOOTSTRAP_DISPLAY_NAME: Site Admin
+      # ADMIN_FORCE_RESET: "0"
+    volumes:
+      - ytcv_data:/data
+      - ytcv_logs:/logs
+    expose:
+      - "5550"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:5550/api/health').status == 200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  proxy:
+    build:
+      context: ../..
+      dockerfile: infra/docker/proxy/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ytcv_data:
+  ytcv_logs:

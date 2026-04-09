@@ -4,32 +4,38 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Curated YT viewing without the recommendation algorithm.">
+    <meta name="theme-color" content="#0f172a">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <style>
-      html:not(.i18n-ready) body {
-        visibility: hidden;
-      }
-    </style>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
     <script>
       (function () {
         try {
           var storedTheme = localStorage.getItem('ytcv_theme');
           var theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'dark';
           document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.classList.add('auth-pending');
         } catch (error) {
           document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.classList.add('auth-pending');
         }
       })();
     </script>
     <title>YT Clear View</title>
     <link rel="preconnect" href="https://www.youtube.com">
     <link rel="preconnect" href="https://i.ytimg.com">
+    <link rel="preload" href="i18n/en.json" as="fetch" crossorigin>
     <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/tv.css" media="screen and (min-width: 1600px)">
-    <link rel="stylesheet" href="css/tablet.css" media="screen and (min-width: 768px) and (max-width: 1199px)">
-    <link rel="stylesheet" href="css/mobile.css" media="screen and (max-width: 767px)">
+    <link rel="stylesheet" href="css/mode-desktop-tablet.css">
+    <link rel="stylesheet" href="css/mode-tv.css">
+    <link rel="stylesheet" href="css/mode-phone.css">
   </head>
   <body>
+    <div id="startup-scrim" class="startup-scrim" aria-hidden="true">
+      <div class="startup-scrim__card">
+        <p class="startup-scrim__brand">YT Clear View</p>
+      </div>
+    </div>
     <div id="app" class="app" data-theme="dark">
       <header class="app-header" role="banner">
         <div class="header-row">
@@ -42,6 +48,10 @@
               </p>
               <p class="caption session-info">
                 <a id="current-user" class="session-info__label" href="#">Not signed in</a>
+                <span id="current-user-avatar-shell" class="session-info__avatar-shell" hidden>
+                  <img id="current-user-avatar" class="session-info__avatar" alt="">
+                  <span id="current-user-avatar-fallback" class="session-info__avatar-fallback" aria-hidden="true"></span>
+                </span>
                 <span id="current-user-name" class="session-info__name"></span>
               </p>
             </div>
@@ -52,7 +62,7 @@
             </div>
             <div class="header-context__content">
               <p id="header-context-eyebrow" class="caption header-context__eyebrow"></p>
-              <h2 id="header-context-title" class="heading-3 header-context__title"></h2>
+              <h2 id="header-context-title" class="heading-3 header-context__title">Your library</h2>
               <p id="header-context-description" class="caption header-context__description"></p>
               <dl id="header-context-metrics" class="header-context__metrics"></dl>
             </div>
@@ -63,27 +73,36 @@
               <span class="menu-toggle__icon" aria-hidden="true">☰</span>
             </button>
             <nav id="menu-panel" class="menu-panel" aria-label="App menu" hidden>
-              <div class="menu-panel__section">
+              <div class="menu-panel__section menu-panel__section--account">
+                <p id="menu-heading-account" class="menu-panel__heading">Account</p>
+                <div class="user-summary" aria-live="polite"></div>
+                <div id="menu-account-actions" class="menu-panel__actions">
+                  <button id="google-login-button" class="menu-item" type="button" hidden>
+                    Sign in with Google
+                  </button>
+                  <button id="my-account-button" class="menu-item" type="button" hidden>My account</button>
+                  <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
+                </div>
+              </div>
+              <div class="menu-panel__section menu-panel__section--channels">
+                <p id="menu-heading-channels" class="menu-panel__heading">Channels</p>
+                <button id="import-subscriptions-button" class="menu-item" type="button" hidden>Import channels</button>
+                <button id="refresh-videos" class="menu-item" type="button">Refresh videos</button>
+                <button id="classify-channels-button" class="menu-item" type="button" hidden>Clasificar canales</button>
+              </div>
+              <div class="menu-panel__section menu-panel__section--viewing">
+                <p id="menu-heading-viewing" class="menu-panel__heading">Viewing</p>
                 <button id="menu-filters" class="menu-item" type="button">Filters</button>
                 <button id="menu-category-guide" class="menu-item" type="button">Category guide</button>
-                <button id="menu-device-type" class="menu-item" type="button" hidden>Device type</button>
-                <button id="menu-settings" class="menu-item" type="button">Auto updates</button>
+                <button id="menu-display-mode" class="menu-item" type="button" hidden>Display setup</button>
                 <button id="theme-toggle" class="menu-item" type="button" aria-pressed="false">
                   <span class="button__label">Toggle theme</span>
                 </button>
               </div>
-              <div class="menu-panel__section header-actions">
-                <button id="google-login-button" class="menu-item" type="button" hidden>
-                  Sign in with Google
-                </button>
-                <button id="import-subscriptions-button" class="menu-item" type="button" hidden>
-                  Import subscriptions
-                </button>
-                <button id="refresh-videos" class="menu-item" type="button">Refresh</button>
-                <button id="logout-button" class="menu-item" type="button" hidden>Logout</button>
-                <div class="user-summary" aria-live="polite"></div>
-              </div>
-              <div class="menu-panel__section">
+              <div class="menu-panel__section menu-panel__section--system">
+                <p id="menu-heading-system" class="menu-panel__heading">System</p>
+                <button id="menu-gestor" class="menu-item" type="button">Gestor</button>
+                <div id="menu-system-actions" class="menu-panel__actions"></div>
                 <div class="menu-language" aria-label="Language selector">
                   <button class="menu-language__button" type="button" data-lang="es">🇪🇸 ES</button>
                   <button class="menu-language__button" type="button" data-lang="en">🇺🇸 EN</button>
@@ -94,12 +113,34 @@
         </div>
         <div class="header-status" aria-live="polite" aria-atomic="true">
           <p id="refresh-progress" class="refresh-progress" hidden></p>
+          <button id="update-available-banner" class="update-available-banner" type="button" hidden></button>
         </div>
+        <nav id="tv-action-bar" class="tv-action-bar" aria-label="TV quick actions" hidden>
+          <button id="tv-action-channels" class="tv-action-bar__button tv-action-bar__button--icon" type="button" aria-label="Subscriptions">
+            <span class="tv-action-bar__sidebar-icon" aria-hidden="true">
+              <span class="tv-action-bar__sidebar-bar"></span>
+              <span class="tv-action-bar__sidebar-chevron">‹</span>
+            </span>
+          </button>
+          <button id="tv-action-filters" class="tv-action-bar__button" type="button">Filters</button>
+          <button id="tv-action-in-progress" class="tv-action-bar__button" type="button">Continue watching</button>
+          <button id="tv-action-watched" class="tv-action-bar__button" type="button">Watched videos</button>
+          <p id="tv-refresh-progress" class="refresh-progress tv-refresh-progress" hidden></p>
+        </nav>
       </header>
 
       <main class="app-main" role="main">
-        <div class="app-layout">
-          <aside class="channel-sidebar" aria-label="Subscribed channels">
+        <div id="library-view" class="app-layout" data-mobile-view="home">
+          <aside id="channels-mobile-view" class="channel-sidebar" aria-label="Subscribed channels">
+            <div class="channel-sidebar__mobile-header">
+              <h2 class="heading-2">Subscriptions</h2>
+              <button id="channel-sidebar-close" class="channel-sidebar__mobile-close" type="button" aria-label="Close">
+                <span class="channel-sidebar__collapse-icon" aria-hidden="true">
+                  <span class="channel-sidebar__collapse-bar"></span>
+                  <span class="channel-sidebar__collapse-chevron">‹</span>
+                </span>
+              </button>
+            </div>
             <div class="channel-sidebar__header">
                 <h2 id="subscriptions-title" class="heading-2">Subscriptions</h2>
               <span id="channel-count" class="caption">0</span>
@@ -126,14 +167,36 @@
             <div id="channel-list" class="channel-list" role="list"></div>
           </aside>
 
-          <div class="app-content">
+          <div id="home-mobile-view" class="app-content">
 
-            <section class="carousel-section" aria-labelledby="latest-title">
+            <section id="in-progress-section" class="carousel-section mobile-home-section" aria-labelledby="in-progress-title" hidden>
+              <div class="carousel-shell carousel-shell--with-header">
+                <div class="section-header">
+                  <h2 id="in-progress-title" class="heading-2">
+                    <span id="in-progress-label">Continue watching</span>
+                    <span id="in-progress-count" class="count-pill">0</span>
+                  </h2>
+                </div>
+                <div id="in-progress-carousel" class="carousel-shell__body" aria-live="polite"></div>
+              </div>
+            </section>
+
+            <section id="watched-section" class="carousel-section mobile-home-section" aria-labelledby="watched-title" hidden>
+              <div class="section-header">
+                <h2 id="watched-title" class="heading-2">
+                  <span id="watched-label">Videos vistos</span>
+                  <span id="watched-count" class="count-pill">0</span>
+                </h2>
+              </div>
+              <div id="watched-carousel" class="carousel-shell" aria-live="polite"></div>
+            </section>
+
+            <section class="carousel-section mobile-home-section" aria-labelledby="latest-title">
               <div class="carousel-shell carousel-shell--with-header">
                 <div class="carousel-shell__header">
                   <div class="section-header">
                     <h2 id="latest-title" class="heading-2">
-                      <span id="videos-label">Videos</span>
+                      <span id="videos-label">Videos (&lt; 7 days)</span>
                       <span id="videos-count" class="count-pill">0</span>
                     </h2>
                   </div>
@@ -143,39 +206,120 @@
               </div>
             </section>
 
-            <section id="shorts-section" class="carousel-section" aria-labelledby="shorts-title">
+            <section id="shorts-section" class="carousel-section mobile-home-section" aria-labelledby="shorts-title">
               <div class="section-header">
                 <h2 id="shorts-title" class="heading-2">
-                  <span id="shorts-label">Shorts</span>
+                  <span id="shorts-label">Shorts (&lt; 7 days)</span>
                   <span id="shorts-count" class="count-pill">0</span>
                 </h2>
               </div>
               <div id="shorts-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
-            <section id="older-section" class="carousel-section" aria-labelledby="older-title">
+            <section id="older-section" class="carousel-section mobile-home-section" aria-labelledby="older-title">
               <div class="section-header">
-                <h2 id="older-title" class="heading-2">Older Videos & Shorts</h2>
+                <h2 id="older-title" class="heading-2">Videos &amp; Shorts (&gt; 7 days)</h2>
               </div>
               <div id="older-carousel" class="carousel-shell" aria-live="polite"></div>
             </section>
 
-            <section id="categories-section" class="categories-section" aria-labelledby="categories-title">
-              <div class="section-header">
+            <section id="categories-section" class="categories-section mobile-categories-view" aria-labelledby="categories-title">
+              <div class="section-header mobile-categories-view__header">
                 <h2 id="categories-title" class="heading-2">
                   <span id="categories-label">Categorias Automaticas</span>
                 </h2>
-                <button id="reclassify-btn" class="btn-secondary" type="button" hidden>
-                  Reclasificar Canales
-                </button>
+                <button id="mobile-category-guide-button" class="button button--ghost" type="button">Category guide</button>
               </div>
               <p id="categories-description" class="body">Canales organizados automaticamente por contenido</p>
               <div id="category-carousels" class="category-carousels" aria-live="polite"></div>
             </section>
 
+            <section id="mobile-settings-view" class="mobile-settings-view" aria-labelledby="mobile-settings-title" hidden>
+              <div class="section-header">
+                <h2 id="mobile-settings-title" class="heading-2">Settings</h2>
+              </div>
+
+              <section class="mobile-settings-hero" aria-labelledby="mobile-settings-identity-title">
+                <p id="mobile-settings-identity-eyebrow" class="caption mobile-settings-hero__eyebrow">Device</p>
+                <h3 id="mobile-settings-identity-title" class="heading-2 mobile-settings-hero__title">Ready on this screen</h3>
+                <p id="mobile-settings-identity-summary" class="body mobile-settings-hero__summary">Sign in to sync channels, progress, and preferences.</p>
+                <dl class="mobile-settings-hero__meta">
+                  <div>
+                    <dt id="mobile-settings-status-label">Status</dt>
+                    <dd id="mobile-settings-status-value">Guest</dd>
+                  </div>
+                  <div>
+                    <dt id="mobile-settings-version-label">Version</dt>
+                    <dd id="mobile-settings-version-value">-</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-account-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-account-title" class="heading-3">Account</h3>
+                  <p id="mobile-settings-account-copy" class="caption mobile-settings-section__copy">Profile and session</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-google-login-button" class="button" type="button" hidden>Sign in with Google</button>
+                  <button id="mobile-my-account-button" class="button button--ghost" type="button" hidden>My account</button>
+                  <button id="mobile-logout-button" class="button button--ghost" type="button" hidden>Logout</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-channels-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-channels-title" class="heading-3">Channels</h3>
+                  <p id="mobile-settings-channels-copy" class="caption mobile-settings-section__copy">Import and refresh</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-import-subscriptions-button" class="button button--ghost" type="button" hidden>Import channels</button>
+                  <button id="mobile-refresh-videos" class="button button--ghost" type="button">Refresh videos</button>
+                  <button id="mobile-classify-channels-button" class="button button--ghost" type="button" hidden>Classify channels</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-viewing-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-viewing-title" class="heading-3">Viewing</h3>
+                  <p id="mobile-settings-viewing-copy" class="caption mobile-settings-section__copy">Filters and appearance</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-filters-button" class="button button--ghost" type="button">Filters</button>
+                  <button id="mobile-settings-category-guide-button" class="button button--ghost" type="button">Category guide</button>
+                  <button id="mobile-display-mode-button" class="button button--ghost" type="button" hidden>Display setup</button>
+                  <button id="mobile-theme-toggle" class="button button--ghost" type="button">Toggle theme</button>
+                </div>
+              </section>
+
+              <section class="mobile-settings-section" aria-labelledby="mobile-settings-system-title">
+                <div class="mobile-settings-section__header">
+                  <h3 id="mobile-settings-system-title" class="heading-3">System</h3>
+                  <p id="mobile-settings-system-copy" class="caption mobile-settings-section__copy">Language and tools</p>
+                </div>
+                <div class="mobile-settings-actions">
+                  <button id="mobile-gestor-button" class="button button--ghost" type="button">Gestor</button>
+                </div>
+                <div class="menu-language mobile-settings-language" aria-label="Language selector">
+                  <button class="menu-language__button mobile-language-button" type="button" data-lang="es">🇪🇸 ES</button>
+                  <button class="menu-language__button mobile-language-button" type="button" data-lang="en">🇺🇸 EN</button>
+                </div>
+              </section>
+            </section>
+
           </div>
         </div>
+
       </main>
+
+      <div id="channel-sidebar-backdrop" class="channel-sidebar-backdrop" hidden></div>
+
+      <nav id="phone-nav" class="phone-nav" aria-label="Mobile navigation" hidden>
+        <button id="phone-nav-home" class="phone-nav__button" type="button">Home</button>
+        <button id="phone-nav-channels" class="phone-nav__button" type="button">Channels</button>
+        <button id="phone-nav-categories" class="phone-nav__button" type="button">Categories</button>
+        <button id="phone-nav-settings" class="phone-nav__button" type="button">Settings</button>
+      </nav>
 
       <section id="filter-panel" class="filter-panel" hidden>
         <div class="filter-panel__header">
@@ -248,28 +392,6 @@
               </div>
             </section>
             <section class="settings-section">
-              <h3 id="schedule-title" class="heading-3">Update schedule</h3>
-              <div class="schedule-grid" role="group" aria-labelledby="schedule-title">
-                <label class="schedule-field">
-                  <span id="schedule-label-1" class="caption">Update 1</span>
-                  <select id="schedule-1" class="field__input field__input--compact"></select>
-                </label>
-                <label class="schedule-field">
-                  <span id="schedule-label-2" class="caption">Update 2</span>
-                  <select id="schedule-2" class="field__input field__input--compact"></select>
-                </label>
-                <label class="schedule-field">
-                  <span id="schedule-label-3" class="caption">Update 3</span>
-                  <select id="schedule-3" class="field__input field__input--compact"></select>
-                </label>
-                <label class="schedule-field">
-                  <span id="schedule-label-4" class="caption">Update 4</span>
-                  <select id="schedule-4" class="field__input field__input--compact"></select>
-                </label>
-              </div>
-              <p id="schedule-hint" class="caption">At least one update per day is required.</p>
-            </section>
-            <section class="settings-section">
               <h3 id="quota-title" class="heading-3">Quota</h3>
               <p id="quota-status" class="body"></p>
               <p id="quota-hint" class="caption">We cap usage at 80% of the daily limit.</p>
@@ -299,8 +421,64 @@
         </div>
       </section>
 
+      <section id="player-overlay" class="player-overlay" hidden>
+        <div id="player-overlay-backdrop" class="player-overlay__backdrop"></div>
+        <div class="player-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="player-overlay-title">
+          <header class="player-overlay__header">
+            <div class="player-overlay__header-copy">
+              <p id="player-overlay-eyebrow" class="caption player-overlay__eyebrow"></p>
+              <h2 id="player-overlay-title" class="heading-2 player-overlay__title"></h2>
+              <p id="player-overlay-meta" class="caption player-overlay__meta"></p>
+            </div>
+            <button id="player-overlay-close" class="player-overlay__close" type="button" aria-label="Close">✕</button>
+          </header>
+          <div class="player-overlay__body">
+            <div class="player-overlay__frame-wrap">
+              <iframe
+                id="player-overlay-frame"
+                class="player-overlay__frame"
+                title="Embedded video player"
+                src="about:blank"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <aside class="player-overlay__sidebar">
+              <div id="player-overlay-channel" class="player-overlay__channel" hidden>
+                <img id="player-overlay-channel-logo" class="player-overlay__channel-logo" alt="">
+                <span id="player-overlay-channel-name" class="player-overlay__channel-name"></span>
+              </div>
+              <div class="player-overlay__description-block">
+                <p id="player-overlay-description" class="body player-overlay__description"></p>
+                <button id="player-overlay-description-toggle" class="player-overlay__description-toggle" type="button" hidden>
+                  Show more
+                </button>
+              </div>
+              <p id="player-overlay-confirm-message" class="body player-overlay__confirm-message" hidden></p>
+              <p id="player-overlay-actions-title" class="caption player-overlay__actions-title">Actions</p>
+              <div class="player-overlay__actions">
+                <button id="player-overlay-mark-watched" class="button" type="button">Mark watched</button>
+                <button id="player-overlay-save-for-later" class="button button--ghost" type="button">Watch later</button>
+                <button id="player-overlay-remove-progress" class="button button--ghost" type="button" hidden>Remove from continue watching</button>
+                <button id="player-overlay-confirm-later" class="button button--ghost" type="button" hidden>Continue later</button>
+                <button id="player-overlay-copy-url" class="button button--ghost" type="button">Copy URL</button>
+                <button id="player-overlay-open-youtube" class="button button--ghost" type="button">Open on YouTube</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
       <footer class="app-footer" role="contentinfo">
         <p class="caption">GOTXE + ❤️ + IA 🤖</p>
+        <a
+          id="footer-update-link"
+          class="footer-update-link"
+          href="#"
+          target="_blank"
+          rel="noreferrer"
+          hidden
+        ></a>
         <div class="footer-links">
           <a class="footer-link" id="issues-link" href="https://github.com/GOTXE/youtube-clear-view/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer">
             <span id="issues-label">Report issue</span>
@@ -315,17 +493,27 @@
       </footer>
     </div>
 
-    <script src="config.js"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/channel-sidebar-search.js"></script>
-    <script src="js/header-context.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/device.js"></script>
-    <script src="js/theme-switcher.js"></script>
-    <script src="js/carousel.js"></script>
-    <script src="js/categories.js"></script>
-    <script src="js/app.js"></script>
+    <script src="config.js" defer></script>
+    <script src="js/i18n.js" defer></script>
+    <script src="js/utils.js" defer></script>
+    <script src="js/channel-sidebar-search.js" defer></script>
+    <script src="js/header-context.js" defer></script>
+    <script src="js/api.js" defer></script>
+    <script src="js/passkey-auth.js" defer></script>
+    <script src="js/auth.js" defer></script>
+    <script src="js/device.js" defer></script>
+    <script src="js/layout-mode.js" defer></script>
+    <script src="js/sidebar-shell.js" defer></script>
+    <script src="js/desktop-shell.js" defer></script>
+    <script src="js/phone-shell.js" defer></script>
+    <script src="js/tv-shell.js" defer></script>
+    <script src="js/player-overlay.js" defer></script>
+    <script src="js/refresh-governance.js" defer></script>
+    <script src="js/theme-switcher.js" defer></script>
+    <script src="js/carousel.js" defer></script>
+    <script src="js/categories.js" defer></script>
+    <script src="js/login-page.js" defer></script>
+    <script src="js/account-panel.js" defer></script>
+    <script src="js/app.js" defer></script>
   </body>
 </html>

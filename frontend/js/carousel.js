@@ -272,13 +272,17 @@ class Carousel {
     const channel = item.channel || {};
     const watched = Boolean(item.watched);
     const isShort = typeof video.duration === 'number' && video.duration <= 60;
+    const isPhoneMode = document.documentElement.dataset.mode === 'phone';
     const showTitle = this.options.showTitle && !(this.options.hideTextForShorts && isShort);
-    const showDescription = this.options.showDescription && !(this.options.hideTextForShorts && isShort);
+    const showDescription = this.options.showDescription && !(this.options.hideTextForShorts && isShort) && !isPhoneMode;
 
     const card = document.createElement('article');
     card.className = 'video-card';
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
+    if (video.id != null) {
+      card.dataset.videoId = String(video.id);
+    }
 
     const title = video.title || 'Untitled video';
     card.setAttribute('aria-label', `Open ${title}`);
@@ -296,6 +300,22 @@ class Carousel {
         this.thumbObserver.observe(image);
       }
       thumb.appendChild(image);
+    }
+
+    // Progress bar for in-progress videos
+    if (item.progress != null && video.duration > 0) {
+      const ratio = Math.min(Math.max(item.progress / video.duration, 0), 1);
+      const bar = document.createElement('div');
+      bar.className = 'video-card__progress';
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-valuenow', Math.round(ratio * 100));
+      bar.setAttribute('aria-valuemin', '0');
+      bar.setAttribute('aria-valuemax', '100');
+      const fill = document.createElement('div');
+      fill.className = 'video-card__progress-fill';
+      fill.style.width = `${(ratio * 100).toFixed(1)}%`;
+      bar.appendChild(fill);
+      thumb.appendChild(bar);
     }
 
     const body = document.createElement('div');
@@ -321,14 +341,27 @@ class Carousel {
 
     const details = document.createElement('p');
     details.className = 'video-card__meta video-card__details';
+    if (video.published_at) {
+      if (typeof window.timeAgo === 'function') {
+        details.textContent = window.timeAgo(video.published_at);
+      } else {
+        const publishedDate = new Date(video.published_at);
+        if (!Number.isNaN(publishedDate.getTime())) {
+          details.textContent = publishedDate.toLocaleDateString();
+        }
+      }
+    }
 
     const durationText = this.formatDuration(video.duration);
     if (durationText) {
-      details.appendChild(document.createTextNode(`Duración: ${durationText}`));
+      const durationBadge = document.createElement('span');
+      durationBadge.className = 'video-card__duration';
+      durationBadge.textContent = durationText;
+      thumb.appendChild(durationBadge);
     }
 
     if (watched) {
-      this.applyWatchedState(card, details, Boolean(durationText));
+      this.applyWatchedState(card, details, false);
     }
 
     if (showTitle) {
@@ -341,7 +374,9 @@ class Carousel {
     if (showDescription && truncatedDescription) {
       body.appendChild(descriptionEl);
     }
-    body.appendChild(details);
+    if (details.textContent) {
+      body.appendChild(details);
+    }
 
     card.appendChild(thumb);
     card.appendChild(body);
@@ -349,10 +384,28 @@ class Carousel {
     const handleActivate = () => {
       const videoId = video.yt_video_id;
       if (videoId) {
-        const baseUrl = window.APP_CONFIG && window.APP_CONFIG.YT_BASE_URL
-          ? window.APP_CONFIG.YT_BASE_URL
-          : 'https://www.youtube.com';
-        const url = `${baseUrl}/watch?v=${videoId}`;
+        const overlay = window.ytcvPlayerOverlay;
+        if (overlay && typeof overlay.openVideoOverlay === 'function') {
+          const openedInOverlay = overlay.openVideoOverlay({
+            video,
+            channel,
+            watched,
+            origin: card,
+            progress: item.progress || null,
+            continueWatching: Boolean(item.continue_watching),
+            onMarkWatched: async () => {
+              await this.markWatched(video, card, details, Boolean(durationText));
+            }
+          });
+
+          if (openedInOverlay) {
+            return;
+          }
+        }
+
+        const url = typeof window.getYTVideoUrl === 'function'
+          ? window.getYTVideoUrl(videoId)
+          : `https://www.youtube.com/watch?v=${videoId}`;
         window.open(url, '_blank', 'noopener');
       }
 
@@ -405,6 +458,20 @@ class Carousel {
     if (card.dataset.watched !== 'true') {
       this.applyWatchedState(card, detailsElement, hasDuration || detailsElement.textContent.length > 0);
     }
+  }
+
+  removeVideoById(videoId) {
+    if (!this.track || videoId == null) {
+      return false;
+    }
+
+    const card = this.track.querySelector(`.video-card[data-video-id="${String(videoId)}"]`);
+    if (!card) {
+      return false;
+    }
+
+    card.remove();
+    return true;
   }
 
   formatDuration(seconds) {
@@ -506,9 +573,18 @@ class Carousel {
     }
 
     const count = this.getVisibleCount();
+    const gap = this.options.gap || 20;
+    // Use px so cards overflow the track and scrollBy works correctly.
+    // Percentage flex-basis is relative to the container's visible width,
+    // which means cards never exceed 100% and nothing scrolls.
+    const trackWidth = this.track.clientWidth || this.track.offsetWidth || 800;
+    const totalGap = gap * (count - 1);
+    const cardWidth = Math.floor((trackWidth - totalGap) / count);
+
     const cards = this.track.querySelectorAll('.video-card');
     cards.forEach(card => {
-      card.style.flex = `0 0 ${100 / count}%`;
+      card.style.flex = `0 0 ${cardWidth}px`;
+      card.style.maxWidth = `${cardWidth}px`;
     });
   }
 

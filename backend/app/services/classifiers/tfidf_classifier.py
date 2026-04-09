@@ -1,5 +1,11 @@
-"""TF-IDF classifier using precision-first text and video evidence."""
+"""TF-IDF classifier using precision-first text and video evidence.
 
+Pure Python implementation — no external dependencies.
+Equivalent to sklearn's TfidfVectorizer(lowercase=True, stop_words="english")
++ cosine_similarity, but using only stdlib (math, collections).
+"""
+
+import math
 from collections import Counter
 from typing import Optional, Tuple
 
@@ -114,6 +120,31 @@ VIDEO_CATEGORY_TO_CANDIDATES = {
     "28": ["Technology", "Science"],
 }
 
+# Common English stop words to ignore during tokenization
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "it", "its", "be", "was", "are",
+    "were", "been", "have", "has", "had", "do", "does", "did", "not",
+    "this", "that", "these", "those", "as", "if", "so", "up", "out",
+    "my", "your", "his", "her", "our", "their", "we", "you", "he", "she",
+    "they", "i", "me", "him", "us", "them",
+})
+
+
+def _tokenize(text: str) -> list:
+    """Lowercase, split on whitespace, remove stop words."""
+    return [t for t in text.lower().split() if t not in _STOP_WORDS]
+
+
+def _cosine_similarity(vec_a: dict, vec_b: dict) -> float:
+    """Cosine similarity between two sparse TF-IDF vectors (dicts)."""
+    dot = sum(vec_a.get(k, 0.0) * v for k, v in vec_b.items())
+    norm_a = math.sqrt(sum(v * v for v in vec_a.values()))
+    norm_b = math.sqrt(sum(v * v for v in vec_b.values()))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
 
 class TFIDFClassifier:
     """Classifier using TF-IDF keyword-based analysis."""
@@ -126,48 +157,79 @@ class TFIDFClassifier:
     MIN_VIDEO_SHARE = 0.6
     MIN_VIDEO_MARGIN = 2
 
+    # Relaxed thresholds for channels with sparse data
+    MIN_CONFIDENCE_SPARSE = 0.12
+    MIN_MARGIN_SPARSE = 0.02
+    MIN_FALLBACK_SCORE_SPARSE = 2
+    MIN_FALLBACK_MARGIN_SPARSE = 1
+    MIN_VIDEO_EVIDENCE_SPARSE = 2
+    MIN_VIDEO_SHARE_SPARSE = 0.50
+
     def __init__(self):
         """Initialize the classifier with keyword corpus."""
         self.category_keywords = CATEGORY_KEYWORDS
-        self._vectorizer = None
-        self._category_vectors = None
+        self._categories: list = []
+        self._category_vectors: list = []
+        self._idf: dict = {}
+        self._n_docs: int = 0
         self._initialized = False
 
     def _initialize(self):
-        """Lazy initialization of TF-IDF vectorizer."""
+        """Lazy initialization: build TF-IDF vectors from category keyword corpus."""
         if self._initialized:
             return
 
-        try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.metrics.pairwise import cosine_similarity
-            import numpy as np
+        category_texts = []
+        for category, keywords in self.category_keywords.items():
+            category_texts.append(" ".join(keywords))
+            self._categories.append(category)
 
-            self._sklearn_available = True
-            self._cosine_similarity = cosine_similarity
-            self._np = np
+        n = len(category_texts)
+        tokenized = [_tokenize(doc) for doc in category_texts]
 
-            # Create corpus for each category
-            category_texts = []
-            self._categories = []
-            for category, keywords in self.category_keywords.items():
-                category_texts.append(" ".join(keywords))
-                self._categories.append(category)
+        # Document frequency: how many category docs contain each term
+        df: Counter = Counter()
+        for tokens in tokenized:
+            for term in set(tokens):
+                df[term] += 1
 
-            # Fit vectorizer on category keywords
-            self._vectorizer = TfidfVectorizer(
-                lowercase=True,
-                stop_words="english",
-                ngram_range=(1, 2),
-            )
-            self._category_vectors = self._vectorizer.fit_transform(category_texts)
-            self._initialized = True
-            logger.info("TF-IDF classifier initialized with sklearn")
+        # Smooth IDF — same formula as sklearn's TfidfVectorizer(smooth_idf=True)
+        self._idf = {
+            term: math.log((n + 1) / (count + 1)) + 1
+            for term, count in df.items()
+        }
+        self._n_docs = n
 
-        except ImportError:
-            self._sklearn_available = False
-            self._initialized = True
-            logger.warning("sklearn not available, TF-IDF classifier will use fallback")
+        # Build category vectors using this IDF
+        for tokens in tokenized:
+            tf = Counter(tokens)
+            total = len(tokens) or 1
+            vec = {
+                term: (count / total) * self._idf[term]
+                for term, count in tf.items()
+            }
+            self._category_vectors.append(vec)
+
+        self._initialized = True
+        logger.info("TF-IDF classifier initialized (pure Python, no external deps)")
+
+    def _vectorize(self, text: str) -> dict:
+        """Transform text into a TF-IDF vector using the corpus IDF.
+
+        Terms not seen in the category corpus get a high IDF (rare = informative),
+        matching sklearn's behavior for out-of-vocabulary terms.
+        """
+        tokens = _tokenize(text)
+        if not tokens:
+            return {}
+        tf = Counter(tokens)
+        total = len(tokens)
+        # Unknown terms: treated as appearing in 0 category docs → max IDF
+        default_idf = math.log((self._n_docs + 1) / 1) + 1
+        return {
+            term: (count / total) * self._idf.get(term, default_idf)
+            for term, count in tf.items()
+        }
 
     def classify(self, channel) -> Optional[Tuple[str, float]]:
         """
@@ -185,34 +247,30 @@ class TFIDFClassifier:
 
         self._initialize()
 
-        if not self._sklearn_available:
-            return self._fallback_classify(channel)
-
-        # Build text from channel data
         text = self._build_channel_text(channel)
         if not text or len(text.strip()) < 10:
             logger.debug(f"Channel {channel.yt_channel_id} has insufficient text")
             return None
 
         try:
-            # Transform channel text
-            channel_vector = self._vectorizer.transform([text])
+            channel_vec = self._vectorize(text)
+            if not channel_vec:
+                return None
 
-            # Calculate similarity with each category
-            similarities = self._cosine_similarity(
-                channel_vector, self._category_vectors
-            ).flatten()
+            similarities = [
+                _cosine_similarity(channel_vec, cat_vec)
+                for cat_vec in self._category_vectors
+            ]
 
-            # Get best match
-            ranked = sorted(
-                enumerate(similarities),
-                key=lambda item: item[1],
-                reverse=True,
-            )
+            ranked = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
             best_idx, best_score = ranked[0]
             second_score = ranked[1][1] if len(ranked) > 1 else 0.0
 
-            if best_score < self.MIN_CONFIDENCE or (best_score - second_score) < self.MIN_MARGIN:
+            sparse = self._is_sparse(channel)
+            min_conf = self.MIN_CONFIDENCE_SPARSE if sparse else self.MIN_CONFIDENCE
+            min_marg = self.MIN_MARGIN_SPARSE if sparse else self.MIN_MARGIN
+
+            if best_score < min_conf or (best_score - second_score) < min_marg:
                 logger.debug(
                     "Channel %s TF-IDF signal too weak (best=%s, second=%s)",
                     channel.yt_channel_id,
@@ -233,32 +291,6 @@ class TFIDFClassifier:
         except Exception as e:
             logger.error(f"TF-IDF classification error: {e}")
             return None
-
-    def _fallback_classify(self, channel) -> Optional[Tuple[str, float]]:
-        """Simple keyword matching fallback when sklearn is not available."""
-        text = self._build_channel_text(channel).lower()
-
-        if not text:
-            return None
-
-        scores = {}
-
-        for category, keywords in self.category_keywords.items():
-            scores[category] = sum(1 for kw in keywords if kw.lower() in text)
-
-        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        best_category, best_score = ranked[0]
-        second_score = ranked[1][1] if len(ranked) > 1 else 0
-
-        if (
-            best_category
-            and best_score >= self.MIN_FALLBACK_SCORE
-            and (best_score - second_score) >= self.MIN_FALLBACK_MARGIN
-        ):
-            confidence = min(best_score / 10, 0.8)
-            return (best_category, confidence)
-
-        return None
 
     def _classify_from_video_categories(self, channel) -> Optional[Tuple[str, float]]:
         """Use dominant recent YouTube video categories when the signal is clear."""
@@ -287,7 +319,9 @@ class TFIDFClassifier:
             counts[candidates[0]] += 1
             mapped_total += 1
 
-        if mapped_total < self.MIN_VIDEO_EVIDENCE or not counts:
+        sparse = self._is_sparse(channel)
+        min_vid_ev = self.MIN_VIDEO_EVIDENCE_SPARSE if sparse else self.MIN_VIDEO_EVIDENCE
+        if mapped_total < min_vid_ev or not counts:
             return None
 
         ranked = counts.most_common()
@@ -295,7 +329,8 @@ class TFIDFClassifier:
         second_score = ranked[1][1] if len(ranked) > 1 else 0
         share = best_score / mapped_total if mapped_total else 0.0
 
-        if share < self.MIN_VIDEO_SHARE or (best_score - second_score) < self.MIN_VIDEO_MARGIN:
+        min_vid_share = self.MIN_VIDEO_SHARE_SPARSE if sparse else self.MIN_VIDEO_SHARE
+        if share < min_vid_share or (best_score - second_score) < self.MIN_VIDEO_MARGIN:
             return None
 
         confidence = min(0.9, 0.7 + (share * 0.2))
@@ -343,16 +378,20 @@ class TFIDFClassifier:
 
         return " ".join(parts)
 
+    def _is_sparse(self, channel) -> bool:
+        """Return True when a channel has limited metadata for classification."""
+        desc_len = len(channel.description or "") if channel.description else 0
+        video_count = 0
+        if getattr(channel, "id", None):
+            video_count = Video.query.filter_by(channel_id=channel.id).count()
+        return desc_len < 100 and video_count < 4
+
     def can_classify(self, channel) -> bool:
         """Check if this classifier can handle the channel."""
         text = self._build_channel_text(channel)
         if len(text.strip()) >= 10:
             return True
         return self._classify_from_video_categories(channel) is not None
-
-    @property
-    def method_name(self) -> str:
-        return "tfidf"
 
     @property
     def method_name(self) -> str:

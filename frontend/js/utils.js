@@ -98,8 +98,12 @@
     if (maxLength <= 3) {
       return '.'.repeat(maxLength);
     }
-
-    return `${text.slice(0, maxLength - 3)}...`;
+    const candidate = text.slice(0, maxLength - 3);
+    const boundaryIndex = candidate.search(/\s+\S*$/);
+    const safeSlice = boundaryIndex > Math.floor((maxLength - 3) * 0.55)
+      ? candidate.slice(0, boundaryIndex)
+      : candidate;
+    return `${safeSlice.trimEnd()}...`;
   }
 
   function debounce(func, delay) {

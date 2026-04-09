@@ -1,0 +1,59 @@
+/* Mode-specific overrides for desktop/tablet layout mode. */
+
+html[data-mode="desktop_tablet"] .app {
+  padding: var(--space-6);
+}
+
+html[data-mode="desktop_tablet"] .header-row {
+  grid-template-columns: minmax(300px, 360px) minmax(260px, 1fr) auto;
+}
+
+html[data-mode="desktop_tablet"] .header-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+html[data-mode="desktop_tablet"] .filters {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+html[data-mode="desktop_tablet"] .carousel-track {
+  gap: var(--space-5);
+}
+
+/* .video-card width controlled by JS updateCardSizing() */
+
+html[data-mode="desktop_tablet"] .video-card__thumb {
+  min-height: 169px;
+}
+
+/* Viewport-within-mode: narrow desktop/tablet viewports */
+@media (max-width: 1024px) {
+  html[data-mode="desktop_tablet"] .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-mode="desktop_tablet"] .channel-sidebar {
+    max-height: 320px;
+  }
+
+  html[data-mode="desktop_tablet"] .app-layout__sidebar-toggle {
+    display: none;
+  }
+}
+
+html[data-mode="desktop_tablet"] .app-layout.sidebar-hidden {
+  grid-template-columns: 0 1fr;
+  gap: var(--space-4);
+}
+
+html[data-mode="desktop_tablet"] .app-layout.sidebar-hidden .app-content {
+  padding-left: 0;
+}
+
+/* Viewport-within-mode: large desktop screens */
+@media (min-width: 1920px) {
+  html[data-mode="desktop_tablet"] .category-option {
+    min-height: 60px;
+  }
+}

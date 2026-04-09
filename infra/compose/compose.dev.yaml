@@ -1,0 +1,17 @@
+services:
+  backend:
+    image: ytcv-backend:dev
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend/Dockerfile
+    environment:
+      YTCV_BACKEND_BUILD_ID: ${YTCV_BACKEND_BUILD_ID:-dev}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:5550/api/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:${YTCV_HTTP_PORT:-8080}}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:${YTCV_HTTP_PORT:-8080},http://localhost:5550}
+
+  proxy:
+    image: ytcv-proxy:dev
+    build:
+      context: ../..
+      dockerfile: infra/docker/proxy/Dockerfile

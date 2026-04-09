@@ -1,9 +1,9 @@
 """User settings model for presets and scheduling."""
 
 import json
-from datetime import datetime
 
 from app.extensions import db
+from app.utils.time import utc_now
 
 DEFAULT_SCHEDULE_HOURS = [7, 12, 17, 21]
 DEFAULT_PRESET = "standard"
@@ -23,12 +23,23 @@ class UserSettings(db.Model):
     backfill_cursor = db.Column(db.Integer)
     backfill_started_at = db.Column(db.DateTime)
     backfill_last_run_at = db.Column(db.DateTime)
+    enrich_active = db.Column(db.Boolean, default=False)
+    enrich_phase = db.Column(db.String(20))
+    enrich_cursor = db.Column(db.Integer, default=0)
+    enrich_total = db.Column(db.Integer, default=0)
+    enrich_classified = db.Column(db.Integer, default=0)
+    enrich_errors = db.Column(db.Integer, default=0)
+    enrich_started_at = db.Column(db.DateTime)
+    auto_classify_date = db.Column(db.String(10))
+    auto_classify_attempts = db.Column(db.Integer, default=0)
+    auto_classify_last_attempt_at = db.Column(db.DateTime)
     last_schedule_run_at = db.Column(db.DateTime)
     quota_date = db.Column(db.String(10))
     quota_used = db.Column(db.Integer, default=0)
     quota_cap = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_security_reminder_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     user = db.relationship("User", back_populates="settings")
 
@@ -80,4 +91,23 @@ class UserSettings(db.Model):
             "quota_date": self.quota_date,
             "quota_used": self.quota_used,
             "quota_cap": self.quota_cap,
+            "last_security_reminder_at": (
+                self.last_security_reminder_at.isoformat() if self.last_security_reminder_at else None
+            ),
+            "enrich_active": self.enrich_active or False,
+            "enrich_phase": self.enrich_phase,
+            "enrich_cursor": self.enrich_cursor or 0,
+            "enrich_total": self.enrich_total or 0,
+            "enrich_classified": self.enrich_classified or 0,
+            "enrich_errors": self.enrich_errors or 0,
+            "enrich_started_at": (
+                self.enrich_started_at.isoformat() if self.enrich_started_at else None
+            ),
+            "auto_classify_date": self.auto_classify_date,
+            "auto_classify_attempts": self.auto_classify_attempts or 0,
+            "auto_classify_last_attempt_at": (
+                self.auto_classify_last_attempt_at.isoformat()
+                if self.auto_classify_last_attempt_at
+                else None
+            ),
         }

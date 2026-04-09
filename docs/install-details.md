@@ -26,6 +26,7 @@ You need one of these:
 YTCV uses Google OAuth to:
 - identify each user
 - read that user's subscribed channels via the official YouTube API
+- bootstrap the first account session before the user defines local credentials
 
 You will need:
 - a Google account
@@ -34,6 +35,9 @@ You will need:
 - OAuth Client ID + Secret
 
 Important: OAuth works best with a stable HTTPS URL (a normal website URL). TVs are especially picky.
+The intended deployment model is:
+- first account creation through Google OAuth on a compatible browser
+- then local LAN sign-in on other devices using username/password, passkeys, or pairing
 
 Reference:
 - Deployment details: [deployment.md](deployment.md)
@@ -62,12 +66,11 @@ Suggested folder layout (simple):
   - `/volume1/ytcv/logs/` (log files)
   - `/volume1/ytcv/backend/` (backend service)
   - `/volume1/ytcv/frontend/` (static web files)
-  - `/volume1/ytcv/log_viewer/` (log viewer service)
 
 What you will configure:
 - Synology Reverse Proxy:
   - one public HTTPS hostname for the UI (recommended)
-  - routes for `/api` (backend) and optionally `/logs` (log viewer)
+  - route for `/api` (backend)
 - `.env` values (OAuth and URLs)
 
 Where it usually fails:
@@ -85,7 +88,7 @@ Why:
 - can be a small always-on device
 
 Typical setup:
-- run backend + log viewer as background services
+- run backend as a background service
 - use a reverse proxy (nginx/caddy) for HTTPS
 - store DB/logs in a persistent folder you own
 
@@ -123,6 +126,34 @@ Tip:
 - The first import may take time (large subscription lists). The UI should show progress.
   If you do not see progress updates, please wait a bit and avoid refreshing the page.
 
+### Channel actions in the menu
+
+Inside the hamburger menu, the **Channels** section now exposes a single
+**Classify channels** action. When you click it, the app asks you to choose one
+of two modes:
+
+- **Basic**
+  - This is the light option.
+  - It tries to classify only channels that are still missing a useful category.
+  - Use it for normal maintenance after importing channels or refreshing videos.
+
+- **Full**
+  - This is the heavier corrective option.
+  - It first gathers recent video evidence for channels that still lack enough data.
+  - Then it asks the system to reconsider **all** your subscribed channels, not only the missing ones.
+  - Use it when the current automatic categories feel wrong and you want the system to try again with fresher evidence.
+
+Practical advice:
+- Use **Basic** first for routine maintenance.
+- Use **Full** only when you want a broader reset of automatic categorization.
+- Manual category changes still take priority over automatic guesses.
+- Once started, both modes keep running on the backend. If you close the browser
+  and come back while the task is still active, the web UI will reattach to its
+  progress automatically.
+- If the scheduler is enabled and you still have unclassified channels, the app
+  also tries a **Basic** automatic classification in the background up to two
+  times per day.
+
 ---
 
 ## 4) Developer setup (if you want to contribute)
@@ -142,7 +173,7 @@ Common flow:
 If login fails:
 - verify your public URL is HTTPS and reachable from the device
 - verify the OAuth redirect URI matches *exactly* (no extra slashes, correct host, correct scheme)
-- check backend logs for a tracking ID and open the log viewer if available
+- check backend logs for a tracking ID and review it from `Gestor > Logs`
 
 If the app loads but shows no content:
 - confirm you are signed in

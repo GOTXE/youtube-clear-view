@@ -1,0 +1,42 @@
+:8080 {
+  root * /srv
+  encode zstd gzip
+
+  @api path /api*
+  handle @api {
+    reverse_proxy backend:5550
+  }
+
+  @logs path /logs*
+  handle @logs {
+    redir * /gestor/#logs 308
+  }
+
+  @gestor path /gestor /gestor/*
+  handle @gestor {
+    try_files {path} {path}/ /gestor/index.html
+    file_server
+  }
+
+  # Cache agresivo para assets estáticos (JS, CSS, imágenes, fuentes)
+  @static {
+    path *.js *.css *.png *.jpg *.jpeg *.svg *.ico *.woff *.woff2
+    not path /sw.js
+  }
+  header @static Cache-Control "public, max-age=31536000, immutable"
+
+  # Service worker: sin caché para que el navegador siempre lo revalide
+  @sw path /sw.js
+  header @sw Cache-Control "no-cache"
+
+  # HTML y i18n JSON: sin caché para siempre obtener la versión más reciente
+  @nocache {
+    path *.html /i18n/*.json
+  }
+  header @nocache Cache-Control "no-cache"
+
+  handle {
+    try_files {path} /index.html
+    file_server
+  }
+}

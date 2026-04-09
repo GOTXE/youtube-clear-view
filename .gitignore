@@ -21,10 +21,18 @@ logs/
 !backend/logs/.gitkeep
 *.log
 
-# Databases
+# Runtime / local app data
+*.db
+*.db-*
+*.db.backup
 *.sqlite
 *.sqlite3
-*.db
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.pid
+*.sock
 
 # Local instance data (SQLite + cached thumbnails)
 backend/instance/
@@ -80,3 +88,12 @@ yt_list_copy/
 
 # VibeCoding
 vibecoding/
+
+# No sync
+borrar/
+
+# Local AI / agent artifacts
+.claude/
+CLAUDE*
+AGENTS*
+session.json

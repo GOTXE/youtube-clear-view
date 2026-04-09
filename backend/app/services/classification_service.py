@@ -1,11 +1,11 @@
 """Precision-first channel classification service."""
 
-from datetime import datetime
 from typing import List, Optional, Tuple
 
 from app.extensions import db
 from app.logging.logger import get_logger
 from app.models import Category, Channel, ChannelCategory
+from app.utils.time import utc_now
 
 from .classifiers import TFIDFClassifier, YouTubeTopicsClassifier
 
@@ -75,7 +75,7 @@ class ClassificationService:
             return None
 
         # Create or update ChannelCategory
-        now = datetime.utcnow()
+        now = utc_now()
 
         if existing:
             existing.category_id = category.id
@@ -181,7 +181,7 @@ class ClassificationService:
             logger.error(f"Category {category_name} not found")
             return None
 
-        now = datetime.utcnow()
+        now = utc_now()
         existing = ChannelCategory.query.filter_by(channel_id=channel.id).first()
 
         if existing:

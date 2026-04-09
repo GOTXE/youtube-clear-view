@@ -30,6 +30,19 @@ def ensure_user_schema():
                 ("google_refresh_token", "VARCHAR(2048)"),
                 ("google_token_expires_at", "DATETIME"),
                 ("google_scopes", "TEXT"),
+                ("google_auth_status", "VARCHAR(32) NOT NULL DEFAULT 'not_linked'"),
+                ("totp_secret", "VARCHAR(4096)"),
+                ("totp_pending_secret", "VARCHAR(4096)"),
+                ("totp_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("recovery_codes_hashes", "TEXT"),
+                ("session_token_hash", "VARCHAR(64)"),
+                ("password_hash", "VARCHAR(255)"),
+                ("is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("is_active", "BOOLEAN NOT NULL DEFAULT 1"),
+                ("must_change_password", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("setup_completed", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("login_attempts", "INTEGER NOT NULL DEFAULT 0"),
+                ("login_locked_until", "DATETIME"),
             ]
 
             for name, column_def in additions:
@@ -40,9 +53,37 @@ def ensure_user_schema():
                 text("CREATE INDEX IF NOT EXISTS ix_users_email ON users (email)")
             )
             conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_users_session_token_hash ON users (session_token_hash)")
+            )
+            conn.execute(
                 text(
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_user_id "
                     "ON users (google_user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE users SET google_auth_status = CASE "
+                    "WHEN google_auth_status = 'revoked' THEN 'revoked' "
+                    "WHEN auth_provider = 'google' "
+                    "AND ((google_refresh_token IS NOT NULL AND google_refresh_token != '') "
+                    "OR (google_access_token IS NOT NULL AND google_access_token != '')) "
+                    "THEN 'active' "
+                    "WHEN auth_provider = 'google' THEN 'needs_reauth' "
+                    "ELSE 'not_linked' END "
+                    "WHERE google_auth_status IS NULL "
+                    "OR google_auth_status = '' "
+                    "OR google_auth_status = 'not_linked' "
+                    "OR google_auth_status = 'needs_reauth'"
+                )
+            )
+            # 5.1: mark existing established users as setup_completed to avoid
+            # forcing the wizard on users who already had working accounts.
+            conn.execute(
+                text(
+                    "UPDATE users SET setup_completed = 1 "
+                    "WHERE setup_completed = 0 "
+                    "AND (google_user_id IS NOT NULL OR password_hash IS NOT NULL)"
                 )
             )
     except Exception as error:
@@ -71,6 +112,18 @@ def ensure_user_channel_schema():
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_refreshed_at DATETIME"))
             if "last_checked_at" not in columns:
                 conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_checked_at DATETIME"))
+            if "last_feed_checked_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_checked_at DATETIME"))
+            if "last_feed_success_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_success_at DATETIME"))
+            if "last_feed_error_at" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN last_feed_error_at DATETIME"))
+            if "feed_error_count" not in columns:
+                conn.execute(
+                    text("ALTER TABLE user_channels ADD COLUMN feed_error_count INTEGER NOT NULL DEFAULT 0")
+                )
+            if "refresh_mode_override" not in columns:
+                conn.execute(text("ALTER TABLE user_channels ADD COLUMN refresh_mode_override VARCHAR(20)"))
     except Exception as error:
         logger.warning(
             "User channel schema migration skipped: %s",
@@ -158,6 +211,38 @@ def ensure_video_schema():
                 )
             if "tags" not in columns:
                 conn.execute(text("ALTER TABLE videos ADD COLUMN tags TEXT"))
+            if "discovered_via" not in columns:
+                conn.execute(
+                    text("ALTER TABLE videos ADD COLUMN discovered_via VARCHAR(20) NOT NULL DEFAULT 'api'")
+                )
+            if "metadata_incomplete" not in columns:
+                conn.execute(
+                    text("ALTER TABLE videos ADD COLUMN metadata_incomplete BOOLEAN NOT NULL DEFAULT 0")
+                )
+            if "source_last_seen_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN source_last_seen_at DATETIME"))
+            if "feed_published_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN feed_published_at DATETIME"))
+            if "feed_updated_at" not in columns:
+                conn.execute(text("ALTER TABLE videos ADD COLUMN feed_updated_at DATETIME"))
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_videos_discovered_via ON videos (discovered_via)")
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_videos_metadata_incomplete "
+                    "ON videos (metadata_incomplete)"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE videos "
+                    "SET thumbnail_url = 'https://i.ytimg.com/vi/' || yt_video_id || '/hqdefault.jpg' "
+                    "WHERE yt_video_id IS NOT NULL "
+                    "AND yt_video_id != '' "
+                    "AND (thumbnail_url IS NULL OR thumbnail_url = '')"
+                )
+            )
     except Exception as error:
         logger.warning(
             "Video schema migration skipped: %s",
@@ -211,6 +296,234 @@ def ensure_user_settings_schema():
         )
 
 
+def ensure_user_session_schema():
+    """Ensure user_sessions table exists for concurrent login support."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS user_sessions ("
+                    "id INTEGER NOT NULL PRIMARY KEY, "
+                    "user_id INTEGER NOT NULL, "
+                    "token_hash VARCHAR(64) NOT NULL UNIQUE, "
+                    "created_at DATETIME NOT NULL, "
+                    "last_used_at DATETIME, "
+                    "FOREIGN KEY(user_id) REFERENCES users (id)"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id "
+                    "ON user_sessions (user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_sessions_token_hash "
+                    "ON user_sessions (token_hash)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User session schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_refresh_job_schema():
+    """Ensure refresh_jobs table exists for backend-owned refresh execution."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS refresh_jobs ("
+                    "id INTEGER NOT NULL PRIMARY KEY, "
+                    "user_id INTEGER NOT NULL, "
+                    "kind VARCHAR(20) NOT NULL DEFAULT 'manual', "
+                    "scope_type VARCHAR(20) NOT NULL DEFAULT 'all_channels', "
+                    "scope_channel_id INTEGER, "
+                    "status VARCHAR(20) NOT NULL DEFAULT 'queued', "
+                    "message VARCHAR(255), "
+                    "processed_channels INTEGER NOT NULL DEFAULT 0, "
+                    "total_channels INTEGER NOT NULL DEFAULT 0, "
+                    "new_videos INTEGER NOT NULL DEFAULT 0, "
+                    "rate_limited BOOLEAN NOT NULL DEFAULT 0, "
+                    "blocked_reason VARCHAR(64), "
+                    "created_at DATETIME NOT NULL, "
+                    "started_at DATETIME, "
+                    "finished_at DATETIME, "
+                    "FOREIGN KEY(user_id) REFERENCES users (id), "
+                    "FOREIGN KEY(scope_channel_id) REFERENCES channels (id)"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_user_id "
+                    "ON refresh_jobs (user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_kind "
+                    "ON refresh_jobs (kind)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_status "
+                    "ON refresh_jobs (status)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_refresh_jobs_created_at "
+                    "ON refresh_jobs (created_at)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Refresh job schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_quota_event_schema():
+    """Ensure quota_events table exists for global YouTube quota accounting."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS quota_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        quota_day_pt VARCHAR(10) NOT NULL,
+                        api_method VARCHAR(64) NOT NULL,
+                        units INTEGER NOT NULL,
+                        source VARCHAR(64),
+                        success BOOLEAN NOT NULL DEFAULT 1,
+                        user_id INTEGER REFERENCES users(id),
+                        channel_id INTEGER REFERENCES channels(id),
+                        tracking_id VARCHAR(64),
+                        notes TEXT
+                    )
+                    """
+                )
+            )
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_occurred_at ON quota_events (occurred_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_quota_day_pt ON quota_events (quota_day_pt)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_api_method ON quota_events (api_method)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_source ON quota_events (source)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_user_id ON quota_events (user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_channel_id ON quota_events (channel_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_quota_events_tracking_id ON quota_events (tracking_id)"))
+    except Exception as error:
+        logger.warning(
+            "Quota event schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_enrich_settings_columns():
+    """Ensure user_settings table has enrich task columns."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_settings)")).fetchall()
+            if not result:
+                return
+
+            columns = {row[1] for row in result}
+            additions = [
+                ("enrich_active", "BOOLEAN DEFAULT 0"),
+                ("enrich_phase", "VARCHAR(20)"),
+                ("enrich_cursor", "INTEGER DEFAULT 0"),
+                ("enrich_total", "INTEGER DEFAULT 0"),
+                ("enrich_classified", "INTEGER DEFAULT 0"),
+                ("enrich_errors", "INTEGER DEFAULT 0"),
+                ("enrich_started_at", "DATETIME"),
+                ("auto_classify_date", "VARCHAR(10)"),
+                ("auto_classify_attempts", "INTEGER DEFAULT 0"),
+                ("auto_classify_last_attempt_at", "DATETIME"),
+                ("last_security_reminder_at", "DATETIME"),
+            ]
+
+            for name, column_def in additions:
+                if name not in columns:
+                    conn.execute(text(f"ALTER TABLE user_settings ADD COLUMN {name} {column_def}"))
+                    logger.info("Added column %s to user_settings table", name)
+    except Exception as error:
+        logger.warning(
+            "Enrich settings columns migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_site_settings_schema():
+    """Ensure site_settings table exists for admin-managed global settings."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(site_settings)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS site_settings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        setting_key VARCHAR(100) NOT NULL UNIQUE,
+                        setting_value TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_site_settings_setting_key "
+                    "ON site_settings (setting_key)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Site settings schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
 def ensure_user_device_schema():
     """Ensure newer user device columns exist in SQLite dev databases."""
     engine = db.engine
@@ -232,9 +545,163 @@ def ensure_user_device_schema():
                         "ADD COLUMN device_type_confirmed BOOLEAN NOT NULL DEFAULT 0"
                     )
                 )
+            if "frontend_mode" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN frontend_mode VARCHAR(32)"
+                    )
+                )
+            if "tv_scale" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN tv_scale VARCHAR(8)"
+                    )
+                )
+            if "tv_scale_confirmed_at" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN tv_scale_confirmed_at DATETIME"
+                    )
+                )
+            if "screen_size_inches" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN screen_size_inches INTEGER"
+                    )
+                )
+            if "viewing_distance_m" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN viewing_distance_m FLOAT"
+                    )
+                )
+            if "display_name" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_devices "
+                        "ADD COLUMN display_name VARCHAR(128)"
+                    )
+                )
     except Exception as error:
         logger.warning(
             "User device schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_user_passkey_schema():
+    """Ensure user_passkeys table exists for WebAuthn credentials."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(user_passkeys)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_passkeys (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        label VARCHAR(200),
+                        credential_id VARCHAR(512) NOT NULL,
+                        public_key TEXT NOT NULL,
+                        sign_count INTEGER NOT NULL DEFAULT 0,
+                        transports TEXT,
+                        aaguid VARCHAR(64),
+                        credential_device_type VARCHAR(32),
+                        credential_backed_up BOOLEAN NOT NULL DEFAULT 0,
+                        last_used_at DATETIME,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(user_id) REFERENCES users(id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_passkeys_credential_id "
+                    "ON user_passkeys (credential_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_user_passkeys_user_id "
+                    "ON user_passkeys (user_id)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "User passkey schema migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_login_pairing_schema():
+    """Ensure login_pairings table exists for secondary-device pairing."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(login_pairings)")).fetchall()
+            if result:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS login_pairings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        public_id VARCHAR(64) NOT NULL,
+                        pairing_code VARCHAR(16) NOT NULL,
+                        device_identifier VARCHAR(128),
+                        approved_user_id INTEGER,
+                        approved_at DATETIME,
+                        expires_at DATETIME NOT NULL,
+                        used_at DATETIME,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(approved_user_id) REFERENCES users(id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_login_pairings_public_id "
+                    "ON login_pairings (public_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_login_pairings_code "
+                    "ON login_pairings (pairing_code)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_pairings_approved_user_id "
+                    "ON login_pairings (approved_user_id)"
+                )
+            )
+    except Exception as error:
+        logger.warning(
+            "Login pairing schema migration skipped: %s",
             error,
             extra={"tracking_id": generate_tracking_id()},
         )
@@ -401,6 +868,48 @@ def ensure_user_channel_rating_columns():
     except Exception as error:
         logger.warning(
             "User channel rating columns migration skipped: %s",
+            error,
+            extra={"tracking_id": generate_tracking_id()},
+        )
+
+
+def ensure_video_progress_schema():
+    """Ensure video_progress table exists for playback resume."""
+    engine = db.engine
+    if engine.dialect.name != "sqlite":
+        return
+
+    logger = get_logger(__name__)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(video_progress)")).fetchall()
+            if result:
+                column_names = {row[1] for row in result}
+                if "is_continue_watching" not in column_names:
+                    conn.execute(text(
+                        "ALTER TABLE video_progress "
+                        "ADD COLUMN is_continue_watching INTEGER NOT NULL DEFAULT 1"
+                    ))
+                    logger.info("Added is_continue_watching to video_progress table")
+                return
+
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS video_progress ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "user_id INTEGER NOT NULL REFERENCES users(id), "
+                "video_id INTEGER NOT NULL REFERENCES videos(id), "
+                "position_seconds INTEGER NOT NULL, "
+                "duration_seconds INTEGER, "
+                "is_continue_watching INTEGER NOT NULL DEFAULT 1, "
+                "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                "UNIQUE(user_id, video_id))"
+            ))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_video_progress_user_id ON video_progress (user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_video_progress_video_id ON video_progress (video_id)"))
+            logger.info("Created video_progress table")
+    except Exception as error:
+        logger.warning(
+            "Video progress schema migration skipped: %s",
             error,
             extra={"tracking_id": generate_tracking_id()},
         )

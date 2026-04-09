@@ -1,7 +1,7 @@
 """Video management routes."""
 
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
@@ -11,7 +11,8 @@ from app.logging.logger import get_logger
 from app.logging.tracking import generate_tracking_id
 from app.middleware.auth_middleware import require_auth
 from app.middleware.error_handler import handle_route_errors
-from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, WatchedVideo
+from app.models import Channel, Theme, ThemeChannel, UserChannel, Video, VideoProgress, WatchedVideo
+from app.utils.time import utc_now
 
 videos_bp = Blueprint("videos", __name__)
 logger = get_logger(__name__)
@@ -24,23 +25,29 @@ def _bad_request(message):
     return jsonify({"error": "Bad request.", "tracking_id": tracking_id, "status": 400}), 400
 
 
-def _serialize_video(video, channel, watched):
-    """Serialize video with channel data and watched flag."""
-    return {
+def _serialize_video(video, channel, watched, progress=None, continue_watching=None):
+    """Serialize video with channel data, watched flag, and optional progress."""
+    result = {
         "video": video.to_dict(),
         "channel": channel.to_dict() if channel else None,
         "watched": watched,
     }
+    if progress is not None:
+        result["progress"] = progress
+    if continue_watching is not None:
+        result["continue_watching"] = continue_watching
+    return result
 
 
 def _paginate_videos(query, user_id, limit, offset):
-    """Return paginated videos with watched flags."""
+    """Return paginated videos with watched flags and progress."""
     items = query.offset(offset).limit(limit + 1).all()
     has_more = len(items) > limit
     videos = items[:limit]
 
     video_ids = [video.id for video in videos]
     watched_ids = set()
+    progress_map = {}
     if video_ids:
         watched_entries = (
             WatchedVideo.query.filter_by(user_id=user_id)
@@ -49,16 +56,34 @@ def _paginate_videos(query, user_id, limit, offset):
         )
         watched_ids = {entry.video_id for entry in watched_entries}
 
+        progress_entries = (
+            VideoProgress.query.filter_by(user_id=user_id)
+            .filter(VideoProgress.video_id.in_(video_ids))
+            .all()
+        )
+        progress_map = {
+            p.video_id: {
+                "position": p.position_seconds,
+                "continue_watching": p.is_continue_watching,
+            }
+            for p in progress_entries
+        }
+
     payload = []
     for video in videos:
-        payload.append(_serialize_video(video, video.channel, video.id in watched_ids))
+        progress_entry = progress_map.get(video.id) or {}
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
+        ))
 
     next_offset = offset + limit if has_more else None
     return payload, has_more, next_offset
 
 
 def _paginate_videos_random(query, user_id, limit, offset, seed):
-    """Return randomized videos with watched flags, stable per seed."""
+    """Return randomized videos with watched flags and progress, stable per seed."""
     items = query.all()
     rng = random.Random(seed)
     rng.shuffle(items)
@@ -67,6 +92,7 @@ def _paginate_videos_random(query, user_id, limit, offset, seed):
 
     video_ids = [video.id for video in videos]
     watched_ids = set()
+    progress_map = {}
     if video_ids:
         watched_entries = (
             WatchedVideo.query.filter_by(user_id=user_id)
@@ -75,9 +101,27 @@ def _paginate_videos_random(query, user_id, limit, offset, seed):
         )
         watched_ids = {entry.video_id for entry in watched_entries}
 
+        progress_entries = (
+            VideoProgress.query.filter_by(user_id=user_id)
+            .filter(VideoProgress.video_id.in_(video_ids))
+            .all()
+        )
+        progress_map = {
+            p.video_id: {
+                "position": p.position_seconds,
+                "continue_watching": p.is_continue_watching,
+            }
+            for p in progress_entries
+        }
+
     payload = []
     for video in videos:
-        payload.append(_serialize_video(video, video.channel, video.id in watched_ids))
+        progress_entry = progress_map.get(video.id) or {}
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
+        ))
 
     next_offset = offset + limit if has_more else None
     return payload, has_more, next_offset
@@ -111,11 +155,11 @@ def _apply_video_filters(query, user_id, content_type, since_days, older_than_da
         query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
 
     if since_days:
-        cutoff = datetime.utcnow() - timedelta(days=since_days)
+        cutoff = utc_now() - timedelta(days=since_days)
         query = query.filter(Video.published_at.isnot(None), Video.published_at >= cutoff)
 
     if older_than_days:
-        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+        cutoff = utc_now() - timedelta(days=older_than_days)
         query = query.filter(Video.published_at.isnot(None), Video.published_at < cutoff)
 
     if only_unwatched:
@@ -196,7 +240,7 @@ def latest_videos():
         only_unwatched,
     )
     if randomize:
-        seed = int(datetime.utcnow().strftime("%Y%j"))
+        seed = int(utc_now().strftime("%Y%j"))
         payload, has_more, next_offset = _paginate_videos_random(
             query, user.id, limit, offset, seed
         )
@@ -336,7 +380,10 @@ def mark_watched(video_id):
     if not watched:
         watched = WatchedVideo(user_id=user.id, video_id=video.id, device_id=device_id)
         db.session.add(watched)
-        db.session.commit()
+
+    # Clear any saved playback progress
+    VideoProgress.query.filter_by(user_id=user.id, video_id=video.id).delete()
+    db.session.commit()
 
     return "", 204
 
@@ -352,6 +399,219 @@ def unwatch_video(video_id):
         db.session.delete(watched)
         db.session.commit()
     return "", 204
+
+
+@videos_bp.put("/api/videos/<int:video_id>/progress")
+@handle_route_errors
+@require_auth
+def save_progress(video_id):
+    """Save playback position for resume functionality."""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+
+    position = payload.get("position_seconds")
+    if position is None or not isinstance(position, (int, float)) or position < 0:
+        return _bad_request("position_seconds is required and must be >= 0.")
+
+    duration = payload.get("duration_seconds")
+    if duration is not None and (not isinstance(duration, (int, float)) or duration <= 0):
+        duration = None
+    continue_watching = payload.get("continue_watching")
+    if continue_watching is not None and not isinstance(continue_watching, bool):
+        return _bad_request("continue_watching must be boolean when provided.")
+
+    video = db.session.get(Video, video_id)
+    if not video:
+        tracking_id = generate_tracking_id()
+        logger.warning("Video not found.", extra={"tracking_id": tracking_id})
+        return (
+            jsonify({"error": "Not found.", "tracking_id": tracking_id, "status": 404}),
+            404,
+        )
+
+    progress = VideoProgress.query.filter_by(user_id=user.id, video_id=video.id).first()
+    if progress:
+        progress.position_seconds = int(position)
+        progress.duration_seconds = int(duration) if duration else progress.duration_seconds
+        if continue_watching is not None:
+            progress.is_continue_watching = continue_watching
+        progress.updated_at = utc_now()
+    else:
+        progress = VideoProgress(
+            user_id=user.id,
+            video_id=video.id,
+            position_seconds=int(position),
+            duration_seconds=int(duration) if duration else None,
+            is_continue_watching=bool(continue_watching),
+        )
+        db.session.add(progress)
+
+    db.session.commit()
+    return "", 204
+
+
+@videos_bp.delete("/api/videos/<int:video_id>/progress")
+@handle_route_errors
+@require_auth
+def clear_progress(video_id):
+    """Clear saved playback position for a video."""
+    user = g.current_user
+    VideoProgress.query.filter_by(user_id=user.id, video_id=video_id).delete()
+    db.session.commit()
+    return "", 204
+
+
+@videos_bp.get("/api/videos/in-progress")
+@handle_route_errors
+@require_auth
+def list_in_progress():
+    """Return videos with saved playback progress, most recently updated first."""
+    user = g.current_user
+    limit = min(int(request.args.get("limit", 20)), 100)
+    offset = int(request.args.get("offset", 0))
+
+    progress_query = (
+        VideoProgress.query
+        .filter_by(user_id=user.id)
+        .filter(VideoProgress.is_continue_watching.is_(True))
+        .order_by(VideoProgress.updated_at.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+
+    has_more = len(progress_query) > limit
+    entries = progress_query[:limit]
+
+    if not entries:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    video_ids = [e.video_id for e in entries]
+    videos_map = {v.id: v for v in Video.query.filter(Video.id.in_(video_ids)).all()}
+
+    watched_entries = (
+        WatchedVideo.query.filter_by(user_id=user.id)
+        .filter(WatchedVideo.video_id.in_(video_ids))
+        .all()
+    )
+    watched_ids = {e.video_id for e in watched_entries}
+
+    payload = []
+    for entry in entries:
+        video = videos_map.get(entry.video_id)
+        if not video:
+            continue
+        payload.append(_serialize_video(
+            video, video.channel, video.id in watched_ids,
+            progress=entry.position_seconds,
+            continue_watching=entry.is_continue_watching,
+        ))
+
+    next_offset = offset + limit if has_more else None
+    return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
+
+
+@videos_bp.get("/api/videos/watched")
+@handle_route_errors
+@require_auth
+def list_watched_videos():
+    """Return watched videos for the current user, most recently watched first."""
+    user = g.current_user
+    try:
+        limit = int(request.args.get("limit", 20))
+        offset = int(request.args.get("offset", 0))
+    except ValueError:
+        return _bad_request("Invalid pagination values.")
+
+    if limit <= 0 or offset < 0:
+        return _bad_request("Invalid pagination values.")
+
+    channel_id = request.args.get("channel_id")
+    yt_channel_id = (request.args.get("yt_channel_id") or "").strip() or None
+    if channel_id is not None:
+        try:
+            channel_id = int(channel_id)
+        except (TypeError, ValueError):
+            return _bad_request("Invalid channel_id.")
+        if channel_id <= 0:
+            return _bad_request("Invalid channel_id.")
+    if yt_channel_id:
+        channel = Channel.query.filter_by(yt_channel_id=yt_channel_id).first()
+        if not channel:
+            return jsonify({"videos": [], "has_more": False, "next_offset": None})
+        if channel_id is not None and channel.id != channel_id:
+            return _bad_request("Mismatched channel_id.")
+        channel_id = channel.id
+
+    content_type = request.args.get("content_type")
+    if content_type and content_type not in ("video", "short"):
+        return _bad_request("Invalid content_type.")
+
+    subscribed_ids = [
+        sub.channel_id for sub in UserChannel.query.filter_by(user_id=user.id).all()
+    ]
+    if not subscribed_ids:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    if channel_id is not None and channel_id not in subscribed_ids:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    query = (
+        WatchedVideo.query
+        .filter_by(user_id=user.id)
+        .join(Video, WatchedVideo.video_id == Video.id)
+        .filter(Video.channel_id.in_(subscribed_ids))
+    )
+    if channel_id is not None:
+        query = query.filter(Video.channel_id == channel_id)
+    if content_type == "short":
+        query = query.filter(Video.duration <= 60)
+    elif content_type == "video":
+        query = query.filter(or_(Video.duration.is_(None), Video.duration > 60))
+
+    watched_query = (
+        query.order_by(WatchedVideo.watched_at.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+
+    has_more = len(watched_query) > limit
+    entries = watched_query[:limit]
+    if not entries:
+        return jsonify({"videos": [], "has_more": False, "next_offset": None})
+
+    video_ids = [entry.video_id for entry in entries]
+    videos_map = {video.id: video for video in Video.query.filter(Video.id.in_(video_ids)).all()}
+    progress_entries = (
+        VideoProgress.query.filter_by(user_id=user.id)
+        .filter(VideoProgress.video_id.in_(video_ids))
+        .all()
+    )
+    progress_map = {
+        entry.video_id: {
+            "position": entry.position_seconds,
+            "continue_watching": entry.is_continue_watching,
+        }
+        for entry in progress_entries
+    }
+
+    payload = []
+    for entry in entries:
+        video = videos_map.get(entry.video_id)
+        if not video:
+            continue
+        progress_entry = progress_map.get(video.id) or {}
+        payload.append(_serialize_video(
+            video,
+            video.channel,
+            True,
+            progress=progress_entry.get("position"),
+            continue_watching=progress_entry.get("continue_watching"),
+        ))
+
+    next_offset = offset + limit if has_more else None
+    return jsonify({"videos": payload, "has_more": has_more, "next_offset": next_offset})
 
 
 @videos_bp.get("/api/videos/search")

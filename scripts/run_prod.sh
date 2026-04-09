@@ -1,5 +1,5 @@
 #!/bin/bash
-# Production runner for backend + log viewer (use a real web server for frontend).
+# Production runner for backend (use a real web server for frontend).
 
 set -euo pipefail
 
@@ -47,7 +47,6 @@ log_cmd "Ensuring pip is up to date" "${VENV_PY}" -m ensurepip --upgrade || true
 
 # Install dependencies
 log_pip_install "${VENV_PY}" "backend/requirements.txt"
-log_pip_install "${VENV_PY}" "log_viewer/requirements.txt"
 
 # Configure frontend if needed
 CONFIG_TEMPLATE="${ROOT_DIR}/frontend/config.example.js"
@@ -76,9 +75,6 @@ PY
 fi
 
 export LOG_FILE="${LOG_FILE_PATH}"
-export LOG_VIEWER_USER="${LOG_VIEWER_USER:-admin}"
-export LOG_VIEWER_PASSWORD="${LOG_VIEWER_PASSWORD:-admin}"
-
 BACKEND_HOST="${FLASK_HOST:-0.0.0.0}"
 BACKEND_PORT="${FLASK_PORT:-5550}"
 
@@ -91,19 +87,9 @@ log_info "Starting backend with Gunicorn..."
 BACKEND_PID=$!
 log_success "Backend started (PID: ${BACKEND_PID})"
 
-# Start log viewer with gunicorn
-log_info "Starting log viewer with Gunicorn..."
-(
-    cd log_viewer
-    exec "${ROOT_DIR}/.venv/bin/gunicorn" --bind 0.0.0.0:5551 wsgi:application
-) &
-LOG_VIEWER_PID=$!
-log_success "Log viewer started (PID: ${LOG_VIEWER_PID})"
-
 cleanup() {
     log_info "Shutting down services..."
     kill "${BACKEND_PID}" >/dev/null 2>&1 || true
-    kill "${LOG_VIEWER_PID}" >/dev/null 2>&1 || true
     finalize_run_log 0
 }
 trap cleanup EXIT
@@ -111,7 +97,6 @@ trap cleanup EXIT
 log_info "=============================================="
 log_info "Production mode: ${PROD_MODE}"
 log_info "Backend: http://${BACKEND_HOST}:${BACKEND_PORT}"
-log_info "Log viewer: http://localhost:5551/logs"
 log_info "Serve frontend with nginx pointing to frontend/"
 log_info "=============================================="
 log_info "Run log: ${RUN_LOG_FILE}"

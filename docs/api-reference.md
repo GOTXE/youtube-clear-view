@@ -29,6 +29,10 @@ Notes:
 - Cookies are scoped to the `/api` path.
 - `AUTH_MODE` controls which login methods are available (`local` or `google`).
 - In Google mode, the backend also remembers browser-known Google accounts in the signed Flask session so the UI can switch accounts without a manual logout.
+- When the browser supports WebAuthn and the user has registered at least one passkey, the frontend can also start a recurring sign-in flow with `POST /api/auth/passkeys/authenticate/options` and `POST /api/auth/passkeys/authenticate/verify`.
+- Authenticated users can manage passkeys and TOTP enrollment from the hamburger menu in the web UI.
+- Newly issued sessions are stored in the database as a hash of the cookie token, not the raw token.
+- Stored Google access tokens, refresh tokens, and OAuth scopes are encrypted at rest.
 
 ### Auth modes
 
@@ -63,7 +67,8 @@ Endpoints that return lists of videos respond with:
     {
       "video": { "id": 1, "yt_video_id": "abc" },
       "channel": { "id": 1, "title": "Channel" },
-      "watched": false
+      "watched": false,
+      "progress": 120
     }
   ],
   "has_more": true,
@@ -85,9 +90,181 @@ Response:
 { "status": "ok" }
 ```
 
+### GET /api/version
+
+Returns backend version metadata and GitHub tag update status (cached in backend
+for 24 hours).
+
+Response example:
+
+```json
+{
+  "backend_build_id": "v0.10.0",
+  "current_version": "v0.10.0",
+  "latest_version": "v0.12.0-beta.1",
+  "latest_version_url": "https://github.com/GOTXE/youtube-clear-view/releases/tag/v0.12.0-beta.1",
+  "changelog_url": "https://github.com/GOTXE/youtube-clear-view/releases/tag/v0.12.0-beta.1",
+  "compare_url": "https://github.com/GOTXE/youtube-clear-view/compare/v0.10.0...v0.12.0-beta.1",
+  "update_available": true,
+  "checked_at": "2026-04-09T18:11:12.755023+00:00",
+  "check_error": null
+}
+```
+
+---
+
+## Admin Observability
+
+These endpoints are admin-only and require the authenticated user's username or email
+to be present in `ADMIN_USERNAMES`.
+
+### GET /api/admin/observability/sqlite
+
+Returns process-local SQLite observability metrics.
+
+Response example:
+
+```json
+{
+  "enabled": false,
+  "slow_write_threshold_ms": 100,
+  "write_count": 12,
+  "write_time_ms_total": 45.3,
+  "write_time_ms_avg": 3.78,
+  "write_time_ms_max": 12.4,
+  "slow_write_count": 0,
+  "lock_error_count": 0,
+  "recent_writes": [],
+  "active_manual_refreshes": {
+    "1": {
+      "scope": { "type": "all_channels", "channel_id": null },
+      "started_at": "2026-03-16T23:50:00"
+    }
+  }
+}
+```
+
+### PUT /api/admin/observability/sqlite
+
+Enables or disables detailed SQLite metrics capture at runtime.
+
+Request:
+
+```json
+{ "enabled": true }
+```
+
+Response:
+
+Returns the same payload shape as `GET /api/admin/observability/sqlite`.
+
+### GET /api/admin/runtime-state
+
+Returns the admin-visible runtime state for current sessions and registered devices.
+
+Response example:
+
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "display_name": "Admin",
+      "email": "admin@example.com",
+      "auth_provider": "google",
+      "google_auth_status": "active",
+      "totp_enabled": true,
+      "has_active_session": true,
+      "session_created_at": "2026-03-17T12:40:00",
+      "device_count": 1,
+      "devices": [
+        {
+          "id": 7,
+          "device_identifier": "dev-admin",
+          "device_type": "tv",
+          "frontend_mode": "tv",
+          "tv_scale": "XL"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### GET /api/admin/logs/meta
+
+Requires an authenticated admin session.
+
+Returns runtime metadata for the current logging setup and quota display.
+
+Response example:
+
+```json
+{
+  "log_runtime": {
+    "level": "INFO",
+    "configured_level": "INFO",
+    "rotate_enabled": true,
+    "max_size_bytes": 10485760,
+    "backup_count": 5,
+    "timestamps_timezone": "CET (UTC+01:00)",
+    "timestamps_are_utc": false
+  },
+  "quota": {
+    "reset_at_utc": "2026-01-29T08:00:00+00:00",
+    "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+    "app_timezone": "Europe/Madrid",
+    "official_timezone": "America/Los_Angeles"
+  }
+}
+```
+
 ---
 
 ## Authentication
+
+### POST /api/auth/register
+
+Creates a new local user account with username and password.
+
+Rate-limited per IP address.
+
+Request:
+
+```json
+{
+  "username": "alice",
+  "password": "secret123",
+  "display_name": "Alice"
+}
+```
+
+- `username` (required): 3-64 characters
+- `password` (required): minimum 8 characters
+- `display_name` (optional): defaults to `username`
+
+Response (`201`):
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "auth_provider": "local",
+  "email": null,
+  "google_avatar_url": null,
+  "google_auth_status": "not_linked",
+  "totp_enabled": false,
+  "theme_preference": "light"
+}
+```
+
+Error responses:
+- `400` if username or password requirements are not met
+- `409` if the username is already taken
+- `429` if rate limit is exceeded
 
 ### POST /api/auth/login
 
@@ -109,7 +286,54 @@ Response:
   "auth_provider": "local",
   "email": null,
   "google_avatar_url": null,
+  "google_auth_status": "not_linked",
+  "totp_enabled": false,
   "theme_preference": "light"
+}
+```
+
+### POST /api/auth/fallback-login
+
+Recurring login fallback for returning users.
+
+Accepts a username or email plus either:
+- a current TOTP code
+- a recovery code
+
+Request:
+
+```json
+{
+  "identifier": "alice@example.com",
+  "method": "totp",
+  "code": "123456"
+}
+```
+
+`method` can be `totp` or `recovery_code`.
+
+Success response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice@example.com",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_auth_status": "active",
+  "totp_enabled": true
+}
+```
+
+Failure response:
+
+```json
+{
+  "error": "Unauthorized.",
+  "tracking_id": "ERR-20260317-XXXXXX",
+  "status": 401
 }
 ```
 
@@ -150,6 +374,9 @@ Response (authenticated):
   "email": "alice@example.com",
   "auth_provider": "google",
   "google_avatar_url": "https://...",
+  "google_auth_status": "active",
+  "totp_enabled": true,
+  "is_admin": false,
   "theme_preference": "dark"
 }
 ```
@@ -158,6 +385,20 @@ Response (no session):
 
 ```json
 { "authenticated": false }
+```
+
+Response (pending MFA challenge):
+
+```json
+{
+  "authenticated": false,
+  "mfa_required": true,
+  "user_id": 2,
+  "display_name": "Bob",
+  "email": "bob@example.com",
+  "auth_provider": "google",
+  "available_methods": ["totp", "recovery_code"]
+}
 ```
 
 ### GET /api/auth/accounts
@@ -178,6 +419,7 @@ Response:
       "email": "alice@gmail.com",
       "auth_provider": "google",
       "google_avatar_url": "https://...",
+      "google_auth_status": "active",
       "is_current": true
     },
     {
@@ -187,6 +429,7 @@ Response:
       "email": "bob@gmail.com",
       "auth_provider": "google",
       "google_avatar_url": "https://...",
+      "google_auth_status": "active",
       "is_current": false
     }
   ]
@@ -215,6 +458,8 @@ Response:
   "email": "bob@gmail.com",
   "auth_provider": "google",
   "google_avatar_url": null,
+  "google_auth_status": "active",
+  "totp_enabled": true,
   "theme_preference": "dark"
 }
 ```
@@ -240,10 +485,51 @@ Response:
 }
 ```
 
+### POST /api/auth/profile/password
+
+Requires an authenticated session.
+
+Changes the password for the current user.
+
+Request:
+
+```json
+{
+  "current_password": "old-pass",
+  "new_password": "new-pass-123"
+}
+```
+
+- `current_password` (required if the user already has a password set)
+- `new_password` (required): validated against the active password policy selected by the site admin (`simple`, `strong`, or `unbreakable`)
+
+Response:
+
+```json
+{ "message": "Password updated." }
+```
+
+If the user has not yet set a password, `current_password` can be omitted.
+Setting a password also marks `setup_completed = true` if it was previously false.
+
 ### GET /api/auth/google
 
 Starts the Google OAuth flow (only when `AUTH_MODE=google`).
 This endpoint redirects the browser to the consent screen.
+
+### GET /api/auth/google/link
+
+Requires an authenticated session.
+
+Starts the Google OAuth flow with a "link" intent, allowing the current user to
+attach YouTube/Google credentials to their existing account. Redirects the
+browser to the Google consent screen.
+
+On callback, the backend stores OAuth tokens against the authenticated user
+instead of creating a new account.
+
+This endpoint is intentionally kept for development, migration, and recovery
+scenarios even when the main public sign-up flow is Google-first.
 
 ### GET /api/auth/google/callback
 
@@ -252,27 +538,495 @@ On success, the backend sets a session cookie, remembers that Google account for
 
 If authentication fails, the backend redirects to `FRONTEND_URL` with `?auth_error=<code>`.
 
+### POST /api/auth/google/complete-setup
+
+Requires an authenticated session.
+
+Completes first-time setup for a user who registered via Google OAuth. Allows
+the user to choose a custom username and set the local password required for
+later LAN or fallback logins.
+
+Request:
+
+```json
+{
+  "username": "alice",
+  "password": "correct-horse-battery-staple"
+}
+```
+
+- `username` (required): 3-64 characters, must be unique, and may contain only letters, numbers, `.`, `_`, or `-`
+- `password` (required): validated against the active site-wide password policy
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "setup_completed": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_avatar_url": "https://...",
+  "google_auth_status": "active",
+  "totp_enabled": false,
+  "theme_preference": "light",
+  "has_password": true,
+  "username_suggestion": "alice"
+}
+```
+
+### GET /api/admin/security/password-policy
+
+Requires an authenticated admin session.
+
+Returns the active global password policy and the allowed options.
+
+Response:
+
+```json
+{
+  "password_policy": "strong",
+  "options": [
+    { "value": "simple", "label": "Simple" },
+    { "value": "strong", "label": "Strong" },
+    { "value": "unbreakable", "label": "Unbreakable" }
+  ]
+}
+```
+
+### PUT /api/admin/security/password-policy
+
+Requires an authenticated admin session.
+
+Updates the global password policy used by:
+- local registration when enabled
+- post-Google account setup
+- password changes
+
+Request:
+
+```json
+{
+  "password_policy": "unbreakable"
+}
+```
+
+### POST /api/auth/google/unlink
+
+Requires an authenticated Google session.
+
+Clears stored Google OAuth credentials for the current user and marks the link as revoked.
+
+Response:
+
+```json
+{
+  "user_id": 1,
+  "auth_provider": "google",
+  "google_auth_status": "revoked"
+}
+```
+
+### POST /api/auth/mfa/verify
+
+Completes a pending MFA challenge created after primary auth for a user with TOTP enabled.
+
+Request:
+
+```json
+{
+  "method": "totp",
+  "code": "123456"
+}
+```
+
+`method` can be `totp` or `recovery_code`.
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 2,
+  "username": "bob@example.com",
+  "display_name": "Bob",
+  "email": "bob@example.com",
+  "auth_provider": "google",
+  "google_avatar_url": null,
+  "google_auth_status": "active",
+  "totp_enabled": true,
+  "theme_preference": "dark"
+}
+```
+
+This endpoint completes the second factor only after a primary auth step has already succeeded.
+For direct recurring fallback login, use `POST /api/auth/fallback-login`.
+
+### POST /api/auth/pairing/start
+
+Starts a short-lived pairing request for a secondary device.
+
+Request:
+
+```json
+{
+  "device_identifier": "living-room-tv"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "pending",
+  "public_id": "b8J6x4...",
+  "pairing_code": "ABCD-EFGH",
+  "expires_at": "2026-03-17T11:05:00"
+}
+```
+
+### POST /api/auth/pairing/approve
+
+Requires an authenticated session.
+
+Approves a pairing code for the current user.
+
+Request:
+
+```json
+{
+  "code": "ABCD-EFGH"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "approved",
+  "public_id": "b8J6x4...",
+  "pairing_code": "ABCD-EFGH",
+  "expires_at": "2026-03-17T11:05:00",
+  "approved_at": "2026-03-17T10:58:00",
+  "used_at": null
+}
+```
+
+### POST /api/auth/pairing/claim
+
+Claims a pairing request from the original device.
+
+- If the request is still waiting for approval, the endpoint returns `status: pending`.
+- If approved and unused, it issues a normal backend session cookie and returns the authenticated user payload.
+
+Request:
+
+```json
+{
+  "public_id": "b8J6x4..."
+}
+```
+
+### GET /api/auth/passkeys
+
+Requires an authenticated session.
+
+Response:
+
+```json
+{
+  "passkeys": [
+    {
+      "id": 1,
+      "label": "MacBook Pro",
+      "credential_id": "base64url-credential-id",
+      "transports": ["internal"],
+      "aaguid": "00000000-0000-0000-0000-000000000000",
+      "credential_device_type": "single_device",
+      "credential_backed_up": false,
+      "last_used_at": "2026-03-17T10:08:00.000000",
+      "created_at": "2026-03-17T10:05:00.000000",
+      "updated_at": "2026-03-17T10:08:00.000000"
+    }
+  ]
+}
+```
+
+### POST /api/auth/passkeys/register/options
+
+Requires an authenticated session.
+
+Starts passkey registration for the current user and returns WebAuthn creation options.
+
+Request:
+
+```json
+{ "label": "MacBook Pro" }
+```
+
+Response:
+
+```json
+{
+  "publicKey": {
+    "challenge": "...",
+    "rp": { "name": "YT Clear View", "id": "localhost" },
+    "user": { "name": "alice@example.com", "displayName": "Alice", "id": "MQ" }
+  }
+}
+```
+
+### POST /api/auth/passkeys/register/verify
+
+Requires an authenticated session.
+
+Verifies the browser registration response and persists the passkey.
+
+Request:
+
+```json
+{
+  "credential": {
+    "id": "base64url-credential-id",
+    "rawId": "base64url-credential-id",
+    "response": {
+      "clientDataJSON": "...",
+      "attestationObject": "..."
+    },
+    "type": "public-key"
+  },
+  "label": "MacBook Pro",
+  "transports": ["internal"]
+}
+```
+
+Response:
+
+```json
+{
+  "passkey": {
+    "id": 1,
+    "label": "MacBook Pro",
+    "credential_id": "base64url-credential-id"
+  }
+}
+```
+
+### DELETE /api/auth/passkeys/<id>
+
+Requires an authenticated session.
+
+Deletes one passkey owned by the current user.
+
+Response:
+
+```json
+{
+  "deleted": true,
+  "passkey_id": 1
+}
+```
+
+### POST /api/auth/passkeys/authenticate/options
+
+Public endpoint.
+
+Returns WebAuthn request options for a discoverable passkey authentication ceremony.
+
+Response:
+
+```json
+{
+  "publicKey": {
+    "challenge": "...",
+    "rpId": "localhost",
+    "userVerification": "preferred"
+  }
+}
+```
+
+### POST /api/auth/passkeys/authenticate/verify
+
+Public endpoint.
+
+Verifies a passkey assertion, creates a backend session, and returns the authenticated user payload.
+
+Request:
+
+```json
+{
+  "credential": {
+    "id": "base64url-credential-id",
+    "rawId": "base64url-credential-id",
+    "response": {
+      "authenticatorData": "...",
+      "clientDataJSON": "...",
+      "signature": "...",
+      "userHandle": "..."
+    },
+    "type": "public-key"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "authenticated": true,
+  "user_id": 1,
+  "username": "alice",
+  "display_name": "Alice",
+  "email": "alice@example.com",
+  "auth_provider": "google",
+  "google_auth_status": "active",
+  "totp_enabled": true,
+  "theme_preference": "dark"
+}
+```
+
+### GET /api/auth/mfa/status
+
+Requires an authenticated session.
+
+Response:
+
+```json
+{
+  "totp_enabled": true,
+  "totp_pending": false,
+  "recovery_codes_remaining": 8
+}
+```
+
+### POST /api/auth/totp/setup
+
+Requires an authenticated session.
+
+Creates a pending TOTP secret for the current user.
+
+Response:
+
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP...",
+  "otpauth_url": "otpauth://totp/YT%20Clear%20View:alice%40example.com?secret=...",
+  "qr_code": "data:image/svg+xml;base64,..."
+}
+```
+
+`qr_code` is a base64-encoded SVG data URL suitable for rendering in an `<img>` tag.
+It may be `null` if the server-side QR generation library is unavailable.
+
+### POST /api/auth/totp/confirm
+
+Requires an authenticated session.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+Response:
+
+```json
+{
+  "totp_enabled": true,
+  "recovery_codes": ["ABCD-EFGH", "JKMN-PQRS"]
+}
+```
+
+### DELETE /api/auth/totp
+
+Requires an authenticated session with TOTP enabled.
+
+Disables TOTP for the current user and removes all recovery codes.
+Requires either a valid TOTP code or the user's password for confirmation.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+or:
+
+```json
+{ "password": "user-password" }
+```
+
+Response:
+
+```json
+{ "totp_enabled": false }
+```
+
+### POST /api/auth/recovery-codes/regenerate
+
+Requires an authenticated session with TOTP enabled.
+
+Request:
+
+```json
+{ "code": "123456" }
+```
+
+Response:
+
+```json
+{
+  "recovery_codes": ["ABCD-EFGH", "JKMN-PQRS"]
+}
+```
+
+### POST /api/auth/recovery-codes/consume
+
+Requires an authenticated session.
+
+Request:
+
+```json
+{ "code": "ABCD-EFGH" }
+```
+
+Response:
+
+```json
+{
+  "accepted": true,
+  "recovery_codes_remaining": 7
+}
+```
+
 ---
 
-## Settings (presets, schedule, quota)
+## Settings (presets, quota)
 
 ### GET /api/settings
 
-Returns the current user's refresh settings, preset definitions, and quota status.
+Returns the current user's preset settings and quota status.
+
+Notes:
+- quota accounting is project-global, not per-user
+- the official YouTube quota day resets at `00:00 America/Los_Angeles`
+- responses also translate the next reset into the user's configured app timezone
 
 Response (example):
 
 ```json
 {
   "preset": "standard",
-  "schedule_hours": [7, 12, 17, 21],
   "timezone": "Europe/Madrid",
   "backfill_active": false,
   "backfill_cursor": null,
   "last_schedule_run_at": "2026-01-28T18:06:56.357000",
   "quota_date": "2026-01-28",
   "quota_used": 0,
-  "quota_cap": 8000,
+  "quota_cap": 10000,
   "presets": {
     "minimal": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
     "standard": { "recent_days": 7, "older_min_days": 7, "older_max_days": 30 },
@@ -280,27 +1034,129 @@ Response (example):
   },
   "quota": {
     "daily_limit": 10000,
-    "cap_ratio": 0.8,
-    "cap": 8000,
+    "cap_ratio": 1.0,
+    "cap": 10000,
     "used": 0,
-    "remaining": 8000
+    "remaining": 10000,
+    "quota_day_pt": "2026-01-28",
+    "reset_at_pt": "2026-01-29T00:00:00-08:00",
+    "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+    "app_timezone": "Europe/Madrid",
+    "official_timezone": "America/Los_Angeles",
+    "quota_exhausted": false,
+    "quota_exhausted_until_pt": null,
+    "quota_exhausted_until_app_timezone": null
   }
+}
+```
+
+### GET /api/quota/status
+
+Returns the latest persisted quota snapshot for the authenticated user view.
+
+Response (example):
+
+```json
+{
+  "quota_day_pt": "2026-01-28",
+  "used": 2276,
+  "daily_limit": 10000,
+  "app_cap": 10000,
+  "remaining_daily": 7724,
+  "remaining_app_cap": 7724,
+  "reserved_for_scheduled": 2000,
+  "reset_at_pt": "2026-01-29T00:00:00-08:00",
+  "reset_at_app_timezone": "2026-01-29T09:00:00+01:00",
+  "app_timezone": "Europe/Madrid",
+  "official_timezone": "America/Los_Angeles",
+  "quota_exhausted": false,
+  "quota_exhausted_until_pt": null,
+  "quota_exhausted_until_app_timezone": null
 }
 ```
 
 ### PUT /api/settings
 
-Updates preset and schedule settings.
+Updates preset settings.
 
 Request fields:
 - `preset` (optional): `minimal|standard|rich`
-- `schedule_hours` (optional): list of up to 4 values (`0..23` or `null`/`"off"`)
 - `timezone` (optional): IANA timezone (e.g., `Europe/Madrid`)
 - `start_backfill` (optional, boolean): start a controlled backfill when preset changes
-- `run_now` (optional, boolean): run a refresh immediately when schedule/preset changes
+- `run_now` (optional, boolean): run a refresh immediately when the preset changes
 
 Response:
 - Returns the updated settings object (same shape as `settings.to_dict()`).
+
+### GET /api/admin/refresh-schedule
+
+Requires an authenticated admin session.
+
+Returns the global scheduled refresh configuration used by the backend scheduler.
+
+Response (example):
+
+```json
+{
+  "schedule_hours": [7, 12, 17, 21],
+  "timezone": "Europe/Madrid",
+  "last_run_at": "2026-03-21T06:00:00"
+}
+```
+
+### PUT /api/admin/refresh-schedule
+
+Requires an authenticated admin session.
+
+Updates the global scheduled refresh configuration for the entire installation.
+
+Request fields:
+- `schedule_hours` (required): list of 1 to 4 hour values (`0..23`)
+- `timezone` (required): IANA timezone (e.g., `Europe/Madrid`)
+
+Response:
+- Returns the updated global schedule object.
+
+Notes:
+- The supplied timezone is also applied to runtime log formatting in the current
+  worker process.
+
+### GET /api/admin/timezone
+
+Requires an authenticated admin session.
+
+Returns the current global timezone used by scheduler and log display.
+
+Response example:
+
+```json
+{
+  "timezone": "Europe/Madrid"
+}
+```
+
+### PUT /api/admin/timezone
+
+Requires an authenticated admin session.
+
+Updates the global timezone used by scheduler and runtime log formatting.
+
+Request:
+
+```json
+{
+  "timezone": "UTC"
+}
+```
+
+Response example:
+
+```json
+{
+  "timezone": "UTC",
+  "restart_required": false
+}
+```
 
 ---
 
@@ -392,6 +1248,10 @@ Response:
 ### POST /api/channels/refresh
 
 Refreshes one subscribed channel or all channels for the current user.
+Manual refresh is governed by the backend:
+- full-library refresh has a stricter cooldown
+- channel refresh has a lighter cooldown
+- only one manual refresh may be active per user at a time
 
 Request (optional):
 
@@ -403,10 +1263,31 @@ Response:
 
 ```json
 {
+  "status": "accepted",
+  "scope": { "type": "channel", "channel_id": 12 },
   "new_videos": 3,
   "refreshed_at": "2026-03-15T01:46:18.221000"
 }
 ```
+
+Blocked response example:
+
+```json
+{
+  "error": "Refresh cooldown active.",
+  "status": 429,
+  "blocked": true,
+  "reason": "cooldown_active",
+  "scope": { "type": "channel", "channel_id": 12 },
+  "cooldown_seconds": 1800,
+  "last_activity_at": "2026-03-16T22:00:00",
+  "next_allowed_at": "2026-03-16T22:30:00",
+  "retry_after_seconds": 900
+}
+```
+
+Another blocked response reason is `refresh_in_progress`, which returns `409`
+with the active scope metadata.
 
 ### GET /api/channels/refresh/stream
 
@@ -441,30 +1322,22 @@ event: refresh
 data: {"type":"complete","new_videos":8,"processed_channels":12,"total_channels":12,"rate_limited":false}
 ```
 
+Blocked event example:
+
+```text
+event: refresh
+data: {"type":"blocked","reason":"cooldown_active","scope":{"type":"all_channels","channel_id":null},"retry_after_seconds":900}
+```
+
 Notes:
 - The backend persists progress per channel, so new videos may become visible
   before the full refresh completes.
 - The frontend should treat SSE as the source of refresh progress and use the
-  final `complete` event as the end-of-run signal.
-
-### POST /api/channels/refresh
-
-Refreshes videos for one channel or all channels.
-
-Request (optional):
-
-```json
-{ "channel_id": 1, "backfill": false }
-```
-
-Notes:
+  final `complete` or `blocked` event as the end-of-run signal.
 - `backfill=true` forces a refresh that ignores `last_refreshed_at` and re-scans within the preset window.
-
-Response:
-
-```json
-{ "new_videos": 5, "refreshed_at": "2026-01-28T18:06:56.357000" }
-```
+- If a refresh worker crashes or the backend restarts mid-run, stale
+  `refresh_jobs` rows are recovered on startup and marked as failed instead of
+  staying indefinitely in `queued` or `running`.
 
 ### GET /api/channels/<channel_id>/videos
 
@@ -636,6 +1509,59 @@ Removes watched status.
 
 Response: `204 No Content`
 
+### PUT /api/videos/<video_id>/progress
+
+Saves playback position for resume functionality (upsert).
+
+Request:
+```json
+{ "position_seconds": 120, "duration_seconds": 600 }
+```
+
+- `position_seconds` (required, integer >= 0)
+- `duration_seconds` (optional, integer > 0)
+
+Response: `204 No Content`
+
+### DELETE /api/videos/<video_id>/progress
+
+Clears saved playback position.
+
+Response: `204 No Content`
+
+Notes:
+- Marking a video as watched (`POST .../watch`) automatically clears any saved progress.
+- Video listings include a `progress` field (integer, seconds) when a saved position exists.
+
+### GET /api/videos/in-progress
+
+Requires an authenticated session.
+
+Returns videos with saved playback progress for the current user, ordered by
+most recently updated first.
+
+Query params:
+- `limit` (optional, default 20, max 100)
+- `offset` (optional, default 0)
+
+Response: see Pagination format. Each entry includes a `progress` field with the
+saved position in seconds.
+
+### GET /api/videos/watched
+
+Requires an authenticated session.
+
+Returns watched videos for the current user, ordered by most recently watched first.
+
+Query params:
+- `limit` (optional, default 20)
+- `offset` (optional, default 0)
+- `channel_id` (optional)
+- `yt_channel_id` (optional)
+- `content_type` (optional: `video` or `short`)
+
+Response: same shape as `GET /api/videos/latest`.
+
 ### GET /api/videos/search
 
 Searches videos by title/description.
@@ -723,8 +1649,14 @@ Response example:
 ```json
 {
   "id": 3,
+  "device_identifier": "dev-abc123",
+  "display_name": "📺 TV salón",
   "device_type": "tv",
-  "device_type_confirmed": true
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
 }
 ```
 
@@ -732,9 +1664,88 @@ Response example:
 
 Lists registered devices.
 
+Notes:
+- Each device now exposes a user-facing `display_name`.
+- New devices receive an automatic friendly name derived from `device_type`, such as `📺 TV`, `🖥️ Pantalla PC`, `📟 Tablet`, or `📱 Móvil`.
+- Existing devices without a stored `display_name` are backfilled automatically when listed or re-registered.
+
 ### PUT /api/devices/<device_id>/type
 
 Updates device type and marks it as explicitly confirmed for that user/device pair.
+
+If the current `display_name` was auto-generated, it is refreshed to match the new type.
+
+### PUT /api/devices/<device_id>/name
+
+Updates the friendly device name shown in the account panel.
+
+Request example:
+
+```json
+{ "display_name": "📺 TV salón" }
+```
+
+Rules:
+- `display_name` is required
+- maximum length: `128`
+
+### PUT /api/devices/<device_id>/preferences
+
+Updates frontend mode and TV calibration preferences for the current user's device.
+
+Response example:
+
+```json
+{
+  "id": 7,
+  "device_identifier": "dev-123",
+  "device_type": "tv",
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "tv_scale_confirmed_at": "2026-03-17T12:30:00",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
+}
+```
+
+Updates persisted frontend display preferences for the current user/device pair.
+
+Request example:
+
+```json
+{
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8
+}
+```
+
+Rules:
+- `frontend_mode` must be one of `phone`, `desktop_tablet`, `tv`
+- `tv_scale` must be one of `M`, `L`, `XL`, `XXL`
+- `screen_size_inches` is optional and must be between `20` and `150`
+- `viewing_distance_m` is optional and must be greater than `0` and at most `20`
+
+Response example:
+
+```json
+{
+  "id": 3,
+  "device_identifier": "dev-abc123",
+  "display_name": "📺 TV salón",
+  "device_type": "tv",
+  "device_type_confirmed": true,
+  "frontend_mode": "tv",
+  "tv_scale": "XL",
+  "screen_size_inches": 55,
+  "viewing_distance_m": 2.8,
+  "user_agent": "Mozilla/5.0 ...",
+  "last_used_at": "2026-03-16T22:00:00",
+  "created_at": "2026-03-16T20:00:00"
+}
+```
 
 ### DELETE /api/devices/<device_id>
 

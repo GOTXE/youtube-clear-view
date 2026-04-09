@@ -1,9 +1,15 @@
 // Category management for automatic channel classification.
 
 class CategoryManager {
-  constructor(api, containerId) {
+  constructor(api, containerId, options = {}) {
     this.api = api;
     this.container = document.getElementById(containerId);
+    this.options = options;
+    this.t = (key, vars) => (
+      window.ytcvI18n && typeof window.ytcvI18n.t === 'function'
+        ? window.ytcvI18n.t(key, vars)
+        : key
+    );
     this.categories = [];
     this.carousels = [];
   }
@@ -44,6 +50,14 @@ class CategoryManager {
 
     const wrapper = document.createElement('div');
     wrapper.className = 'category-carousel-wrapper';
+    wrapper.dataset.categoryId = String(category.id);
+    wrapper.dataset.categoryName = category.name || '';
+    if (typeof this.options.getSelectedCategoryId === 'function') {
+      const activeCategoryId = this.options.getSelectedCategoryId();
+      const isActive = Number(activeCategoryId) === Number(category.id);
+      wrapper.classList.toggle('is-active', isActive);
+      wrapper.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
 
     const header = document.createElement('div');
     header.className = 'category-header';
@@ -55,9 +69,11 @@ class CategoryManager {
     const categoryClass = this.getCategoryColorClass(category.name);
     title.classList.add(categoryClass);
 
-    const count = document.createElement('span');
-    count.className = 'count-pill category-count';
-    count.textContent = String(category.channel_count || 0);
+    const count = document.createElement('p');
+    count.className = 'category-count';
+    count.textContent = this.t('mobileChannelsCount', {
+      count: Number(category.channel_count || 0)
+    });
 
     header.appendChild(title);
     header.appendChild(count);
@@ -67,6 +83,20 @@ class CategoryManager {
     carouselContainer.id = carouselId;
     carouselContainer.className = 'carousel-shell';
     wrapper.appendChild(carouselContainer);
+
+    if (typeof this.options.onCategorySelect === 'function') {
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute('role', 'button');
+      wrapper.addEventListener('click', () => {
+        this.options.onCategorySelect(category);
+      });
+      wrapper.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          this.options.onCategorySelect(category);
+        }
+      });
+    }
 
     this.container.appendChild(wrapper);
 

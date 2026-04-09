@@ -1,7 +1,7 @@
 """Tests for channel rating system."""
 
 import pytest
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.extensions import db
 from app.models import Channel, User, UserChannel
@@ -19,7 +19,7 @@ def test_channel_rating_creation(app):
             user_id=user.id,
             channel_id=channel.id,
             rating=5,
-            rated_at=datetime.utcnow(),
+            rated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.session.add(subscription)
         db.session.commit()
@@ -92,7 +92,7 @@ def test_rating_update(app):
 
         # Update rating
         subscription.rating = 5
-        subscription.rated_at = datetime.utcnow()
+        subscription.rated_at = datetime.now(UTC).replace(tzinfo=None)
         db.session.commit()
 
         saved = UserChannel.query.filter_by(channel_id=channel.id).first()
@@ -111,7 +111,7 @@ def test_rating_clear(app):
             user_id=user.id,
             channel_id=channel.id,
             rating=4,
-            rated_at=datetime.utcnow(),
+            rated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.session.add(subscription)
         db.session.commit()
@@ -137,7 +137,7 @@ def test_rating_to_dict(app):
             user_id=user.id,
             channel_id=channel.id,
             rating=4,
-            rated_at=datetime.utcnow(),
+            rated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.session.add(subscription)
         db.session.commit()
@@ -195,5 +195,5 @@ def test_rating_index_query(app):
 def test_sample_subscription_no_rating(sample_subscription, app):
     """Test that sample_subscription fixture has no rating by default."""
     with app.app_context():
-        subscription = UserChannel.query.get(sample_subscription["id"])
+        subscription = db.session.get(UserChannel, sample_subscription["id"])
         assert subscription.rating is None

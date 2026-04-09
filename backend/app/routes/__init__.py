@@ -11,6 +11,7 @@ from app.routes.videos import videos_bp
 from app.routes.themes import themes_bp
 from app.routes.devices import devices_bp
 from app.routes.settings import settings_bp
+from app.services.version_check import get_version_status
 
 health_bp = Blueprint("health", __name__)
 
@@ -26,9 +27,10 @@ def health_check():
 @handle_route_errors
 def version_check():
     """Return the current backend build identifier."""
-    return jsonify({
-        "backend_build_id": current_app.config.get("BACKEND_BUILD_ID"),
-    })
+    current_version = current_app.config.get("BACKEND_BUILD_ID")
+    payload = get_version_status(current_version)
+    payload["backend_build_id"] = current_version
+    return jsonify(payload)
 
 
 def register_routes(app):

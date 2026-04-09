@@ -1756,6 +1756,25 @@ select {
   outline-offset: 2px;
 }
 
+.footer-update-link {
+  color: color-mix(in srgb, #fff 94%, var(--text-muted));
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 1px rgba(255, 70, 70, 0.9),
+    0 0 3px rgba(255, 40, 40, 0.45);
+}
+
+.footer-update-link:hover {
+  text-decoration: underline;
+}
+
+.footer-update-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, #ff4b4b 75%, transparent);
+  outline-offset: 2px;
+}
+
 .categories-section {
   display: flex;
   flex-direction: column;

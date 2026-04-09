@@ -268,6 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterUnwatched: document.getElementById('filter-unwatched'),
     filterMonth: document.getElementById('filter-month'),
     githubLabel: document.getElementById('github-label'),
+    footerUpdateLink: document.getElementById('footer-update-link'),
     sessionInfo: document.querySelector('.session-info'),
     currentUserName: document.getElementById('current-user-name'),
     categoriesSection: document.getElementById('categories-section'),
@@ -384,7 +385,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     pendingBanner: false,
     presentTimerId: null,
     backendBuildId: null,
-    backendVersionPoller: null
+    backendVersionPoller: null,
+    versionInfo: null
   };
 
   const AUTO_REFRESH_STALE_HOURS = 6;
@@ -988,14 +990,55 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const response = await api.getVersion();
-    if (!response.ok || !response.data || !response.data.backend_build_id) {
+    const versionInfo = await fetchVersionInfo();
+    if (!versionInfo || !versionInfo.backend_build_id) {
       ui.mobileSettingsVersionValue.textContent = '-';
       return;
     }
 
-    swUpdateState.backendBuildId = String(response.data.backend_build_id);
+    swUpdateState.backendBuildId = String(versionInfo.backend_build_id);
     ui.mobileSettingsVersionValue.textContent = swUpdateState.backendBuildId;
+  }
+
+  async function fetchVersionInfo(force = false) {
+    if (!force && swUpdateState.versionInfo) {
+      return swUpdateState.versionInfo;
+    }
+
+    const response = await api.getVersion();
+    if (!response.ok || !response.data) {
+      return null;
+    }
+
+    swUpdateState.versionInfo = response.data;
+    return swUpdateState.versionInfo;
+  }
+
+  function renderFooterUpdateNotice(versionInfo) {
+    if (!ui.footerUpdateLink) {
+      return;
+    }
+
+    const hasUpdate = Boolean(versionInfo && versionInfo.update_available && versionInfo.latest_version);
+    if (!hasUpdate) {
+      ui.footerUpdateLink.hidden = true;
+      return;
+    }
+
+    const href = versionInfo.changelog_url || versionInfo.latest_version_url;
+    if (!href) {
+      ui.footerUpdateLink.hidden = true;
+      return;
+    }
+
+    ui.footerUpdateLink.textContent = `Update ${String(versionInfo.latest_version)}`;
+    ui.footerUpdateLink.href = href;
+    ui.footerUpdateLink.hidden = false;
+  }
+
+  async function refreshVersionUi() {
+    const versionInfo = await fetchVersionInfo();
+    renderFooterUpdateNotice(versionInfo);
   }
 
   function getTimezone() {
@@ -1371,12 +1414,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function checkBackendVersion() {
-    const response = await api.getVersion();
-    if (!response.ok || !response.data || !response.data.backend_build_id) {
+    const versionInfo = await fetchVersionInfo(true);
+    renderFooterUpdateNotice(versionInfo);
+    if (!versionInfo || !versionInfo.backend_build_id) {
       return;
     }
 
-    const buildId = String(response.data.backend_build_id);
+    const buildId = String(versionInfo.backend_build_id);
     if (!swUpdateState.backendBuildId) {
       swUpdateState.backendBuildId = buildId;
       return;
@@ -4224,6 +4268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyUpdateAvailableBanner();
       });
     }
+    refreshVersionUi().catch(() => {});
 
     if (state.currentUser && !state.deferAuthenticatedBootstrap) {
       await waitForLoginPageToClose();

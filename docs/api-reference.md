@@ -90,6 +90,27 @@ Response:
 { "status": "ok" }
 ```
 
+### GET /api/version
+
+Returns backend version metadata and GitHub tag update status (cached in backend
+for 24 hours).
+
+Response example:
+
+```json
+{
+  "backend_build_id": "v0.10.0",
+  "current_version": "v0.10.0",
+  "latest_version": "v0.12.0-beta.1",
+  "latest_version_url": "https://github.com/GOTXE/youtube-clear-view/releases/tag/v0.12.0-beta.1",
+  "changelog_url": "https://github.com/GOTXE/youtube-clear-view/releases/tag/v0.12.0-beta.1",
+  "compare_url": "https://github.com/GOTXE/youtube-clear-view/compare/v0.10.0...v0.12.0-beta.1",
+  "update_available": true,
+  "checked_at": "2026-04-09T18:11:12.755023+00:00",
+  "check_error": null
+}
+```
+
 ---
 
 ## Admin Observability

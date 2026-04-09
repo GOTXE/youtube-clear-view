@@ -33,7 +33,7 @@ This starts:
 - Keep `frontend/sw.js` `CACHE_VERSION` updated so service worker clients fetch
   the latest CSS/JS bundle.
 
-## Container Baseline (v0.2.0)
+## Container Baseline
 
 The v0.2.0 architecture baseline introduces repo-level infrastructure files in
 `infra/`:
@@ -41,7 +41,8 @@ The v0.2.0 architecture baseline introduces repo-level infrastructure files in
 - `infra/docker/backend/Dockerfile`
 - `infra/docker/proxy/Dockerfile`
 - `infra/proxy/Caddyfile`
-- `infra/compose/compose.v020.yaml`
+- `infra/compose/compose.yaml`
+- `infra/compose/compose.dev.yaml`
 
 This baseline is meant to move the app toward:
 
@@ -50,7 +51,30 @@ This baseline is meant to move the app toward:
 - admin logs integrated into `gestor`
 - a persistent SQLite volume managed by containers
 
-It does not replace the local developer scripts yet.
+Run `prod` defaults (GHCR images):
+
+```bash
+docker compose -f infra/compose/compose.yaml up -d
+```
+
+Run contributor mode (local build from source):
+
+```bash
+docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d --build
+```
+
+Version update footer note:
+- The web footer shows `Update vX.Y.Z` when `/api/version` reports a newer
+  GitHub tag.
+- In `dev`, `YTCV_BACKEND_BUILD_ID` defaults to `dev`, so update comparison is
+  intentionally disabled.
+- To test the footer notice visually, set a semver-like current version, for
+  example:
+
+```bash
+YTCV_HTTP_PORT=8081 YTCV_BACKEND_BUILD_ID=v0.10.0 \
+docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d backend proxy
+```
 
 Relevant refresh governance knobs in `backend/.env` / `.env.example`:
 - `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`

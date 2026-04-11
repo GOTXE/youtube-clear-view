@@ -1,17 +1,47 @@
+# Control de versiones
 .git
 .github
+
+# Entornos Python
 .venv
 backend/venv
 backend/__pycache__
 backend/instance
-backend/logs
-frontend/node_modules
-frontend/dist
 log_viewer/.venv
 log_viewer/__pycache__
+
+# Tests y herramientas de desarrollo (no van a producción)
+backend/tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs y bases de datos locales
+backend/logs
 logs
+*.log
+*.db
+*.sqlite3
+
+# Frontend: artefactos de build y dependencias
+frontend/node_modules
+frontend/dist
+
+# Servicio auxiliar (no forma parte del stack principal)
+log_viewer/
+
+# Documentación y scripts de desarrollo
+docs/
+scripts/
 tech_docs
 vibecoding
+
+# Archivos temporales / IDE
 *.pyc
 *.pyo
 *.swp
+.DS_Store
+.vscode/
+.idea/

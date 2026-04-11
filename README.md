@@ -3,7 +3,7 @@
 ---
 
 <p align="center">
-  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.2"><img src="https://img.shields.io/badge/release-v0.13.0--beta.2-005AA4?style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.3"><img src="https://img.shields.io/badge/release-v0.13.0--beta.3-005AA4?style=for-the-badge" alt="Release"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/runtime-docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2E7D32?style=for-the-badge" alt="License"></a>
 </p>
@@ -89,13 +89,13 @@ Do not forget the YouTubers you like. They still need your direct support (subsc
 The recommended way is Docker Compose.
 
 Release and images:
-- Release: `v0.13.0-beta.2` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.2>
+- Release: `v0.13.0-beta.3` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.3>
 - Backend image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-backend>
 - Proxy image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-proxy>
 - Pull example:
 ```bash
-docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.2
-docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.2
+docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.3
+docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.3
 ```
 
 ### 1) Prepare Google Cloud (quick searches)
@@ -169,19 +169,19 @@ The stack runs:
 Example if you use the repo (`infra/compose/compose.yaml`):
 
 ```bash
-YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 You can customize startup with variables:
 
-- `YTCV_TAG`: image version (`v0.13.0-beta.2`, `latest`, etc.).
+- `YTCV_TAG`: image version (`v0.13.0-beta.3`, `latest`, etc.).
 - `YTCV_HTTP_PORT`: public port (default `8080`).
 
 Examples:
 
 ```bash
 # Port 8090
-YTCV_TAG=v0.13.0-beta.2 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.3 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 Basic equivalent compose example (if you want your own):
@@ -267,11 +267,11 @@ docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml u
 
 ```bash
 # Change public port
-YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
+YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
 
 # Update standard install
-YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml pull
-YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml pull
+YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
 
 # Rebuild proxy only (frontend)
 ./scripts/dev_docker.sh up --mode dev --build proxy
@@ -343,7 +343,7 @@ If you find anything weird or have questions, open an issue :paperclip:
 Bug? :bug: Improvement idea? :bulb:
 
 - Open a GitHub issue.
-- Include version (`v0.13.0-beta.2` or tag), environment, and reproduction steps.
+- Include version (`v0.13.0-beta.3` or tag), environment, and reproduction steps.
 
 ## Legal notice
 

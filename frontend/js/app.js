@@ -3491,7 +3491,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    ui.refreshButton.addEventListener('click', async () => {
+    const closeMenuForAsyncAction = event => {
+      if (event && event.currentTarget && typeof event.currentTarget.blur === 'function') {
+        event.currentTarget.blur();
+      }
+      if (typeof state.setMenuOpen === 'function') {
+        state.setMenuOpen(false);
+      }
+    };
+
+    ui.refreshButton.addEventListener('click', async event => {
+      closeMenuForAsyncAction(event);
       const targetChannelId = state.selectedChannelId !== null ? state.selectedChannelId : null;
       reportImportStatus(t('refreshInProgress'), 'info');
 
@@ -3664,7 +3674,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    ui.importButton.addEventListener('click', async () => {
+    ui.importButton.addEventListener('click', async event => {
+      if (event && event.currentTarget && typeof event.currentTarget.blur === 'function') {
+        event.currentTarget.blur();
+      }
+      if (typeof state.setMenuOpen === 'function') {
+        state.setMenuOpen(false);
+      }
       if (!state.currentUser) {
         showNotification(t('signInBeforeImport'), 'warning');
         return;

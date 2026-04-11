@@ -2,9 +2,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('google account switching', () => {
   let switchAccountMock;
+  let getCurrentUserMock;
 
   beforeEach(() => {
     vi.resetModules();
+    getCurrentUserMock = vi.fn(async () => ({
+      ok: true,
+      data: {
+        authenticated: true,
+        user_id: 1,
+        username: 'alice@gmail.com',
+        display_name: 'Alice',
+        email: 'alice@gmail.com',
+        auth_provider: 'google',
+        google_avatar_url: null,
+        theme_preference: 'light'
+      }
+    }));
     switchAccountMock = vi.fn(async userId => ({
       ok: true,
       data: {
@@ -62,19 +76,7 @@ describe('google account switching', () => {
       }
 
       async getCurrentUser() {
-        return {
-          ok: true,
-          data: {
-            authenticated: true,
-            user_id: 1,
-            username: 'alice@gmail.com',
-            display_name: 'Alice',
-            email: 'alice@gmail.com',
-            auth_provider: 'google',
-            google_avatar_url: null,
-            theme_preference: 'light'
-          }
-        };
+        return getCurrentUserMock();
       }
 
       async getSwitchableAccounts() {
@@ -139,5 +141,18 @@ describe('google account switching', () => {
 
     expect(switchAccountMock).toHaveBeenCalledWith(2);
     expect(document.getElementById('current-user-name').textContent).toBe('Bob');
+  });
+
+  it('rechecks session before forcing unauthenticated state on auth-required', async () => {
+    await import('../js/auth.js');
+    await window.initAuth();
+
+    window.dispatchEvent(new CustomEvent('auth-required'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(getCurrentUserMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(document.getElementById('current-user-name').textContent).toBe('Alice');
+    expect(document.getElementById('logout-button').hidden).toBe(false);
   });
 });

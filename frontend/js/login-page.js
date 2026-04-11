@@ -992,8 +992,16 @@
         return;
       }
 
-      // Intent 'link': relink tokens to the current authenticated user.
+      // Intent 'link': if backend already authenticated with the new tokens,
+      // finish immediately; otherwise call explicit relink endpoint.
       if (_deviceFlowIntent === 'link') {
+        if (data.status === 'authenticated') {
+          if (data.user) {
+            notifyAuthSuccess(data.user);
+          }
+          hide();
+          return;
+        }
         const api2 = getApi();
         if (api2) {
           const relinkResp = await api2.relinkDeviceFlow();

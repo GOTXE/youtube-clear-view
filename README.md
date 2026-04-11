@@ -169,19 +169,19 @@ The stack runs:
 Example if you use the repo (`infra/compose/compose.yaml`):
 
 ```bash
-YTCV_TAG=v0.13.0-beta.1 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 You can customize startup with variables:
 
-- `YTCV_TAG`: image version (`v0.13.0-beta.1`, `latest`, etc.).
+- `YTCV_TAG`: image version (`v0.13.0-beta.2`, `latest`, etc.).
 - `YTCV_HTTP_PORT`: public port (default `8080`).
 
 Examples:
 
 ```bash
 # Port 8090
-YTCV_TAG=v0.13.0-beta.1 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.2 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 Basic equivalent compose example (if you want your own):
@@ -267,11 +267,11 @@ docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml u
 
 ```bash
 # Change public port
-YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.1 docker compose -f infra/compose/compose.yaml up -d
+YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
 
 # Update standard install
-YTCV_TAG=v0.13.0-beta.1 docker compose -f infra/compose/compose.yaml pull
-YTCV_TAG=v0.13.0-beta.1 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml pull
+YTCV_TAG=v0.13.0-beta.2 docker compose -f infra/compose/compose.yaml up -d
 
 # Rebuild proxy only (frontend)
 ./scripts/dev_docker.sh up --mode dev --build proxy
@@ -343,7 +343,7 @@ If you find anything weird or have questions, open an issue :paperclip:
 Bug? :bug: Improvement idea? :bulb:
 
 - Open a GitHub issue.
-- Include version (`v0.13.0-beta.1` or tag), environment, and reproduction steps.
+- Include version (`v0.13.0-beta.2` or tag), environment, and reproduction steps.
 
 ## Legal notice
 

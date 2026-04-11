@@ -1,3 +1,4 @@
+/** Client-side module for header-context.js */
 (function attachHeaderContextHelpers() {
   function truncateText(value, maxLength) {
     const safe = typeof value === 'string' ? value.trim() : '';

@@ -8,6 +8,7 @@
   let googleLoginUrl = null;
   let localSignupEnabled = false;
   let pendingMfaChallenge = null;
+  let authRecheckInFlight = false;
 
   const userSelector = document.getElementById('user-selector');
   const googleLoginButton = document.getElementById('google-login-button');
@@ -3268,10 +3269,28 @@
     await performLogout(false);
   }
 
-  function handleAuthRequired() {
-    setUnauthenticated();
-    if (!isGoogleMode()) {
-      loadUsers();
+  async function handleAuthRequired() {
+    if (authRecheckInFlight) {
+      return;
+    }
+    authRecheckInFlight = true;
+    try {
+      const api = getApiClient();
+      if (api) {
+        const response = isGestorSurface()
+          ? await api.getAdminCurrentUser()
+          : await api.getCurrentUser();
+        if (response.ok && response.data && response.data.authenticated) {
+          setAuthenticated(response.data, { broadcast: true });
+          return;
+        }
+      }
+      setUnauthenticated();
+      if (!isGoogleMode()) {
+        await loadUsers();
+      }
+    } finally {
+      authRecheckInFlight = false;
     }
   }
 

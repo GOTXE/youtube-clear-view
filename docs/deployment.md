@@ -1,13 +1,19 @@
 # Deployment
 
-## v0.2.0 Container Baseline
+For the planned installation contract (`prod` default from GHCR images, `dev`
+explicit from local source build), see:
+
+- [container-install-modes.md](container-install-modes.md)
+
+## Container Baseline
 
 The repository now includes a repo-level container baseline under `infra/`:
 
 - `infra/docker/backend/Dockerfile`
 - `infra/docker/proxy/Dockerfile`
 - `infra/proxy/Caddyfile`
-- `infra/compose/compose.v020.yaml`
+- `infra/compose/compose.yaml` (prod default, GHCR images)
+- `infra/compose/compose.dev.yaml` (dev override, local build)
 
 This baseline is the starting point for the v0.2.0 deployment architecture:
 
@@ -53,22 +59,26 @@ Volumes:
 - `backend_data` stores the SQLite DB.
 - `logs` stores backend log files.
 
-### Option C: Repo-level v0.2.0 compose baseline
+### Option C: Repo-level compose baseline (recommended)
 
 From the repository root:
 
 ```bash
-docker compose -f infra/compose/compose.v020.yaml up -d --build
+docker compose -f infra/compose/compose.yaml up -d
 ```
 
 Notes:
 
-- this is the new repo-level baseline for the v0.2.0 architecture
+- this is the repo-level baseline for container installs
 - the proxy listens on `:8080` in the baseline file
 - the frontend is built into the proxy image and served as same-origin
 - backend SQLite data is mounted on a named volume
 - admin log review now lives inside `gestor`
-- later tasks may introduce profile-based variants once the proxy contract is split cleanly
+- for local contributor mode, use:
+
+```bash
+docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d --build
+```
 
 ## Reverse Proxy (Nginx / Synology)
 

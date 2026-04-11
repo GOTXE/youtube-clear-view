@@ -34,7 +34,10 @@ You will need:
 - YouTube Data API v3 enabled
 - OAuth Client ID + Secret
 
-Important: OAuth works best with a stable HTTPS URL (a normal website URL). TVs are especially picky.
+Important:
+- `localhost` callback is valid when browser and Docker host are the same machine
+- external callback URLs should be HTTPS for Google OAuth reliability
+
 The intended deployment model is:
 - first account creation through Google OAuth on a compatible browser
 - then local LAN sign-in on other devices using username/password, passkeys, or pairing
@@ -105,6 +108,10 @@ Next step:
 Why:
 - repeatable installs
 - easy upgrades and rollbacks
+
+Planned container install contract (`prod` from GHCR by default, `dev` as
+explicit local-source build override):
+- [container-install-modes.md](container-install-modes.md)
 
 You will still need:
 - persistent volumes for DB, thumbnails, and logs

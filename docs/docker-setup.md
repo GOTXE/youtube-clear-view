@@ -7,19 +7,26 @@
 ## Compose file
 
 ```
-infra/compose/compose.v020.yaml
+infra/compose/compose.yaml
 ```
 
 Run all commands from the repo root:
 
 ```bash
-docker compose -f infra/compose/compose.v020.yaml <command>
+docker compose -f infra/compose/compose.yaml <command>
 ```
 
-For repetitive local tasks there is also a helper script:
+For contributor mode (local build from source), add the dev override:
+
+```bash
+docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d --build
+```
+
+For repetitive local tasks there is also a helper script (`prod` by default):
 
 ```bash
 ./scripts/dev_docker.sh up
+./scripts/dev_docker.sh up --mode dev --build
 ./scripts/dev_docker.sh up --build --reset-db
 ./scripts/dev_docker.sh db-reset --backup
 ```
@@ -51,11 +58,11 @@ time. There are no volume mounts for frontend files.
 
 | What changed | Command |
 |---|---|
-| Frontend files (`frontend/css/`, `frontend/js/`, `frontend/index.html`, `frontend/sw.js`, etc.) | `docker compose -f infra/compose/compose.v020.yaml build proxy && docker compose -f infra/compose/compose.v020.yaml up -d proxy` |
+| Frontend files (`frontend/css/`, `frontend/js/`, `frontend/index.html`, `frontend/sw.js`, etc.) | `docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml build proxy && docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d proxy` |
 | Caddyfile (`infra/proxy/Caddyfile`) | Same as above (rebuild proxy). |
-| Backend code (`backend/app/`, `backend/requirements.txt`) | `docker compose -f infra/compose/compose.v020.yaml build backend && docker compose -f infra/compose/compose.v020.yaml up -d backend` |
-| Backend `.env` only (no code changes) | `docker compose -f infra/compose/compose.v020.yaml up -d backend` (restart, no rebuild needed). |
-| Everything | `docker compose -f infra/compose/compose.v020.yaml up -d --build` |
+| Backend code (`backend/app/`, `backend/requirements.txt`) | `docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml build backend && docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d backend` |
+| Backend `.env` only (no code changes) | `docker compose -f infra/compose/compose.yaml up -d backend` (restart, no rebuild needed). |
+| Everything (dev build) | `docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d --build` |
 
 If you want the frontend "new version" banner to react to backend-only
 deploys, set a stable `YTCV_BACKEND_BUILD_ID` in the backend environment and
@@ -121,7 +128,8 @@ proxy container.
 
 | File | Description |
 |---|---|
-| `infra/compose/compose.v020.yaml` | Main compose file. |
+| `infra/compose/compose.yaml` | Main compose file (`prod`, GHCR images). |
+| `infra/compose/compose.dev.yaml` | Dev override (local source build). |
 | `infra/docker/proxy/Dockerfile` | Multi-stage: frontend build + Caddy. |
 | `infra/docker/backend/Dockerfile` | Backend image. |
 | `infra/proxy/Caddyfile` | Caddy reverse proxy + static file config. |

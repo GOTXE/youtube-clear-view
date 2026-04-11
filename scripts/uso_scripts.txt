@@ -16,6 +16,10 @@ Levantar todo:
 
   ./scripts/dev_docker.sh up
 
+Levantar en modo desarrollo (build local desde repo):
+
+  ./scripts/dev_docker.sh up --mode dev --build
+
 Levantar todo reconstruyendo imagenes:
 
   ./scripts/dev_docker.sh up --build
@@ -28,17 +32,21 @@ Levantar todo reconstruyendo, con copia previa de la BBDD:
 
   ./scripts/dev_docker.sh up --build --reset-db --backup-db
 
+Modo por defecto:
+
+  Si no se indica --mode, se usa prod (imagenes GHCR).
+
 
 ESTADO DE CONTENEDORES
 
 Ver como estan los contenedores del stack:
 
-  docker compose -f infra/compose/compose.v020.yaml ps
+  docker compose -f infra/compose/compose.yaml ps
 
 Ver logs recientes de un servicio:
 
-  docker compose -f infra/compose/compose.v020.yaml logs --tail=200 backend
-  docker compose -f infra/compose/compose.v020.yaml logs --tail=200 proxy
+  docker compose -f infra/compose/compose.yaml logs --tail=200 backend
+  docker compose -f infra/compose/compose.yaml logs --tail=200 proxy
 
 
 BBDD
@@ -93,17 +101,48 @@ REINICIAR CONTENEDORES
 
 Reiniciar los contenedores ya levantados:
 
-  docker compose -f infra/compose/compose.v020.yaml restart
+  docker compose -f infra/compose/compose.yaml restart
 
 Reiniciar solo un servicio:
 
-  docker compose -f infra/compose/compose.v020.yaml restart backend
-  docker compose -f infra/compose/compose.v020.yaml restart proxy
+  docker compose -f infra/compose/compose.yaml restart backend
+  docker compose -f infra/compose/compose.yaml restart proxy
 
 Reinicio completo del stack:
 
   ./scripts/dev_docker.sh down
   ./scripts/dev_docker.sh up
+
+
+BUILD DE PRODUCCION
+
+Al terminar un ciclo de desarrollo, generar las imagenes de produccion optimizadas:
+
+  ./scripts/build_prod.sh
+
+Recomendado: backup de la BD antes de construir:
+
+  ./scripts/build_prod.sh --backup-db
+
+Construir sin cache (recomendado antes de release):
+
+  ./scripts/build_prod.sh --no-cache --backup-db
+
+Forzar version (si no hay git tag):
+
+  ./scripts/build_prod.sh --version v0.3.0 --backup-db
+
+Publicar en un registry tras construir:
+
+  ./scripts/build_prod.sh --push registry.local:5000 --version v0.3.0
+
+El script muestra el tamano final de cada imagen al terminar.
+La version se toma automaticamente del tag Git mas reciente.
+
+Si algo falla despues del build, restaurar la BD desde el backup:
+
+    docker compose -f infra/compose/compose.yaml run --rm backend \
+    sh -c "cp /data/youtube_clear_view.db.bak /data/youtube_clear_view.db"
 
 
 NOTA PRACTICA

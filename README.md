@@ -3,6 +3,7 @@
 ---
 
 <p align="center">
+release/v0.13.0-beta.4
   <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4"><img src="https://img.shields.io/badge/release-v0.13.0--beta.4-005AA4?style=for-the-badge" alt="Release"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/runtime-docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2E7D32?style=for-the-badge" alt="License"></a>
@@ -113,6 +114,7 @@ services:
 ```
 
 Release and images:
+release/v0.13.0-beta.4
 - Release: `v0.13.0-beta.4` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4>
 - Backend image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-backend>
 - Proxy image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-proxy>

@@ -3,8 +3,8 @@
 ---
 
 <p align="center">
-release/v0.13.0-beta.4
-  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4"><img src="https://img.shields.io/badge/release-v0.13.0--beta.4-005AA4?style=for-the-badge" alt="Release"></a>
+release/v0.13.0-beta.5
+  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.5"><img src="https://img.shields.io/badge/release-v0.13.0--beta.5-005AA4?style=for-the-badge" alt="Release"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/runtime-docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2E7D32?style=for-the-badge" alt="License"></a>
 </p>
@@ -114,14 +114,14 @@ services:
 ```
 
 Release and images:
-release/v0.13.0-beta.4
-- Release: `v0.13.0-beta.4` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4>
+release/v0.13.0-beta.5
+- Release: `v0.13.0-beta.5` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.5>
 - Backend image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-backend>
 - Proxy image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-proxy>
 - Pull example:
 ```bash
-docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.4
-docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.4
+docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.5
+docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.5
 ```
 
 ### 1) Prepare Google Cloud (quick searches)
@@ -217,19 +217,19 @@ The stack runs:
 Example if you use the repo (`infra/compose/compose.yaml`):
 
 ```bash
-YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.5 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 You can customize startup with variables:
 
-- `YTCV_TAG`: image version (`v0.13.0-beta.4`, `latest`, etc.).
+- `YTCV_TAG`: image version (`v0.13.0-beta.5`, `latest`, etc.).
 - `YTCV_HTTP_PORT`: public port (default `8080`).
 
 Examples:
 
 ```bash
 # Port 8090
-YTCV_TAG=v0.13.0-beta.4 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.5 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 Basic equivalent compose example (if you want your own):
@@ -275,6 +275,8 @@ Open:
 - create/configure your local app user,
 - finish initial setup so you can sign in from other devices without repeating Google OAuth every time.
 
+<span style="color:#d32f2f"><strong>IMPORTANT:</strong> On first boot (fresh database), admin/user bootstrap can take noticeably longer than a normal login. Wait until the wizard fully completes before retrying or refreshing.</span>
+
 4. Access admin panel when needed:
 - `http://localhost:8080/gestor/`
 - `https://your-domain/gestor/`
@@ -315,11 +317,11 @@ docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml u
 
 ```bash
 # Change public port
-YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
+YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.5 docker compose -f infra/compose/compose.yaml up -d
 
 # Update standard install
-YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml pull
-YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.5 docker compose -f infra/compose/compose.yaml pull
+YTCV_TAG=v0.13.0-beta.5 docker compose -f infra/compose/compose.yaml up -d
 
 # Rebuild proxy only (frontend)
 ./scripts/dev_docker.sh up --mode dev --build proxy
@@ -372,7 +374,7 @@ If you find anything weird or have questions, open an issue :paperclip:
 Bug? :bug: Improvement idea? :bulb:
 
 - Open a GitHub issue.
-- Include version (`v0.13.0-beta.4` or tag), environment, and reproduction steps.
+- Include version (`v0.13.0-beta.5` or tag), environment, and reproduction steps.
 
 ## Legal notice
 

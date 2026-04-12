@@ -3,7 +3,8 @@
 ---
 
 <p align="center">
-  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.3"><img src="https://img.shields.io/badge/release-v0.13.0--beta.3-005AA4?style=for-the-badge" alt="Release"></a>
+release/v0.13.0-beta.4
+  <a href="https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4"><img src="https://img.shields.io/badge/release-v0.13.0--beta.4-005AA4?style=for-the-badge" alt="Release"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/runtime-docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2E7D32?style=for-the-badge" alt="License"></a>
 </p>
@@ -54,7 +55,6 @@ Do not forget the YouTubers you like. They still need your direct support (subsc
 - [Usage](#usage)
 - [First access (recommended flow)](#first-access-recommended-flow)
 - [Login from other devices (passkey or code)](#login-from-other-devices-passkey-or-code)
-- [Minimum configuration (`backend/.env`)](#minimum-configuration-backendenv)
 - [OAuth without headaches](#oauth-without-headaches)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
@@ -88,14 +88,40 @@ Do not forget the YouTubers you like. They still need your direct support (subsc
 
 The recommended way is Docker Compose.
 
+Storage modes (choose one):
+
+1. Docker named volumes (no host folder management)
+- No need to create host folders.
+- Compose uses Docker-managed volumes (`ytcv_data`, `ytcv_logs`).
+
+2. Host persistent folders (recommended on Synology)
+- Create host folders, for example:
+
+```text
+/volume1/docker/ytclearview/
+  ├─ data/
+  └─ logs/
+```
+
+- Then map them as bind mounts in compose:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - /volume1/docker/ytclearview/data:/data
+      - /volume1/docker/ytclearview/logs:/logs
+```
+
 Release and images:
-- Release: `v0.13.0-beta.3` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.3>
+release/v0.13.0-beta.4
+- Release: `v0.13.0-beta.4` -> <https://github.com/gotxe/youtube-clear-view/releases/tag/v0.13.0-beta.4>
 - Backend image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-backend>
 - Proxy image: <https://github.com/gotxe/youtube-clear-view/pkgs/container/ytcv-proxy>
 - Pull example:
 ```bash
-docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.3
-docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.3
+docker pull ghcr.io/gotxe/ytcv-backend:v0.13.0-beta.4
+docker pull ghcr.io/gotxe/ytcv-proxy:v0.13.0-beta.4
 ```
 
 ### 1) Prepare Google Cloud (quick searches)
@@ -119,12 +145,16 @@ No local build, using GHCR images.
 
 #### Step A: prepare your `.env`
 
+Templates:
+- [backend/.env.prod.example](backend/.env.prod.example)
+- [backend/.env.dev.example](backend/.env.dev.example)
+
 You have two options:
 
 1. If you **cloned the full repo**:
 
 ```bash
-cp backend/.env.example backend/.env
+cp backend/.env.prod.example backend/.env
 ```
 
 2. If you **did NOT clone the repo** (for example, you use your own `docker-compose.yml`):
@@ -160,6 +190,24 @@ Options for `GOOGLE_REDIRECT_URI` `FRONTEND_URL` `CORS_ORIGINS` (choose one):
 - If frontend and API live on different domains, add both origins in `CORS_ORIGINS`:
   - `CORS_ORIGINS=https://your-frontend,https://your-api`
 
+Minimum required values before starting Docker Compose:
+
+- `FLASK_SECRET_KEY`
+- `AUTH_TOKEN_ENCRYPTION_KEY`
+- `YT_API_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+- `FRONTEND_URL`
+- `CORS_ORIGINS`
+
+Generate secrets with Python:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
 #### Step B: start with your compose
 
 The stack runs:
@@ -169,19 +217,19 @@ The stack runs:
 Example if you use the repo (`infra/compose/compose.yaml`):
 
 ```bash
-YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 You can customize startup with variables:
 
-- `YTCV_TAG`: image version (`v0.13.0-beta.3`, `latest`, etc.).
+- `YTCV_TAG`: image version (`v0.13.0-beta.4`, `latest`, etc.).
 - `YTCV_HTTP_PORT`: public port (default `8080`).
 
 Examples:
 
 ```bash
 # Port 8090
-YTCV_TAG=v0.13.0-beta.3 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.4 YTCV_HTTP_PORT=8090 docker compose -f infra/compose/compose.yaml up -d
 ```
 
 Basic equivalent compose example (if you want your own):
@@ -252,7 +300,7 @@ Note:
 Local build from repo for development and PRs.
 
 ```bash
-cp backend/.env.example backend/.env
+cp backend/.env.dev.example backend/.env
 # Edit backend/.env
 ./scripts/dev_docker.sh up --mode dev --build
 ```
@@ -267,11 +315,11 @@ docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml u
 
 ```bash
 # Change public port
-YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
+YTCV_HTTP_PORT=8081 YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
 
 # Update standard install
-YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml pull
-YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
+YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml pull
+YTCV_TAG=v0.13.0-beta.4 docker compose -f infra/compose/compose.yaml up -d
 
 # Rebuild proxy only (frontend)
 ./scripts/dev_docker.sh up --mode dev --build proxy
@@ -284,25 +332,6 @@ YTCV_TAG=v0.13.0-beta.3 docker compose -f infra/compose/compose.yaml up -d
 For frontend devs: watch browser cache. If you change frontend and do not bump `CACHE_VERSION` in `frontend/sw.js`, your browser may keep serving the old frontend from cache and make you think your changes did not work. Always rebuild `proxy` and bump `CACHE_VERSION` after frontend changes.
 > The web app has a service worker and JS update notice. Click to load the new version.
 > Otherwise, the browser may serve an old version and drive you crazy 🙃
-
-## Minimum configuration (`backend/.env`)
-
-You need at least:
-
-- `FLASK_SECRET_KEY`
-- `AUTH_MODE=google`
-- `YT_API_KEY`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI`
-- `FRONTEND_URL`
-- `CORS_ORIGINS`
-
-Recommended local values:
-
-- `GOOGLE_REDIRECT_URI=http://localhost:5550/api/auth/google/callback`
-- `FRONTEND_URL=http://localhost:8080`
-- `CORS_ORIGINS=http://localhost:8080,http://localhost:5550`
 
 ## OAuth without headaches
 
@@ -343,7 +372,7 @@ If you find anything weird or have questions, open an issue :paperclip:
 Bug? :bug: Improvement idea? :bulb:
 
 - Open a GitHub issue.
-- Include version (`v0.13.0-beta.3` or tag), environment, and reproduction steps.
+- Include version (`v0.13.0-beta.4` or tag), environment, and reproduction steps.
 
 ## Legal notice
 

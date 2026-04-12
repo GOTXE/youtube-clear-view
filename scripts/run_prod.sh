@@ -17,7 +17,7 @@ cleanup_old_logs "${ROOT_DIR}/logs/app_run" 30
 
 # Check for .env file
 if [ ! -f "backend/.env" ]; then
-    log_error "Missing backend/.env. Copy backend/.env.example and fill it first."
+    log_error "Missing backend/.env. Copy backend/.env.prod.example and fill it first."
     finalize_run_log 1
     exit 1
 fi

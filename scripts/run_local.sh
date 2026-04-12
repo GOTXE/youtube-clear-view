@@ -17,7 +17,7 @@ cleanup_old_logs "${ROOT_DIR}/logs/app_run" 30
 
 # Check for .env file
 if [ ! -f "backend/.env" ]; then
-    cp "backend/.env.example" "backend/.env"
+    cp "backend/.env.dev.example" "backend/.env"
     log_warn "Created backend/.env from example"
     log_error "Update FLASK_SECRET_KEY and CORS_ORIGINS=http://localhost:8080"
     log_error "Set YT_API_KEY or FLASK_DEBUG=true for local use."

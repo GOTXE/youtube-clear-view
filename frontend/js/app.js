@@ -3,6 +3,7 @@
 // Registro del service worker para soporte PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
+    const hadControllerAtLoad = Boolean(navigator.serviceWorker.controller);
     let refreshing = false;
     let userAcceptedUpdate = false;
     let updateReady = false;
@@ -41,6 +42,11 @@ if ('serviceWorker' in navigator) {
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) {
+        return;
+      }
+      // First service worker install also triggers controllerchange.
+      // Only surface an update if there was already a controller before.
+      if (!hadControllerAtLoad) {
         return;
       }
       if (!userAcceptedUpdate) {

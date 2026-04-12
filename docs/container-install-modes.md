@@ -110,7 +110,7 @@ Required keys:
 
 ### 7.1 Normal user (prod)
 
-1. Create `backend/.env` from `backend/.env.example`.
+1. Create `backend/.env` from `backend/.env.prod.example`.
 2. Set Google/API variables.
 3. Choose callback mode (`localhost` or external HTTPS).
 4. Start with prod compose.
@@ -118,7 +118,7 @@ Required keys:
 ### 7.2 Contributor (dev)
 
 1. Clone repository.
-2. Create `backend/.env` from `backend/.env.example`.
+2. Create `backend/.env` from `backend/.env.prod.example`.
 3. Set Google/API variables (usually localhost callback).
 4. Start with dev override compose and local build (direct compose command or repository helper script).
 5. Edit, test, submit PR.

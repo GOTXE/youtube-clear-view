@@ -9,7 +9,7 @@ pip install -r backend/requirements-dev.txt
 cd frontend && npm install
 ```
 
-Create `.env` in `backend/` based on `.env.example`.
+Create `.env` in `backend/` based on `.env.dev.example`.
 
 ## Run the App Locally
 
@@ -76,7 +76,7 @@ YTCV_HTTP_PORT=8081 YTCV_BACKEND_BUILD_ID=v0.10.0 \
 docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml up -d backend proxy
 ```
 
-Relevant refresh governance knobs in `backend/.env` / `.env.example`:
+Relevant refresh governance knobs in `backend/.env` / `.env.dev.example`:
 - `MANUAL_REFRESH_FULL_COOLDOWN_SECONDS`
 - `MANUAL_REFRESH_CHANNEL_COOLDOWN_SECONDS`
 - `VIDEO_REFRESH_MODE`
